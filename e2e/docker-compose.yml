@@ -1,0 +1,8 @@
+services:
+  e2e:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile
+    volumes:
+      - ..:/app
+    working_dir: /app
