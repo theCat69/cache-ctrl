@@ -2,8 +2,10 @@ import { readFile, writeFile, rename, stat, unlink, readdir, mkdir } from "node:
 import { open } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { randomBytes } from "node:crypto";
-import type { AgentType, ExternalCacheFile, LocalCacheFile } from "../types/cache.js";
+import type { AgentType, CacheEntry, ExternalCacheFile, LocalCacheFile } from "../types/cache.js";
+import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { getFileStem } from "../utils/fileStem.js";
 
 const LOCK_RETRY_INTERVAL_MS = 50;
 const LOCK_TIMEOUT_MS = 5000;
@@ -114,6 +116,45 @@ export async function listCacheFiles(agent: AgentType, repoRoot: string): Promis
     }
     return { ok: false, error: `Failed to list cache directory: ${error.message}`, code: ErrorCode.FILE_READ_ERROR };
   }
+}
+
+/**
+ * Loads all valid external cache entries for a repo, returning a `CacheEntry` array.
+ * Files that cannot be read or fail schema validation are skipped with a warning to stderr.
+ * Returns `ok: false` only when the cache directory itself cannot be listed.
+ */
+export async function loadExternalCacheEntries(repoRoot: string): Promise<Result<CacheEntry[]>> {
+  const filesResult = await listCacheFiles("external", repoRoot);
+  if (!filesResult.ok) return filesResult;
+
+  const entries: CacheEntry[] = [];
+  for (const filePath of filesResult.value) {
+    const readResult = await readCache(filePath);
+    if (!readResult.ok) {
+      process.stderr.write(`[cache-ctrl] Warning: skipping invalid JSON file: ${filePath}\n`);
+      continue;
+    }
+    const parseResult = ExternalCacheFileSchema.safeParse(readResult.value);
+    if (!parseResult.success) {
+      process.stderr.write(`[cache-ctrl] Warning: skipping malformed external cache file: ${filePath}\n`);
+      continue;
+    }
+    const data: ExternalCacheFile = parseResult.data;
+    const stem = getFileStem(filePath);
+    const subject = data.subject ?? stem;
+    if (subject !== stem) {
+      process.stderr.write(`[cache-ctrl] Warning: subject "${subject}" does not match file stem "${stem}" in ${filePath}\n`);
+    }
+    entries.push({
+      file: filePath,
+      agent: "external",
+      subject,
+      description: data.description,
+      fetched_at: data.fetched_at ?? "",
+    });
+  }
+
+  return { ok: true, value: entries };
 }
 
 export async function acquireLock(filePath: string): Promise<Result<void>> {

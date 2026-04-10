@@ -1,9 +1,8 @@
-import { findRepoRoot, listCacheFiles, readCache } from "../cache/cacheManager.js";
-import { getFileStem } from "../cache/externalCache.js";
+import { findRepoRoot, loadExternalCacheEntries, readCache } from "../cache/cacheManager.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { rankResults } from "../search/keywordSearch.js";
 import type { CacheEntry } from "../types/cache.js";
-import { ExternalCacheFileSchema, LocalCacheFileSchema } from "../types/cache.js";
+import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { SearchArgs, SearchResult } from "../types/commands.js";
 
@@ -13,32 +12,9 @@ export async function searchCommand(args: SearchArgs): Promise<Result<SearchResu
     const entries: CacheEntry[] = [];
 
     // Collect external entries
-    const externalFilesResult = await listCacheFiles("external", repoRoot);
-    if (!externalFilesResult.ok) return externalFilesResult;
-
-    for (const filePath of externalFilesResult.value) {
-      const readResult = await readCache(filePath);
-      if (!readResult.ok) {
-        process.stderr.write(`[cache-ctrl] Warning: skipping invalid JSON file: ${filePath}\n`);
-        continue;
-      }
-      const parseResult = ExternalCacheFileSchema.safeParse(readResult.value);
-      if (!parseResult.success) {
-        process.stderr.write(`[cache-ctrl] Warning: skipping malformed external cache file: ${filePath}\n`);
-        continue;
-      }
-      const data = parseResult.data;
-      const stem = getFileStem(filePath);
-      const subject = data.subject ?? stem;
-
-      entries.push({
-        file: filePath,
-        agent: "external",
-        subject,
-        description: data.description,
-        fetched_at: data.fetched_at ?? "",
-      });
-    }
+    const externalEntriesResult = await loadExternalCacheEntries(repoRoot);
+    if (!externalEntriesResult.ok) return externalEntriesResult;
+    entries.push(...externalEntriesResult.value);
 
     // Collect local entry
     const localPath = resolveLocalCachePath(repoRoot);

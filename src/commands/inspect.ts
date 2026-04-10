@@ -1,7 +1,6 @@
 import { normalize } from "node:path";
 
-import { findRepoRoot, listCacheFiles, readCache } from "../cache/cacheManager.js";
-import { getFileStem } from "../cache/externalCache.js";
+import { findRepoRoot, loadExternalCacheEntries, readCache } from "../cache/cacheManager.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { scoreEntry } from "../search/keywordSearch.js";
 import type { CacheEntry, ExternalCacheFile, LocalCacheFile } from "../types/cache.js";
@@ -56,34 +55,15 @@ export async function inspectCommand(args: InspectArgs): Promise<Result<InspectR
     const candidates: Array<{ entry: CacheEntry; content: ExternalCacheFile | LocalCacheFile; file: string }> = [];
 
     if (args.agent === "external") {
-      const filesResult = await listCacheFiles("external", repoRoot);
-      if (!filesResult.ok) return filesResult;
+      const entriesResult = await loadExternalCacheEntries(repoRoot);
+      if (!entriesResult.ok) return entriesResult;
 
-      for (const filePath of filesResult.value) {
-        const readResult = await readCache(filePath);
+      for (const entry of entriesResult.value) {
+        const readResult = await readCache(entry.file);
         if (!readResult.ok) continue;
-
         const parseResult = ExternalCacheFileSchema.safeParse(readResult.value);
-        if (!parseResult.success) {
-          process.stderr.write(`[cache-ctrl] Warning: skipping malformed external cache file: ${filePath}\n`);
-          continue;
-        }
-        const data = parseResult.data;
-        const stem = getFileStem(filePath);
-        const subject = data.subject ?? stem;
-
-        if (subject !== stem) {
-          process.stderr.write(`[cache-ctrl] Warning: subject "${subject}" does not match file stem "${stem}"\n`);
-        }
-
-        const entry: CacheEntry = {
-          file: filePath,
-          agent: "external",
-          subject,
-          description: data.description,
-          fetched_at: data.fetched_at ?? "",
-        };
-        candidates.push({ entry, content: data, file: filePath });
+        if (!parseResult.success) continue;
+        candidates.push({ entry, content: parseResult.data, file: entry.file });
       }
     } else {
       const localPath = resolveLocalCachePath(repoRoot);

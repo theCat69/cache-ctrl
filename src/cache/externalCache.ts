@@ -7,8 +7,6 @@ import { readCache, listCacheFiles } from "./cacheManager.js";
 import { scoreEntry } from "../search/keywordSearch.js";
 import { getFileStem } from "../utils/fileStem.js";
 
-export { getFileStem };
-
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export function resolveExternalCacheDir(repoRoot: string): string {
