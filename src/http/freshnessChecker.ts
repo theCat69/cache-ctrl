@@ -19,20 +19,20 @@ export interface FreshnessCheckOutput {
  *
  * Covers:
  *   - 127.x          loopback IPv4
- *   - ::1            loopback IPv6
+ *   - ::1            loopback IPv6 (URL.hostname returns "[::1]")
  *   - localhost      loopback hostname
  *   - 10.x           RFC-1918 class A
  *   - 169.254.x      link-local IPv4
  *   - 172.16–31.x    RFC-1918 class B
  *   - 192.168.x      RFC-1918 class C
  *   - 0.0.0.0        unspecified IPv4
- *   - fc00::/7       RFC-4193 unique-local IPv6 (ULA — fc or fd followed by hex digits and colon)
+ *   - fc00::/7       RFC-4193 unique-local IPv6 (ULA — fc or fd prefix)
  *   - ::ffff:        IPv4-mapped IPv6
  */
 const PRIVATE_IP_PATTERN =
-  /^(127\.|::1$|localhost$|10\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.0\.0\.0$|::ffff:|f[cd][0-9a-f]{0,2}:)/i;
+  /^(127\.|localhost$|10\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.0\.0\.0$|\[::1\]$|::1$|::ffff:|f[cd][0-9a-f]{0,2}:|\[f[cd][0-9a-f]{0,2}:)/i;
 
-function isAllowedUrl(url: string): { allowed: boolean; reason?: string } {
+export function isAllowedUrl(url: string): { allowed: boolean; reason?: string } {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {

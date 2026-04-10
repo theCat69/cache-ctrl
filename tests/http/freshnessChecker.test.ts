@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { checkFreshness } from "../../src/http/freshnessChecker.js";
+import { checkFreshness, isAllowedUrl } from "../../src/http/freshnessChecker.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -143,5 +143,53 @@ describe("checkFreshness", () => {
     expect(result.status).toBe("fresh");
     // Should not update etag on 304
     expect(result.etag).toBeUndefined();
+  });
+});
+
+describe("isAllowedUrl (SSRF guard)", () => {
+  it("blocks loopback IPv4 (127.0.0.1)", () => {
+    const result = isAllowedUrl("http://127.0.0.1/secret");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("private/loopback");
+  });
+
+  it("blocks loopback IPv6 (::1)", () => {
+    const result = isAllowedUrl("http://[::1]/secret");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("private/loopback");
+  });
+
+  it("blocks RFC-1918 class A (10.0.0.1)", () => {
+    const result = isAllowedUrl("http://10.0.0.1/internal");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("private/loopback");
+  });
+
+  it("blocks RFC-1918 class B (172.16.0.1)", () => {
+    const result = isAllowedUrl("http://172.16.0.1/internal");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("private/loopback");
+  });
+
+  it("blocks RFC-1918 class C (192.168.1.1)", () => {
+    const result = isAllowedUrl("http://192.168.1.1/internal");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("private/loopback");
+  });
+
+  it("blocks IPv6 ULA (fc00::1)", () => {
+    const result = isAllowedUrl("http://[fc00::1]/internal");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("private/loopback");
+  });
+
+  it("allows public HTTPS URL", () => {
+    const result = isAllowedUrl("https://api.example.com/data");
+    expect(result.allowed).toBe(true);
+  });
+
+  it("allows plain HTTP to public host", () => {
+    const result = isAllowedUrl("http://api.example.com/data");
+    expect(result.allowed).toBe(true);
   });
 });

@@ -301,7 +301,7 @@ async function main(): Promise<void> {
     }
     case "list": {
       const agentArg = typeof flags.agent === "string" ? flags.agent : undefined;
-      const validAgents = ["external", "local", "all", undefined];
+      const validAgents: (string | undefined)[] = ["external", "local", "all", undefined];
       if (!validAgents.includes(agentArg)) {
         usageError(`Invalid --agent value: "${agentArg}". Must be external, local, or all`);
       }

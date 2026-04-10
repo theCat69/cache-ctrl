@@ -16,6 +16,11 @@ function withServerTime(result: unknown): string {
   return JSON.stringify({ ...base, server_time: new Date().toISOString() });
 }
 
+function handleUnknownError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return withServerTime({ ok: false, error: message, code: ErrorCode.UNKNOWN });
+}
+
 export const search = tool({
   description: "Search all cache entries by keyword. Returns ranked list with agent type, subject, description, and staleness info.",
   args: {
@@ -26,8 +31,7 @@ export const search = tool({
       const result = await searchCommand({ keywords: args.keywords });
       return withServerTime(result);
     } catch (err) {
-      const error = err as Error;
-      return withServerTime({ ok: false, error: error.message, code: ErrorCode.UNKNOWN });
+      return handleUnknownError(err);
     }
   },
 });
@@ -42,8 +46,7 @@ export const list = tool({
       const result = await listCommand({ agent: args.agent });
       return withServerTime(result);
     } catch (err) {
-      const error = err as Error;
-      return withServerTime({ ok: false, error: error.message, code: ErrorCode.UNKNOWN });
+      return handleUnknownError(err);
     }
   },
 });
@@ -69,8 +72,7 @@ export const inspect = tool({
       });
       return withServerTime(result);
     } catch (err) {
-      const error = err as Error;
-      return withServerTime({ ok: false, error: error.message, code: ErrorCode.UNKNOWN });
+      return handleUnknownError(err);
     }
   },
 });
@@ -89,8 +91,7 @@ export const invalidate = tool({
       });
       return withServerTime(result);
     } catch (err) {
-      const error = err as Error;
-      return withServerTime({ ok: false, error: error.message, code: ErrorCode.UNKNOWN });
+      return handleUnknownError(err);
     }
   },
 });
@@ -109,8 +110,7 @@ export const check_freshness = tool({
       });
       return withServerTime(result);
     } catch (err) {
-      const error = err as Error;
-      return withServerTime({ ok: false, error: error.message, code: ErrorCode.UNKNOWN });
+      return handleUnknownError(err);
     }
   },
 });
@@ -124,8 +124,7 @@ export const check_files = tool({
       const result = await checkFilesCommand();
       return withServerTime(result);
     } catch (err) {
-      const error = err as Error;
-      return withServerTime({ ok: false, error: error.message, code: ErrorCode.UNKNOWN });
+      return handleUnknownError(err);
     }
   },
 });
@@ -147,8 +146,7 @@ export const write = tool({
       });
       return withServerTime(result);
     } catch (err) {
-      const error = err as Error;
-      return withServerTime({ ok: false, error: error.message, code: ErrorCode.UNKNOWN });
+      return handleUnknownError(err);
     }
   },
 });

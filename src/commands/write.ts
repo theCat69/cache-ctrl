@@ -3,7 +3,7 @@ import { ExternalCacheFileSchema, LocalCacheFileSchema } from "../types/cache.js
 import { ErrorCode, type Result } from "../types/result.js";
 import type { WriteArgs, WriteResult } from "../types/commands.js";
 import { writeCache, findRepoRoot, resolveCacheDir, readCache } from "../cache/cacheManager.js";
-import { validateSubject } from "../utils/validate.js";
+import { validateSubject, formatZodError } from "../utils/validate.js";
 import { resolveTrackedFileStats, filterExistingFiles } from "../files/changeDetector.js";
 import type { TrackedFile } from "../types/cache.js";
 import { TrackedFileSchema } from "../types/cache.js";
@@ -44,13 +44,7 @@ export async function writeCommand(args: WriteArgs): Promise<Result<WriteResult[
       // validate against ExternalCacheFileSchema
       const parsed = ExternalCacheFileSchema.safeParse(contentWithSubject);
       if (!parsed.success) {
-        const message = parsed.error.issues
-          .map((i) => {
-            if (i.path.length === 0) return i.message;
-            const pathStr = i.path.map((seg) => String(seg).replace(/[\x00-\x1f\x7f]/g, "?")).join(".");
-            return `${pathStr}: ${i.message}`;
-          })
-          .join("; ");
+        const message = formatZodError(parsed.error);
         return { ok: false, error: `Validation failed: ${message}`, code: ErrorCode.VALIDATION_ERROR };
       }
 
@@ -67,7 +61,7 @@ export async function writeCommand(args: WriteArgs): Promise<Result<WriteResult[
     // Resolve real mtimes for submitted tracked_files if present
     const rawTrackedFiles = contentWithTimestamp["tracked_files"];
     let survivingSubmitted: TrackedFile[] = [];
-    let submittedPathsForGuard = new Set<string>();
+    let guardedPaths = new Set<string>();
 
     if (Array.isArray(rawTrackedFiles)) {
       const validEntries = rawTrackedFiles
@@ -79,7 +73,7 @@ export async function writeCommand(args: WriteArgs): Promise<Result<WriteResult[
         )
         .map((entry) => ({ path: entry.path }));
 
-      submittedPathsForGuard = new Set(validEntries.map((e) => e.path));
+      guardedPaths = new Set(validEntries.map((e) => e.path));
 
       const resolved = await resolveTrackedFileStats(validEntries, repoRoot);
       // Evict submitted entries for files that are missing or path-traversal-rejected
@@ -95,7 +89,7 @@ export async function writeCommand(args: WriteArgs): Promise<Result<WriteResult[
       !Array.isArray(rawSubmittedFacts)
     ) {
       const violatingPaths = Object.keys(rawSubmittedFacts as Record<string, string[]>).filter(
-        (p) => !submittedPathsForGuard.has(p),
+        (p) => !guardedPaths.has(p),
       );
       if (violatingPaths.length > 0) {
         return {
@@ -158,13 +152,7 @@ export async function writeCommand(args: WriteArgs): Promise<Result<WriteResult[
 
     const parsed = LocalCacheFileSchema.safeParse(processedContent);
     if (!parsed.success) {
-      const message = parsed.error.issues
-        .map((i) => {
-          if (i.path.length === 0) return i.message;
-          const pathStr = i.path.map((seg) => String(seg).replace(/[\x00-\x1f\x7f]/g, "?")).join(".");
-          return `${pathStr}: ${i.message}`;
-        })
-        .join("; ");
+      const message = formatZodError(parsed.error);
       return { ok: false, error: `Validation failed: ${message}`, code: ErrorCode.VALIDATION_ERROR };
     }
 

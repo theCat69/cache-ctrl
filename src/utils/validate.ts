@@ -1,3 +1,5 @@
+import type { ZodError } from "zod";
+
 import { ErrorCode, type Result } from "../types/result.js";
 
 /**
@@ -9,6 +11,20 @@ const SUBJECT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
 /** Maximum allowed length for a cache subject. */
 const SUBJECT_MAX_LENGTH = 128;
+
+/**
+ * Formats a ZodError's issues into a human-readable semicolon-separated string.
+ * Each issue is prefixed with its dot-separated field path when present.
+ */
+export function formatZodError(error: ZodError): string {
+  return error.issues
+    .map((i) => {
+      if (i.path.length === 0) return i.message;
+      const pathStr = i.path.map((seg) => String(seg).replace(/[\x00-\x1f\x7f]/g, "?")).join(".");
+      return `${pathStr}: ${i.message}`;
+    })
+    .join("; ");
+}
 
 /**
  * Validates a cache subject string.

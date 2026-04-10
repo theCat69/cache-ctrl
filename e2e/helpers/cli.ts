@@ -9,6 +9,8 @@ export interface CliResult {
   exitCode: number;
 }
 
+const CLI_ENTRYPOINT = "/app/src/index.ts";
+
 /**
  * Spawns: bun /app/src/index.ts ...args
  *
@@ -22,7 +24,7 @@ export async function runCli(
   args: string[],
   options?: { cwd?: string },
 ): Promise<CliResult> {
-  const proc = Bun.spawn(["bun", "/app/src/index.ts", ...args], {
+  const proc = Bun.spawn(["bun", CLI_ENTRYPOINT, ...args], {
     cwd: options?.cwd ?? process.cwd(),
     stdout: "pipe",
     stderr: "pipe",

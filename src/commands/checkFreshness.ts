@@ -27,8 +27,7 @@ export async function checkFreshnessCommand(args: CheckFreshnessArgs): Promise<R
       return { ok: false, error: `Malformed external cache file: ${filePath}`, code: ErrorCode.PARSE_ERROR };
     }
 
-    // Cast is safe: ExternalCacheFile and ExternalCacheFileSchema produce compatible shapes
-    const cacheEntry = parseResult.data as ExternalCacheFile;
+    const cacheEntry = parseResult.data;
     const stem = getFileStem(filePath);
     const subject = cacheEntry.subject ?? stem;
 
