@@ -104,4 +104,13 @@ describe("flushCommand", () => {
     expect(result.value.count).toBe(0);
     expect(result.value.deleted).toHaveLength(0);
   });
+
+  it("returns ok:true when local cache file is absent (ENOENT silently ignored)", async () => {
+    // Do not create context.json — the local cache dir exists but the file is missing
+    const result = await flushCommand({ agent: "local", confirm: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.count).toBe(0);
+    expect(result.value.deleted).toHaveLength(0);
+  });
 });

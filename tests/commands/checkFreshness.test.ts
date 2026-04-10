@@ -204,4 +204,20 @@ describe("checkFreshnessCommand", () => {
     if (result.ok) return;
     expect(result.code).toBe("URL_NOT_FOUND");
   });
+
+  it("returns ok:true and overall:fresh when sources is empty", async () => {
+    await writeExternalCache("emptylib", {
+      subject: "emptylib",
+      description: "Library with no sources",
+      fetched_at: makeFetchedAt(1),
+      sources: [],
+      header_metadata: {},
+    });
+
+    const result = await checkFreshnessCommand({ subject: "emptylib" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sources).toHaveLength(0);
+    expect(result.value.overall).toBe("fresh");
+  });
 });

@@ -96,6 +96,23 @@ describe("cacheManager", () => {
       }
     });
 
+    it("replaces all existing content when mode is 'replace'", async () => {
+      const filePath = join(tmpDir, "replace-test.json");
+
+      // Write initial content with some keys
+      await writeCache(filePath, { subject: "original", extra_field: "keep-me", fetched_at: "2026-01-01T00:00:00Z" } as Record<string, unknown>);
+
+      // Write again with mode:'replace' — only the new keys should survive
+      const result = await writeCache(filePath, { subject: "replaced" } as Record<string, unknown>, "replace");
+      expect(result.ok).toBe(true);
+
+      const content = JSON.parse(await readFile(filePath, "utf-8")) as Record<string, unknown>;
+      expect(content.subject).toBe("replaced");
+      // Old keys must be gone — not merged in
+      expect(content.extra_field).toBeUndefined();
+      expect(content.fetched_at).toBeUndefined();
+    });
+
     it("performs read/write round-trip correctly", async () => {
       const filePath = join(tmpDir, "roundtrip.json");
       const data = { subject: "test", value: 42, nested: { a: [1, 2, 3] } };

@@ -876,6 +876,42 @@ describe("writeCommand", () => {
     expect(files[0]?.path).toBe(trackedPath);
   });
 
+  describe("facts key path traversal guard", () => {
+    it("rejects a facts key containing '../' segment that is not in tracked_files", async () => {
+      const result = await writeCommand({
+        agent: "local",
+        content: {
+          topic: "traversal test",
+          description: "facts key with traversal attempt",
+          tracked_files: [],
+          facts: { "../../etc/passwd": ["secret"] },
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
+    });
+
+    it("accepts a normal facts key that is present in submitted tracked_files", async () => {
+      const filePath = join(tmpDir, "src", "foo.ts");
+      await mkdir(join(tmpDir, "src"), { recursive: true });
+      await writeFile(filePath, "export const x = 1;");
+
+      const result = await writeCommand({
+        agent: "local",
+        content: {
+          topic: "normal key test",
+          description: "valid facts key",
+          tracked_files: [{ path: filePath }],
+          facts: { [filePath]: ["some fact about foo"] },
+        },
+      });
+
+      expect(result.ok).toBe(true);
+    });
+  });
+
   describe("local schema constraints", () => {
     it("returns VALIDATION_ERROR when a fact string exceeds 800 chars", async () => {
       const trackedPath = join(tmpDir, "constraint-fact-len.ts");

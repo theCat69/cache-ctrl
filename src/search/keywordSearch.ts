@@ -52,7 +52,7 @@ export function rankResults(entries: CacheEntry[], keywords: string[]): CacheEnt
   return matched.map((s) => ({ ...s.entry, score: s.score }));
 }
 
-function isExactWordMatch(text: string, keyword: string): boolean {
+export function isExactWordMatch(text: string, keyword: string): boolean {
   // Match whole words — split on non-alphanumeric chars
   const words = text.split(/[\s\-_./]+/);
   return words.some((word) => word === keyword);
