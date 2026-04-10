@@ -33,7 +33,7 @@ export async function checkFreshnessCommand(args: CheckFreshnessArgs): Promise<R
 
     // Determine which URLs to check
     const sources = cacheEntry.sources ?? [];
-    let urlsToCheck: Array<{ type: string; url: string; version?: string }>;
+    let urlsToCheck = sources;
 
     if (args.url) {
       const found = sources.find((s) => s.url === args.url);
@@ -63,8 +63,8 @@ export async function checkFreshnessCommand(args: CheckFreshnessArgs): Promise<R
       const stored = cacheEntry.header_metadata?.[source.url];
       const result = await checkFreshness({
         url: source.url,
-        etag: stored?.etag,
-        last_modified: stored?.last_modified,
+        ...(stored?.etag !== undefined ? { etag: stored.etag } : {}),
+        ...(stored?.last_modified !== undefined ? { last_modified: stored.last_modified } : {}),
       });
 
       sourceResults.push({

@@ -50,10 +50,11 @@ export function isAllowedUrl(url: string): { allowed: boolean; reason?: string }
 export async function checkFreshness(input: FreshnessCheckInput): Promise<FreshnessCheckOutput> {
   const allowCheck = isAllowedUrl(input.url);
   if (!allowCheck.allowed) {
+    const reason = allowCheck.reason ?? `Freshness check blocked for URL: ${input.url}`;
     return {
       url: input.url,
       status: "error",
-      error: allowCheck.reason,
+      error: reason,
     };
   }
 
@@ -90,8 +91,8 @@ export async function checkFreshness(input: FreshnessCheckInput): Promise<Freshn
         url: input.url,
         status: "stale",
         http_status: 200,
-        etag,
-        last_modified: lastModified,
+        ...(etag !== undefined ? { etag } : {}),
+        ...(lastModified !== undefined ? { last_modified: lastModified } : {}),
       };
     }
 

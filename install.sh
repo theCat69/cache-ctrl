@@ -1,4 +1,8 @@
 # install.sh — cache-ctrl tool installer
+# NOTE: For the recommended install method, use npm:
+#   npm install -g @thecat69/cache-ctrl
+#   cache-ctrl install
+# This script is for local development only (creates symlinks to the repo).
 #
 # NOTE: No shebang by design — kept for shell compatibility across environments.
 #       Always invoke explicitly: zsh install.sh

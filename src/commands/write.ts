@@ -56,7 +56,10 @@ export async function writeCommand(args: WriteArgs): Promise<Result<WriteResult[
     }
 
     // local — auto-inject server-side timestamp; agent must not control this field
-    const contentWithTimestamp = { ...args.content, timestamp: new Date().toISOString() };
+    const contentWithTimestamp: Record<string, unknown> = {
+      ...args.content,
+      timestamp: new Date().toISOString(),
+    };
 
     // Resolve real mtimes for submitted tracked_files if present
     const rawTrackedFiles = contentWithTimestamp["tracked_files"];

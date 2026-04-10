@@ -9,6 +9,7 @@ import { checkFreshnessCommand } from "./commands/checkFreshness.js";
 import { checkFilesCommand } from "./commands/checkFiles.js";
 import { searchCommand } from "./commands/search.js";
 import { writeCommand } from "./commands/write.js";
+import { installCommand } from "./commands/install.js";
 import { ErrorCode } from "./types/result.js";
 
 type CommandName =
@@ -21,7 +22,8 @@ type CommandName =
   | "check-freshness"
   | "check-files"
   | "search"
-  | "write";
+  | "write"
+  | "install";
 
 function isKnownCommand(cmd: string): cmd is CommandName {
   return Object.hasOwn(COMMAND_HELP as Record<string, unknown>, cmd);
@@ -164,6 +166,19 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "  Output: Confirmation with the written entry's key.",
     ].join("\n"),
   },
+  install: {
+    usage: "install [--config-dir <path>]",
+    description: "Set up OpenCode tool and skills in the user config directory",
+    details: [
+      "  Arguments:",
+      "    (none)",
+      "",
+      "  Options:",
+      "    --config-dir <path>  Override the OpenCode config directory (default: platform-specific)",
+      "",
+      "  Output: JSON object describing installed tool/skill paths.",
+    ].join("\n"),
+  },
 };
 
 const GLOBAL_OPTIONS_SECTION = [
@@ -250,7 +265,7 @@ function usageError(message: string): never {
 export { usageError };
 
 /** Flags that consume the following token as their value. Boolean flags must NOT appear here. */
-const VALUE_FLAGS = new Set(["data", "agent", "url", "max-age", "filter", "folder", "search-facts"]);
+const VALUE_FLAGS = new Set(["data", "agent", "url", "max-age", "filter", "folder", "search-facts", "config-dir"]);
 
 export function parseArgs(argv: string[]): { args: string[]; flags: Record<string, string | boolean> } {
   const positional: string[] = [];
@@ -290,7 +305,7 @@ async function main(): Promise<void> {
 
   const command = args[0];
   if (!command) {
-    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write");
+    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install");
   }
 
   switch (command) {
@@ -305,7 +320,9 @@ async function main(): Promise<void> {
       if (!validAgents.includes(agentArg)) {
         usageError(`Invalid --agent value: "${agentArg}". Must be external, local, or all`);
       }
-      const result = await listCommand({ agent: agentArg as "external" | "local" | "all" | undefined });
+      const result = await listCommand({
+        ...(agentArg !== undefined ? { agent: agentArg as "external" | "local" | "all" } : {}),
+      });
       if (result.ok) {
         printResult(result, pretty);
       } else {
@@ -426,8 +443,8 @@ async function main(): Promise<void> {
       const maxAge = typeof flags["max-age"] === "string" ? flags["max-age"] : undefined;
       const doDelete = flags.delete === true;
       const result = await pruneCommand({
-        agent: agentArg as "external" | "local" | "all" | undefined,
-        maxAge,
+        ...(agentArg !== undefined ? { agent: agentArg as "external" | "local" | "all" } : {}),
+        ...(maxAge !== undefined ? { maxAge } : {}),
         delete: doDelete,
       });
       if (result.ok) {
@@ -500,7 +517,23 @@ async function main(): Promise<void> {
         usageError("--data must be valid JSON");
       }
       const subject = agent === "external" ? args[2] : undefined;
-      const result = await writeCommand({ agent, subject, content });
+      const result = await writeCommand({
+        agent,
+        ...(subject !== undefined ? { subject } : {}),
+        content,
+      });
+      if (result.ok) {
+        printResult(result, pretty);
+      } else {
+        printError(result, pretty);
+        process.exit(1);
+      }
+      break;
+    }
+
+    case "install": {
+      const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
+      const result = await installCommand({ ...(configDir !== undefined ? { configDir } : {}) });
       if (result.ok) {
         printResult(result, pretty);
       } else {
@@ -511,7 +544,7 @@ async function main(): Promise<void> {
     }
 
     default:
-      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write`);
+      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install`);
   }
 }
 

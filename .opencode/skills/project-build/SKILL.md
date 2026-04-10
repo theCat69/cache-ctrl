@@ -58,11 +58,20 @@ This validates the entire codebase (`src/`, `cache_ctrl.ts`, `tests/`, `e2e/`) w
 
 ### Installation
 
+**End-user (recommended):**
+
+```bash
+npm install -g @thecat69/cache-ctrl
+cache-ctrl install          # configures OpenCode integration
+```
+
+**Local development (from source):**
+
 ```bash
 bash install.sh
 ```
 
-`install.sh` installs the `cache-ctrl` binary to a location on `$PATH`. Inspect this script before running in restricted environments.
+`install.sh` creates symlinks for local development only. For end-user distribution, use `npm install -g @thecat69/cache-ctrl`. `cache-ctrl install` writes the OpenCode tool wrapper and copies skill files into the OpenCode config directory.
 
 ---
 

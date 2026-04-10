@@ -178,3 +178,15 @@ export type WriteResult = {
     file: string;
   };
 };
+
+// ── install ───────────────────────────────────────────────────────────────────
+
+export interface InstallArgs {
+  configDir?: string;
+}
+
+export interface InstallResult {
+  toolPath: string;
+  skillPaths: string[];
+  configDir: string;
+}

@@ -1,5 +1,4 @@
 import { tool } from "@opencode-ai/plugin";
-import { z } from "zod";
 import { listCommand } from "./src/commands/list.js";
 import { inspectCommand } from "./src/commands/inspect.js";
 import { invalidateCommand } from "./src/commands/invalidate.js";
@@ -8,6 +7,8 @@ import { checkFilesCommand } from "./src/commands/checkFiles.js";
 import { searchCommand } from "./src/commands/search.js";
 import { writeCommand } from "./src/commands/write.js";
 import { ErrorCode } from "./src/types/result.js";
+
+const z = tool.schema;
 
 const AgentRequiredSchema = z.enum(["external", "local"]);
 
@@ -141,7 +142,7 @@ export const write = tool({
     try {
       const result = await writeCommand({
         agent: args.agent,
-        subject: args.subject,
+        ...(args.subject !== undefined ? { subject: args.subject } : {}),
         content: args.content,
       });
       return withServerTime(result);

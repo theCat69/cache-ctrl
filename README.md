@@ -6,7 +6,22 @@ It handles advisory locking for safe concurrent writes, keyword search across al
 
 ---
 
-## Installation
+## Quick Start
+
+### npm (recommended)
+
+```sh
+npm install -g @thecat69/cache-ctrl
+cache-ctrl install
+```
+
+`cache-ctrl install` configures the OpenCode integration in one step:
+- Writes an OpenCode tool wrapper at `~/.config/opencode/tools/cache_ctrl.ts` (Linux/macOS) or `%APPDATA%\opencode\tools\cache_ctrl.ts` (Windows).
+- Copies 3 skill SKILL.md files to `~/.config/opencode/skills/`.
+
+**Prerequisites**: `bun` ≥ 1.0.0 must be in `PATH` (Bun executes the TypeScript files natively — no build step).
+
+### Local development (from source)
 
 Run from inside the `cache-ctrl/` directory:
 
@@ -16,9 +31,9 @@ zsh install.sh
 
 This creates two symlinks:
 - `~/.local/bin/cache-ctrl` → `src/index.ts` — global CLI command (executed directly by Bun)
-- `.opencode/tools/cache-ctrl.ts` → `cache_ctrl.ts` — auto-discovered by opencode as a native plugin
+- `.opencode/tools/cache-ctrl.ts` → `cache_ctrl.ts` — auto-discovered by OpenCode as a native plugin
 
-**Prerequisites**: `bun` must be in `PATH`. `~/.local/bin` must be in your `PATH` (it is by default on this setup).
+`install.sh` is for local development only. For end-user installation, use `npm install -g @thecat69/cache-ctrl`.
 
 ---
 
@@ -66,6 +81,51 @@ src/index.ts              cache_ctrl.ts
 **Output format**: JSON (single line) by default. Add `--pretty` to any command for indented output.  
 **Errors**: Written to stderr as `{ "ok": false, "error": "...", "code": "..." }`. Exit code `1` on error, `2` on bad arguments.  
 **Help**: Run `cache-ctrl --help` or `cache-ctrl help` for the full command reference. Run `cache-ctrl help <command>` for per-command usage, arguments, and options. Help output is plain text written to stdout; exit code `0` on success, `1` for unknown command.
+
+---
+
+### `install`
+
+```
+cache-ctrl install [--config-dir <path>]
+```
+
+Configures OpenCode integration after `npm install -g @thecat69/cache-ctrl`. Does two things:
+
+1. **Generates an OpenCode tool wrapper** at `<opencode-config>/tools/cache_ctrl.ts` — a one-line re-export that points back to the installed package so Bun resolves all relative imports correctly.
+2. **Copies 3 skill files** (`cache-ctrl-caller`, `cache-ctrl-local`, `cache-ctrl-external`) to `<opencode-config>/skills/<name>/SKILL.md`.
+
+Both operations are idempotent — re-running `cache-ctrl install` after `npm update -g @thecat69/cache-ctrl` regenerates the wrapper with the new package path.
+
+**OpenCode config directory resolution** (in priority order):
+1. `--config-dir <path>` flag (explicit override)
+2. `$XDG_CONFIG_HOME/opencode` (Linux/macOS, if `XDG_CONFIG_HOME` is set)
+3. `~/.config/opencode` (Linux/macOS default)
+4. `%APPDATA%\opencode` (Windows)
+
+**Options:**
+
+| Flag | Description |
+|---|---|
+| `--config-dir <path>` | Override the detected OpenCode config directory |
+
+```jsonc
+// cache-ctrl install --pretty
+{
+  "ok": true,
+  "value": {
+    "configDir": "/home/user/.config/opencode",
+    "toolPath": "/home/user/.config/opencode/tools/cache_ctrl.ts",
+    "skillPaths": [
+      "/home/user/.config/opencode/skills/cache-ctrl-caller/SKILL.md",
+      "/home/user/.config/opencode/skills/cache-ctrl-local/SKILL.md",
+      "/home/user/.config/opencode/skills/cache-ctrl-external/SKILL.md"
+    ]
+  }
+}
+```
+
+**Error codes**: `FILE_WRITE_ERROR` if the tool wrapper or a skill file cannot be written.
 
 ---
 
