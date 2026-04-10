@@ -100,6 +100,7 @@ export const LocalCacheFileSchema = z.looseObject({
   tracked_files: z.array(TrackedFileSchema),
   global_facts: z.array(z.string()).optional(),                     // ← NEW
   facts: z.record(z.string(), z.array(z.string())).optional(),     // ← NEW
+  // Note: .max() constraints added post-spec — see src/types/cache.ts for current implementation.
 });
 ```
 

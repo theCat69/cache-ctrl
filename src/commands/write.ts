@@ -44,7 +44,13 @@ export async function writeCommand(args: WriteArgs): Promise<Result<WriteResult[
       // validate against ExternalCacheFileSchema
       const parsed = ExternalCacheFileSchema.safeParse(contentWithSubject);
       if (!parsed.success) {
-        const message = parsed.error.issues.map((i) => i.message).join("; ");
+        const message = parsed.error.issues
+          .map((i) => {
+            if (i.path.length === 0) return i.message;
+            const pathStr = i.path.map((seg) => String(seg).replace(/[\x00-\x1f\x7f]/g, "?")).join(".");
+            return `${pathStr}: ${i.message}`;
+          })
+          .join("; ");
         return { ok: false, error: `Validation failed: ${message}`, code: ErrorCode.VALIDATION_ERROR };
       }
 
@@ -152,7 +158,13 @@ export async function writeCommand(args: WriteArgs): Promise<Result<WriteResult[
 
     const parsed = LocalCacheFileSchema.safeParse(processedContent);
     if (!parsed.success) {
-      const message = parsed.error.issues.map((i) => i.message).join("; ");
+      const message = parsed.error.issues
+        .map((i) => {
+          if (i.path.length === 0) return i.message;
+          const pathStr = i.path.map((seg) => String(seg).replace(/[\x00-\x1f\x7f]/g, "?")).join(".");
+          return `${pathStr}: ${i.message}`;
+        })
+        .join("; ");
       return { ok: false, error: `Validation failed: ${message}`, code: ErrorCode.VALIDATION_ERROR };
     }
 

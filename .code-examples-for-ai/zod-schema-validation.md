@@ -25,8 +25,32 @@ export const LocalCacheFileSchema = z.looseObject({
   description: z.string(),
   cache_miss_reason: z.string().optional(),
   tracked_files: z.array(TrackedFileSchema),
-  global_facts: z.array(z.string()).optional(),
-  facts: z.record(z.string(), z.array(z.string())).optional(),
+  // max 20 entries; each string ≤ 300 chars
+  global_facts: z
+    .array(
+      z.string().max(300, {
+        message: "global facts must be concise cross-cutting observations (max 300 chars)",
+      }),
+    )
+    .max(20, {
+      message: "max 20 global facts — choose only cross-cutting structural observations",
+    })
+    .optional(),
+  // max 30 facts per file; each string ≤ 800 chars
+  facts: z
+    .record(
+      z.string(),
+      z
+        .array(
+          z.string().max(800, {
+            message: "write concise observations, not file content (max 800 chars per fact)",
+          }),
+        )
+        .max(30, {
+          message: "max 30 facts per file — choose the most architecturally meaningful observations",
+        }),
+    )
+    .optional(),
 });
 
 // Inferred TypeScript types from the Zod schemas — single source of truth
@@ -47,8 +71,15 @@ const contentWithSubject = { ...args.content, subject: args.subject };
 // Step 3: safeParse — never parse() which would throw
 const parsed = ExternalCacheFileSchema.safeParse(contentWithSubject);
 if (!parsed.success) {
-  // Collect all Zod issues into one human-readable string
-  const message = parsed.error.issues.map((i) => i.message).join("; ");
+  // Collect all Zod issues into one human-readable string, prefixed with the field path.
+  // Sanitize path segments to strip control characters (segments can include user-supplied keys).
+  const message = parsed.error.issues
+    .map((i) => {
+      if (i.path.length === 0) return i.message;
+      const pathStr = i.path.map((seg) => String(seg).replace(/[\x00-\x1f\x7f]/g, "?")).join(".");
+      return `${pathStr}: ${i.message}`;
+    })
+    .join("; ");
   return { ok: false, error: `Validation failed: ${message}`, code: ErrorCode.VALIDATION_ERROR };
 }
 // parsed.data is now fully typed and safe to use
@@ -73,6 +104,6 @@ const data = parseResult.data;   // fully typed ExternalCacheFile
 
 - `z.looseObject()` for cache file schemas — preserves unknown fields through atomic merge
 - `z.object()` (strict) for internal value objects like `TrackedFileSchema`
-- Always join `parsed.error.issues.map(i => i.message)` for human-readable error messages
+- Error messages include the Zod issue path: `parsed.error.issues.map(i => i.path.length > 0 ? \`${sanitizedPath}: ${i.message}\` : i.message)` — sanitize path segments with `.replace(/[\x00-\x1f\x7f]/g, "?")` before joining
 - The Zod schema is the single source of truth — derive TypeScript types from it with `z.infer<>`
 - Never trust the shape of data read from disk, even from your own files

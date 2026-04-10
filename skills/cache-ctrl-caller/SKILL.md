@@ -49,6 +49,18 @@ Check whether tracked repo files have changed since the last scan.
 **Tier 1:** Call `cache_ctrl_invalidate` with `agent: "local"`.
 **Tier 2:** `cache-ctrl invalidate local`
 
+### Post-Gather Verification
+
+After `local-context-gatherer` returns, verify it actually wrote to cache:
+
+1. Call `cache_ctrl_inspect` (agent: `"local"`, subject: `"context"`) and read the `timestamp` field from the response.
+2. Compare `timestamp` against the `server_time` value returned by the inspect call.
+3. If `timestamp` is **more than 30 seconds older than `server_time`**, the gatherer did not write to cache.
+4. Re-invoke the gatherer **once** with the explicit instruction appended: *"IMPORTANT: You MUST call `cache_ctrl_write` before returning. Your previous invocation did not update the cache (timestamp was not advanced)."*
+5. Do not retry more than once.
+
+> **Why `timestamp`, not `check-files`?** A `check-files` result of `"changed"` after a successful write is expected — it does not indicate a missing write. Only the `timestamp` advancing is a reliable signal that the write occurred.
+
 ---
 
 ## Before Calling external-context-gatherer

@@ -19,6 +19,41 @@ Three tiers of access — use the best one available.
 
 ---
 
+## Fact-Writing Rules
+
+Facts must be **concise observations** about a file — not reproductions of its content.
+
+- **Each fact string must be ≤ 300 characters** (schema hard limit: 800). If an observation needs more, split it into two facts or summarize.
+- **Max 30 facts per file.** Choose only the most architecturally meaningful observations.
+- **Never write**: raw import lines, function bodies, code snippets, or verbatim text from the file.
+- **Do write**: what the file exports, what pattern it uses, what dependencies it has, what its responsibility is.
+
+**Good fact** ✅:
+> `"Exports writeCommand — validates subject, merges per-path facts atomically, returns Result<WriteResult>"`
+
+**Bad fact** ❌:
+> `"import { ExternalCacheFileSchema, LocalCacheFileSchema } from '../types/cache.js'; import { ErrorCode, Result } from '../types/result.js'; import { WriteArgs, WriteResult } from '../types/commands.js'"` ← this is raw file content
+
+**Global facts** are for cross-cutting structural observations only (e.g. CLI entry pattern, installation steps). Max 20, each ≤ 300 chars. Only update global_facts when you re-read a structural file (AGENTS.md, install.sh, package.json, *.toml, opencode.json).
+
+---
+
+## Mandatory: Write Before Return
+
+**Every invocation must call `cache_ctrl_write` before returning.** Returning without writing is a failure — the orchestrator will detect the missing write and re-invoke you.
+
+Sequential checklist (do not skip any step):
+
+1. Call `cache_ctrl_check_files` — identify changed/new files
+2. Read only the changed/new files (skip unchanged ones)
+3. Extract concise facts per file (follow Fact-Writing Rules above)
+4. **Call `cache_ctrl_write` — MANDATORY** (even if only 1 file changed, even if only global_facts changed)
+5. Return your summary
+
+If there are no changed files, the cache already exists and is non-empty, **and you were not invoked after a cache invalidation**, you may skip the write — but only in this case.
+
+---
+
 ## Startup Workflow
 
 ### 1. Check if tracked files changed

@@ -875,4 +875,80 @@ describe("writeCommand", () => {
     expect(files).toHaveLength(1);
     expect(files[0]?.path).toBe(trackedPath);
   });
+
+  describe("local schema constraints", () => {
+    it("returns VALIDATION_ERROR when a fact string exceeds 800 chars", async () => {
+      const trackedPath = join(tmpDir, "constraint-fact-len.ts");
+      await writeFile(trackedPath, "export const x = 1;");
+
+      const result = await writeCommand({
+        agent: "local",
+        content: {
+          topic: "constraint test",
+          description: "fact string over limit",
+          tracked_files: [{ path: trackedPath }],
+          facts: { [trackedPath]: ["a".repeat(801)] },
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(result.error).toMatch(/facts\./);
+    });
+
+    it("returns VALIDATION_ERROR when facts array for a file exceeds 30 entries", async () => {
+      const trackedPath = join(tmpDir, "constraint-facts-count.ts");
+      await writeFile(trackedPath, "export const x = 1;");
+
+      const result = await writeCommand({
+        agent: "local",
+        content: {
+          topic: "constraint test",
+          description: "too many facts per file",
+          tracked_files: [{ path: trackedPath }],
+          facts: { [trackedPath]: Array.from({ length: 31 }, (_, i) => `fact ${i}`) },
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(result.error).toMatch(/facts\./);
+    });
+
+    it("returns VALIDATION_ERROR when a global_fact string exceeds 300 chars", async () => {
+      const result = await writeCommand({
+        agent: "local",
+        content: {
+          topic: "constraint test",
+          description: "global fact string over limit",
+          tracked_files: [],
+          global_facts: ["g".repeat(301)],
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(result.error).toMatch(/global_facts/);
+    });
+
+    it("returns VALIDATION_ERROR when global_facts array exceeds 20 entries", async () => {
+      const result = await writeCommand({
+        agent: "local",
+        content: {
+          topic: "constraint test",
+          description: "too many global facts",
+          tracked_files: [],
+          global_facts: Array.from({ length: 21 }, (_, i) => `global fact ${i}`),
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(result.error).toMatch(/global_facts/);
+    });
+  });
 });
