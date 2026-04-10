@@ -40,17 +40,29 @@ Facts must be **concise observations** about a file — not reproductions of its
 
 ## Mandatory: Write Before Return
 
-**Every invocation must call `cache_ctrl_write` before returning.** Returning without writing is a failure — the orchestrator will detect the missing write and re-invoke you.
+**Every invocation that reads any file MUST call `cache_ctrl_write` before returning — no exceptions, no edge cases.**
 
 Sequential checklist (do not skip any step):
 
 1. Call `cache_ctrl_check_files` — identify changed/new files
 2. Read only the changed/new files (skip unchanged ones)
 3. Extract concise facts per file (follow Fact-Writing Rules above)
-4. **Call `cache_ctrl_write` — MANDATORY** (even if only 1 file changed, even if only global_facts changed)
+4. **Call `cache_ctrl_write` — MANDATORY. NO EXCEPTIONS.** (even if only 1 file changed, even if only global_facts changed, even if you believe the facts are identical to what is cached)
 5. Return your summary
 
-If there are no changed files, the cache already exists and is non-empty, **and you were not invoked after a cache invalidation**, you may skip the write — but only in this case.
+> **⛔ Write-or-fail rule**: If you read any file in steps 2–3, you MUST call `cache_ctrl_write` in step 4. Returning without writing after reading files is a critical failure — the cache will be stale and the orchestrator will detect the missing write and re-invoke you. Even if zero files were read, you must still consult the decision table below before deciding to skip the write.
+
+**The only time you may skip `cache_ctrl_write` is when ALL of the following are true simultaneously:**
+
+| Condition | Required value |
+|---|---|
+| `changed_files` from `cache_ctrl_check_files` | empty `[]` |
+| `new_files` from `cache_ctrl_check_files` | empty `[]` |
+| No files were force-requested by the caller | true |
+| Cache already exists and is non-empty | true |
+| This invocation was NOT triggered by a cache invalidation | true |
+
+If any one of these conditions is not met, you **must** write.
 
 ---
 
