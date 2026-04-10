@@ -107,7 +107,15 @@ Use when you want to pass a cached summary to a subagent or include it inline in
 **Tier 2:** `cache-ctrl inspect external <subject>` or `cache-ctrl inspect local context --filter <kw>[,<kw>...]`
 **Tier 3:** `read` the file directly from `.ai/<agent>_cache/<subject>.json`.
 
-> **For `agent: "local"`: always pass `filter` with keywords from your current task** (e.g. `filter: ["lsp"]`). An unfiltered local inspect returns the entire facts map which may be very large. `global_facts` and all non-`tracked_files` metadata are always included regardless of filter. `tracked_files` is never returned by local inspect.
+> **For `agent: "local"`: always use at least one filter on large codebases.** Three targeting options are available — use the most specific one that fits your task:
+>
+> | Flag | What it matches | Best for |
+> |---|---|---|
+> | `filter` | File path contains keyword | When you know which files by name/path segment |
+> | `folder` | File path starts with folder prefix (recursive) | When you need all files in a directory subtree |
+> | `search_facts` | Any fact string contains keyword | When you need files related to a concept, pattern, or API |
+>
+> Unfiltered local inspect returns the **entire facts map**. This is only appropriate for codebases with ≤ ~20 tracked files. On larger codebases, always use at least one of the above.
 
 ---
 

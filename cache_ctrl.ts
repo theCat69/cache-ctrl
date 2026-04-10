@@ -49,14 +49,24 @@ export const list = tool({
 });
 
 export const inspect = tool({
-  description: "Return the full content of a specific cache entry identified by agent type and subject keyword.",
+  description:
+    "Return the full content of a specific cache entry identified by agent type and subject keyword. For local cache: prefer filter (path keyword), folder (recursive prefix), or search_facts (content keyword) for targeted results. Omitting all three returns the entire facts map — only appropriate for codebases with ≤ ~20 tracked files.",
   args: {
     agent: AgentRequiredSchema,
     subject: z.string().min(1),
+    filter: z.array(z.string()).optional(),
+    folder: z.string().min(1).max(256).optional(), // maps directly to InspectArgs.folder
+    search_facts: z.array(z.string().min(1)).min(1).optional(), // maps to InspectArgs.searchFacts (camelCase in TypeScript layer)
   },
   async execute(args) {
     try {
-      const result = await inspectCommand({ agent: args.agent, subject: args.subject });
+      const result = await inspectCommand({
+        agent: args.agent,
+        subject: args.subject,
+        ...(args.filter !== undefined ? { filter: args.filter } : {}),
+        ...(args.folder !== undefined ? { folder: args.folder } : {}),
+        ...(args.search_facts !== undefined ? { searchFacts: args.search_facts } : {}),
+      });
       return withServerTime(result);
     } catch (err) {
       const error = err as Error;

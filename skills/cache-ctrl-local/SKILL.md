@@ -179,11 +179,19 @@ Note: local entries show `is_stale: true` only when `cache_ctrl_check_files` det
 | Detect file changes | `cache_ctrl_check_files` | `cache-ctrl check-files` | read `context.json`, check `timestamp` |
 | Invalidate cache | `cache_ctrl_invalidate` | `cache-ctrl invalidate local` | overwrite file in next step |
 | Confirm written | `cache_ctrl_list` | `cache-ctrl list --agent local` | `read` file, check `timestamp` |
-| Read facts (filtered) | `cache_ctrl_inspect` with `filter` | `cache-ctrl inspect local context --filter <kw>[,<kw>...]` | `read` file, extract `facts`/`global_facts` |
+| Read facts (filtered) | `cache_ctrl_inspect` with `filter`, `folder`, or `searchFacts` | `cache-ctrl inspect local context --filter <kw>[,<kw>...]` / `--folder <path>` / `--search-facts <kw>[,<kw>...]` | `read` file, extract `facts`/`global_facts` |
 | Read all facts (rare) | `cache_ctrl_inspect` (no filter) | `cache-ctrl inspect local context` | `read` file directly |
 | Write cache | `cache_ctrl_write` | `cache-ctrl write local --data '<json>'` | ❌ not available |
 
-> **⚠ Always use `--filter` when reading facts for a specific task.** Pass keywords derived from your current goal (e.g. `filter: ["lsp"]`, `filter: ["install", "zsh"]`). Omit `--filter` only when you genuinely need facts for the entire repository (rare — e.g. building a full index). An unfiltered `inspect` on a large repo can return thousands of fact strings.
+> **⚠ Always use at least one filter when reading facts for a specific task.** Three targeting options are available — use the most specific one that fits your task:
+>
+> | Flag | What it matches | Best for |
+> |---|---|---|
+> | `--filter <kw>` | File path contains keyword | When you know which files by name/path segment |
+> | `--folder <path>` | File path starts with folder prefix (recursive) | When you need all files in a directory subtree |
+> | `--search-facts <kw>` | Any fact string contains keyword | When you need files related to a concept, pattern, or API |
+>
+> The flags are AND-ed when combined. Omit all filters only when you genuinely need facts for the entire repository (rare — e.g. building a full index; only appropriate for ≤ ~20 tracked files). An unfiltered `inspect` on a large repo can return thousands of fact strings.
 
 > **`tracked_files` is never returned by `inspect` for the local agent.** It is internal operational metadata consumed by `check-files`. It will not appear in any inspect response.
 

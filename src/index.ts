@@ -48,7 +48,7 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
     ].join("\n"),
   },
   inspect: {
-    usage: "inspect <agent> <subject-keyword>",
+    usage: "inspect <agent> <subject-keyword> [--filter <kw>] [--folder <path>] [--search-facts <kw>]",
     description: "Show full content of a cache entry",
     details: [
       "  Arguments:",
@@ -56,11 +56,16 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "    <subject-keyword>  Keyword used to locate the cache entry",
       "",
       "  Options:",
-      "    --filter <kw>[,<kw>...]   Return only facts whose file path contains any keyword",
-      "                              (local agent only; comma-separated; case-insensitive OR match)",
+      "    --filter <kw>[,<kw>...]      Return only facts whose file path contains any keyword",
+      "                                 (local agent only; comma-separated; case-insensitive OR match)",
+      "    --folder <path>              Return only facts whose file path starts with the given folder prefix",
+      "                                 (local agent only; recursive; INVALID_ARGS if used with external agent)",
+      "    --search-facts <kw>[,<kw>...]  Return only facts where any fact string contains any keyword",
+      "                                   (local agent only; comma-separated; case-insensitive OR match)",
       "",
       "  Output: Full JSON content of the matched cache entry.",
       "  Note: tracked_files is never returned for local agent inspect.",
+      "  Note: --filter, --folder, and --search-facts are AND-ed when combined.",
     ].join("\n"),
   },
   flush: {
@@ -245,7 +250,7 @@ function usageError(message: string): never {
 export { usageError };
 
 /** Flags that consume the following token as their value. Boolean flags must NOT appear here. */
-const VALUE_FLAGS = new Set(["data", "agent", "url", "max-age", "filter"]);
+const VALUE_FLAGS = new Set(["data", "agent", "url", "max-age", "filter", "folder", "search-facts"]);
 
 export function parseArgs(argv: string[]): { args: string[]; flags: Record<string, string | boolean> } {
   const positional: string[] = [];
@@ -322,9 +327,20 @@ async function main(): Promise<void> {
       if (flags.filter === true) {
         usageError("--filter requires a value: --filter <kw>[,<kw>...]");
       }
+      if (typeof flags.folder === "string" && flags.folder.trim() === "") {
+        usageError("--folder requires a non-empty value");
+      }
       const filterRaw = typeof flags.filter === "string" ? flags.filter : undefined;
       const filter = filterRaw
         ? filterRaw
+            .split(",")
+            .map((f) => f.trim())
+            .filter(Boolean)
+        : undefined;
+      const folder = typeof flags.folder === "string" ? flags.folder : undefined;
+      const searchFactsRaw = typeof flags["search-facts"] === "string" ? flags["search-facts"] : undefined;
+      const searchFacts = searchFactsRaw
+        ? searchFactsRaw
             .split(",")
             .map((f) => f.trim())
             .filter(Boolean)
@@ -333,6 +349,8 @@ async function main(): Promise<void> {
         agent,
         subject,
         ...(filter !== undefined ? { filter } : {}),
+        ...(folder !== undefined ? { folder } : {}),
+        ...(searchFacts !== undefined ? { searchFacts } : {}),
       });
       if (result.ok) {
         printResult(result, pretty);

@@ -1,3 +1,5 @@
+import { normalize } from "node:path";
+
 import { findRepoRoot, listCacheFiles, readCache } from "../cache/cacheManager.js";
 import { getFileStem } from "../cache/externalCache.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
@@ -20,6 +22,35 @@ function filterFacts(
 
 export async function inspectCommand(args: InspectArgs): Promise<Result<InspectResult["value"]>> {
   try {
+    // Step 0 — folder guard: validate before any I/O.
+    if (args.folder !== undefined) {
+      if (args.agent === "external") {
+        return {
+          ok: false,
+          error: "--folder is only supported for local cache",
+          code: ErrorCode.INVALID_ARGS,
+        };
+      }
+
+      const normalizedFolder = args.folder.replace(/\\/g, "/").replace(/\/+$/, "");
+
+      if (normalizedFolder.length === 0) {
+        return {
+          ok: false,
+          error: "--folder must not be an empty string",
+          code: ErrorCode.INVALID_ARGS,
+        };
+      }
+
+      if (normalize(normalizedFolder).split("/").includes("..")) {
+        return {
+          ok: false,
+          error: "--folder must not contain '..' path segments",
+          code: ErrorCode.INVALID_ARGS,
+        };
+      }
+    }
+
     const repoRoot = await findRepoRoot(process.cwd());
 
     const candidates: Array<{ entry: CacheEntry; content: ExternalCacheFile | LocalCacheFile; file: string }> = [];
@@ -112,8 +143,37 @@ export async function inspectCommand(args: InspectArgs): Promise<Result<InspectR
       // global_facts, topic, description, timestamp, cache_miss_reason — flow through
       // via ...rest and are always included in the response.
       const { tracked_files: _dropped, facts, ...rest } = top.content as LocalCacheFile;
-      const filteredFacts =
-        facts !== undefined ? filterFacts(facts, args.filter ?? []) : undefined;
+
+      // Step 1 — folder filter: keep only entries under the specified folder prefix.
+      let filteredFacts = facts;
+      if (filteredFacts !== undefined && args.folder !== undefined) {
+        const normalizedFolder = args.folder.replace(/\\/g, "/").replace(/\/+$/, "");
+        filteredFacts = Object.fromEntries(
+          Object.entries(filteredFacts).filter(([key]) => {
+            const normalizedPath = key.replace(/\\/g, "/");
+            return (
+              normalizedPath === normalizedFolder ||
+              normalizedPath.startsWith(normalizedFolder + "/")
+            );
+          }),
+        );
+      }
+
+      // Step 2 — path keyword filter (existing --filter logic applied to already-folder-filtered set).
+      if (filteredFacts !== undefined) {
+        filteredFacts = filterFacts(filteredFacts, args.filter ?? []);
+      }
+
+      // Step 3 — search-facts filter: keep entries where any fact string contains any keyword.
+      if (filteredFacts !== undefined && args.searchFacts !== undefined) {
+        const kwsLower = args.searchFacts.map((k) => k.toLowerCase());
+        filteredFacts = Object.fromEntries(
+          Object.entries(filteredFacts).filter(([, factStrings]) =>
+            factStrings.some((f) => kwsLower.some((kw) => f.toLowerCase().includes(kw))),
+          ),
+        );
+      }
+
       return {
         ok: true,
         value: {

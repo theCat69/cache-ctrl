@@ -123,12 +123,20 @@ Lists all cache entries. Shows age, human-readable age string, and staleness fla
 ### `inspect`
 
 ```
-cache-ctrl inspect <agent> <subject-keyword> [--filter <kw>[,<kw>...]] [--pretty]
+cache-ctrl inspect <agent> <subject-keyword> [--filter <kw>[,<kw>...]] [--folder <path>] [--search-facts <kw>[,<kw>...]] [--pretty]
 ```
 
 Prints the full JSON content of the best-matching cache entry. Uses the same keyword scoring as `search`. Returns `AMBIGUOUS_MATCH` if two results score identically.
 
-**`--filter <kw>[,<kw>...]`** (local agent only): restricts `facts` to entries whose file path contains at least one keyword (case-insensitive substring). `global_facts` and all other metadata fields are always included regardless of filter. Ignored for the external agent.
+Three complementary filters are available for `agent: "local"` — they are AND-ed when combined:
+
+**`--filter <kw>[,<kw>...]`** (local agent only): restricts `facts` to entries whose **file path** contains at least one keyword (case-insensitive substring). Ignored for the external agent.
+
+**`--folder <path>`** (local agent only): restricts `facts` to entries whose **file path** equals the given folder prefix or starts with `<folder>/` (recursive subtree match). Returns `INVALID_ARGS` if used with the external agent.
+
+**`--search-facts <kw>[,<kw>...]`** (local agent only): restricts `facts` to entries where **at least one fact string** contains any keyword (case-insensitive substring). Silently ignored for the external agent.
+
+`global_facts` and all other metadata fields are always included regardless of which filters are set.
 
 **`tracked_files` is never returned** for `agent: "local"` — it is internal operational metadata consumed by `check-files` and is always stripped from inspect responses.
 
@@ -136,6 +144,9 @@ Prints the full JSON content of the best-matching cache entry. Uses the same key
 cache-ctrl inspect external opencode-skills --pretty
 cache-ctrl inspect local context --pretty
 cache-ctrl inspect local context --filter lsp,nvim --pretty
+cache-ctrl inspect local context --folder src/commands --pretty
+cache-ctrl inspect local context --search-facts "Result<" --pretty
+cache-ctrl inspect local context --folder src --filter commands --search-facts async --pretty
 ```
 
 ---

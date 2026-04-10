@@ -27,6 +27,16 @@ export interface InspectArgs {
    *  at least one keyword (case-insensitive substring) are included. global_facts is
    *  always included. Ignored for external agent. */
   filter?: string[];
+  /** Recursive folder prefix filter for local agent. Only facts entries whose file path
+   *  equals the normalized folder or starts with `<normalizedFolder>/` are included.
+   *  global_facts is always included. INVALID_ARGS if used with external agent. */
+  folder?: string;
+  /** Fact-content keyword filter for local agent. Only facts entries where at least one
+   *  fact string contains at least one keyword (case-insensitive OR) are included.
+   *  Silently ignored for external agent by design — external cache entries have no facts
+   *  map. Use `folder` if you need to guard against passing search-facts to external; note
+   *  that `folder` is an error on external while this is not. */
+  searchFacts?: string[];
 }
 
 export type InspectResult = {
