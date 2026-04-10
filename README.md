@@ -466,7 +466,6 @@ cache-ctrl invalidate local
 | `PARSE_ERROR` | File is not valid JSON |
 | `LOCK_TIMEOUT` | Could not acquire lock within 5 seconds |
 | `LOCK_ERROR` | Unexpected lock file error |
-| `INVALID_AGENT` | Unknown agent type |
 | `INVALID_ARGS` | Missing or invalid CLI arguments |
 | `CONFIRMATION_REQUIRED` | `flush` called without `--confirm` |
 | `VALIDATION_ERROR` | Schema validation failed (e.g., missing required field or type mismatch in `write`) |

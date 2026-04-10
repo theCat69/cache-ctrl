@@ -117,7 +117,7 @@ Three additions to the local write path, executed in this order:
 During the `rawTrackedFiles` resolution block, extract a `Set<string>` of all syntactically valid path strings **before** filesystem eviction. This set is the reference for the scope guard in Step B.
 
 ```typescript
-let submittedPathsForGuard = new Set<string>();
+let guardedPaths = new Set<string>();
 
 if (Array.isArray(rawTrackedFiles)) {
   const validEntries = rawTrackedFiles
@@ -129,7 +129,7 @@ if (Array.isArray(rawTrackedFiles)) {
     )
     .map((entry) => ({ path: entry.path }));
 
-  submittedPathsForGuard = new Set(validEntries.map((e) => e.path));  // ← capture here
+  guardedPaths = new Set(validEntries.map((e) => e.path));  // ← capture here
 
   const resolved = await resolveTrackedFileStats(validEntries, repoRoot);
   survivingSubmitted = resolved.filter((f) => f.mtime !== 0);
@@ -153,7 +153,7 @@ if (
   !Array.isArray(rawSubmittedFacts)
 ) {
   const violatingPaths = Object.keys(rawSubmittedFacts as Record<string, unknown>).filter(
-    (p) => !submittedPathsForGuard.has(p),
+    (p) => !guardedPaths.has(p),
   );
   if (violatingPaths.length > 0) {
     return {
