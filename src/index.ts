@@ -290,11 +290,11 @@ export function printHelp(command?: string): boolean {
     return true;
   }
 
-  const sanitized = command.replace(/[\x00-\x1F\x7F]/g, "");
-
   if (command === "help") {
     return printHelp();
   }
+
+  const sanitized = command.replace(/[\x00-\x1F\x7F]/g, "");
 
   if (!isKnownCommand(command)) {
     process.stderr.write(`Unknown command: "${sanitized}". Run 'cache-ctrl help' for available commands.\n`);
@@ -680,7 +680,7 @@ async function main(): Promise<void> {
       let maxTokensParsed: number | undefined;
       if (maxTokensRaw !== undefined) {
         const parsed = Number(maxTokensRaw);
-        if (!Number.isFinite(parsed) || Number.isNaN(parsed) || parsed < 0) {
+        if (!Number.isFinite(parsed) || parsed < 0) {
           usageError(`Invalid --max-tokens value: "${maxTokensRaw}". Must be a non-negative number`);
         }
         maxTokensParsed = parsed;

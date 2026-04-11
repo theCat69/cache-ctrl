@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, writeFile, mkdir, access } from "node:fs/promises";
+import { mkdtemp, writeFile, mkdir, access, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseDurationMs, pruneCommand } from "../../src/commands/prune.js";
@@ -94,15 +94,11 @@ describe("pruneCommand — external entries", () => {
     expect(result.value.action).toBe("invalidated");
 
     // Stale file should still exist but with fetched_at zeroed
-    const staleContent = JSON.parse(
-      await (await import("node:fs/promises")).readFile(staleFile, "utf-8"),
-    ) as Record<string, unknown>;
+    const staleContent = JSON.parse(await readFile(staleFile, "utf-8")) as Record<string, unknown>;
     expect(staleContent.fetched_at).toBe("");
 
     // Fresh file untouched
-    const freshContent = JSON.parse(
-      await (await import("node:fs/promises")).readFile(freshFile, "utf-8"),
-    ) as Record<string, unknown>;
+    const freshContent = JSON.parse(await readFile(freshFile, "utf-8")) as Record<string, unknown>;
     expect(freshContent.fetched_at).not.toBe("");
   });
 
@@ -188,9 +184,7 @@ describe("pruneCommand — local entry", () => {
     expect(result.value.matched.map((m) => m.file)).toContain(localPath);
     expect(result.value.action).toBe("invalidated");
 
-    const content = JSON.parse(
-      await (await import("node:fs/promises")).readFile(localPath, "utf-8"),
-    ) as Record<string, unknown>;
+    const content = JSON.parse(await readFile(localPath, "utf-8")) as Record<string, unknown>;
     expect(content.timestamp).toBe("");
   });
 
