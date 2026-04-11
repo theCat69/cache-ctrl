@@ -19,7 +19,6 @@ export enum ErrorCode {
   AMBIGUOUS_MATCH = "AMBIGUOUS_MATCH",
 
   // HTTP errors
-  HTTP_REQUEST_FAILED = "HTTP_REQUEST_FAILED",
   URL_NOT_FOUND = "URL_NOT_FOUND",
 
   // Internal

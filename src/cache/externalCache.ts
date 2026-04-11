@@ -1,13 +1,9 @@
 import type { ExternalCacheFile, HeaderMeta } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { listCacheFiles, loadExternalCacheEntries } from "./cacheManager.js";
+import { loadExternalCacheEntries } from "./cacheManager.js";
 import { scoreEntry } from "../search/keywordSearch.js";
 
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-export async function resolveExternalFiles(repoRoot: string): Promise<Result<string[]>> {
-  return listCacheFiles("external", repoRoot);
-}
 
 export function isFetchedAtStale(fetchedAt: string, maxAgeMs?: number): boolean {
   if (!fetchedAt) return true;

@@ -21,6 +21,7 @@ const HeaderMetaSchema = z.object({
   etag: z.string().optional(),
   last_modified: z.string().optional(),
   checked_at: z.string(),
+  // "unchecked" = entry written without HTTP check
   status: z.enum(["fresh", "stale", "unchecked"]),
 });
 
