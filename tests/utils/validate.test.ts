@@ -3,6 +3,20 @@ import { validateSubject } from "../../src/utils/validate.js";
 import { ErrorCode } from "../../src/types/result.js";
 
 describe("validateSubject", () => {
+  it("accepts a single-character subject", () => {
+    const result = validateSubject("a");
+    expect(result).toEqual({ ok: true, value: undefined });
+  });
+
+  it("rejects an empty subject", () => {
+    const result = validateSubject("");
+    expect(result).toEqual({
+      ok: false,
+      error: 'Invalid subject "": must match /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/',
+      code: ErrorCode.INVALID_ARGS,
+    });
+  });
+
   it("accepts a subject of exactly 128 characters", () => {
     const subject = "a".repeat(128);
     const result = validateSubject(subject);

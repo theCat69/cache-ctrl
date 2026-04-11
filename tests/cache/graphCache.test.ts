@@ -27,6 +27,11 @@ describe("graphCache", () => {
     expect(graphPath.endsWith(join(".ai", "local-context-gatherer_cache", "graph.json"))).toBe(true);
   });
 
+  it("resolves graph cache path using subject-like inputs unchanged", () => {
+    const graphPath = resolveGraphCachePath(tmpDir);
+    expect(graphPath).toBe(join(tmpDir, ".ai", "local-context-gatherer_cache", "graph.json"));
+  });
+
   it("round-trips GraphCacheFile with writeCache/readCache and schema validation", async () => {
     const graphPath = resolveGraphCachePath(tmpDir);
     const graphData: GraphCacheFile = {
