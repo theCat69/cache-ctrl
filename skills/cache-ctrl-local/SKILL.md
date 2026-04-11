@@ -21,18 +21,43 @@ Three tiers of access — use the best one available.
 
 ## Fact-Writing Rules
 
-Facts must be **concise observations** about a file — not reproductions of its content.
+Per-file `facts` entries are no longer flat string arrays. Each path now maps to a
+**`FileFacts` object**:
 
-- **Each fact string must be ≤ 300 characters** (schema hard limit: 800). If an observation needs more, split it into two facts or summarize.
-- **Max 30 facts per file.** Choose only the most architecturally meaningful observations.
-- **Never write**: raw import lines, function bodies, code snippets, or verbatim text from the file.
-- **Do write**: what the file exports, what pattern it uses, what dependencies it has, what its responsibility is.
+```json
+{
+  "summary": "One-sentence description of what this file does",
+  "role": "implementation",
+  "importance": 2,
+  "facts": ["Concise observation 1", "Concise observation 2"]
+}
+```
 
-**Good fact** ✅:
-> `"Exports writeCommand — validates subject, merges per-path facts atomically, returns Result<WriteResult>"`
+Required and recommended fields:
 
-**Bad fact** ❌:
-> `"import { ExternalCacheFileSchema, LocalCacheFileSchema } from '../types/cache.js'; import { ErrorCode, Result } from '../types/result.js'; import { WriteArgs, WriteResult } from '../types/commands.js'"` ← this is raw file content
+- **`summary` is mandatory** when writing a file entry. Keep it to one sentence.
+- **`role` is mandatory** when writing a file entry. Must be one of:
+  - `entry-point`
+  - `interface`
+  - `implementation`
+  - `test`
+  - `config`
+- **`importance` is optional but strongly recommended**:
+  - `1` = core module
+  - `2` = supporting module
+  - `3` = peripheral/config module
+- **`facts` is optional** and capped at **10 items**, each **≤ 300 chars**.
+
+Content quality rules:
+
+- **Never write** raw import lines, function bodies, code snippets, or verbatim text from the file.
+- **Do write** concise architectural observations: purpose, key exports, constraints, dependencies, notable patterns.
+
+**Good `facts[]` item** ✅:
+> `"Delegates local writes to writeLocalCommand and preserves unrelated paths through per-path merge"`
+
+**Bad `facts[]` item** ❌:
+> `"import { ExternalCacheFileSchema, LocalCacheFileSchema } from '../types/cache.js'; import { ErrorCode, Result } from '../types/result.js'"` ← raw file content
 
 **Global facts** are for cross-cutting structural observations only (e.g. CLI entry pattern, installation steps). Max 20, each ≤ 300 chars. Only update global_facts when you re-read a structural file (AGENTS.md, install.sh, package.json, *.toml, opencode.json).
 
@@ -109,7 +134,7 @@ The response also reports:
 | `description` | `string` | ✅ | One-liner for keyword search |
 | `tracked_files` | `Array<{ path: string }>` | ✅ | Paths to track; `mtime` and `hash` are auto-computed by the tool |
 | `global_facts` | `string[]` | optional | Repo-level facts; last-write-wins; see trigger rule below |
-| `facts` | `Record<string, string[]>` | optional | Per-file facts keyed by path; per-path merge |
+| `facts` | `Record<string, FileFacts>` | optional | Per-file structured facts keyed by path; per-path merge |
 | `cache_miss_reason` | `string` | optional | Why the previous cache was discarded |
 
 > **Cold start vs incremental**: On first run (no existing cache), submit all relevant files. On subsequent runs, submit only new and changed files — the tool merges them in.
@@ -135,7 +160,28 @@ cached before.
 Write facts as **enumerable observations** — one entry per notable characteristic (purpose,
 structure, key dependencies, patterns, constraints, entry points). Do not bundle multiple
 distinct properties into a single string. A file should have as many fact entries as it has
-distinct notable properties, not a prose summary compressed into one or two lines.
+distinct notable properties, up to the 10-item limit.
+
+Each per-file `facts` entry MUST include `summary` + `role`, should include `importance`,
+and may include an optional `facts[]` list.
+
+#### `cache_ctrl_write` facts shape example (`FileFacts`)
+
+```json
+{
+  "facts": {
+    "src/commands/write.ts": {
+      "summary": "Thin router dispatching write calls to writeLocal or writeExternal based on agent type.",
+      "role": "implementation",
+      "importance": 2,
+      "facts": [
+        "Delegates to writeLocalCommand for agent=local",
+        "Delegates to writeExternalCommand for all other agents"
+      ]
+    }
+  }
+}
+```
 
 ### When to submit `global_facts`
 
@@ -194,6 +240,37 @@ Note: local entries show `is_stale: true` only when `cache_ctrl_check_files` det
 | Read facts (filtered) | `cache_ctrl_inspect` with `filter`, `folder`, or `searchFacts` | `cache-ctrl inspect local context --filter <kw>[,<kw>...]` / `--folder <path>` / `--search-facts <kw>[,<kw>...]` | `read` file, extract `facts`/`global_facts` |
 | Read all facts (rare) | `cache_ctrl_inspect` (no filter) | `cache-ctrl inspect local context` | `read` file directly |
 | Write cache | `cache_ctrl_write` | `cache-ctrl write local --data '<json>'` | ❌ not available |
+
+## New Tooling: `cache_ctrl_map` and `cache_ctrl_graph`
+
+### `cache_ctrl_map`
+
+- **Purpose:** Build a semantic mental map of the codebase (what each file does, plus role/importance metadata).
+- **Params:**
+  - `depth` (optional):
+    - `overview` (default): ~300-token orientation (summaries + roles)
+    - `modules`: adds module/grouping information
+    - `full`: includes per-file `facts[]` arrays
+  - `folder` (optional): restrict output to a path prefix
+- **When to use:** first call when entering a new task, before deeper inspection.
+
+### `cache_ctrl_graph`
+
+- **Purpose:** Return a structural dependency graph with PageRank-ranked files by centrality.
+- **Params:**
+  - `maxTokens` (optional, default `1024`)
+  - `seed` (optional `string[]`): personalize ranking toward specific files (for example changed files)
+- **Requirements:** `cache-ctrl watch` must be running (or must have run recently) to populate `graph.json`.
+- **When to use:** after `cache_ctrl_map`, to identify the most connected/high-leverage files.
+
+## Recommended Brain-Agent Protocol (Progressive Disclosure)
+
+Use this 4-step sequence to control token usage while preserving accuracy:
+
+1. `cache_ctrl_map(depth: "overview")` — orient quickly (~300 tokens)
+2. `cache_ctrl_graph(maxTokens: 1024, seed: [changedFiles])` — structural dependency view
+3. `cache_ctrl_inspect(filter: [...])` — deep facts for specific files
+4. Read only the relevant source files (typically 2–5 files)
 
 > **⚠ Always use at least one filter when reading facts for a specific task.** Three targeting options are available — use the most specific one that fits your task:
 >

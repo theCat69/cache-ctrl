@@ -7,6 +7,11 @@
   ],
   "global_facts": ["test repo", "TypeScript project"],
   "facts": {
-    "test-file.ts": ["exports a single function", "no side effects"]
+    "test-file.ts": {
+      "summary": "Provides one exported function with no side effects.",
+      "role": "implementation",
+      "importance": 2,
+      "facts": ["exports a single function", "no side effects"]
+    }
   }
 }

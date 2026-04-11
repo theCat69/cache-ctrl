@@ -41,7 +41,7 @@ export interface InspectArgs {
 
 export type InspectResult = {
   ok: true;
-  value: (ExternalCacheFile | LocalCacheFile) & {
+  value: (ExternalCacheFile | Omit<LocalCacheFile, "tracked_files">) & {
     file: string;
     agent: AgentType;
   };
@@ -178,6 +178,60 @@ export type WriteResult = {
     file: string;
   };
 };
+
+// ── graph ─────────────────────────────────────────────────────────────────────
+
+export interface GraphArgs {
+  maxTokens?: number;
+  seed?: string[];
+}
+
+// ── watch ─────────────────────────────────────────────────────────────────────
+
+export interface WatchArgs {
+  verbose?: boolean;
+}
+
+export interface GraphResult {
+  value: {
+    ranked_files: Array<{
+      path: string;
+      rank: number;
+      deps: string[];
+      defs: string[];
+      ref_count: number;
+    }>;
+    total_files: number;
+    computed_at: string;
+    token_estimate: number;
+  };
+}
+
+// ── map ───────────────────────────────────────────────────────────────────────
+
+export type MapDepth = "overview" | "modules" | "full";
+
+export interface MapArgs {
+  depth?: MapDepth;
+  folder?: string;
+}
+
+export interface MapResult {
+  value: {
+    depth: MapDepth;
+    global_facts: string[];
+    files: Array<{
+      path: string;
+      summary?: string;
+      role?: string;
+      importance?: number;
+      facts?: string[];
+    }>;
+    modules?: Record<string, string[]>;
+    total_files: number;
+    folder_filter?: string;
+  };
+}
 
 // ── install ───────────────────────────────────────────────────────────────────
 

@@ -85,6 +85,11 @@ bun run cache_ctrl.ts list
 bun run cache_ctrl.ts check-files
 bun run cache_ctrl.ts inspect external vitest
 
+# Start the watch daemon (long-running; builds and maintains graph.json)
+cache-ctrl watch --verbose
+# Or run directly from source:
+bun run src/index.ts watch --verbose
+
 # Watch-mode type checking (if needed)
 bunx tsc --noEmit --watch
 ```

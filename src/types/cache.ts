@@ -38,6 +38,15 @@ export const TrackedFileSchema = z.object({
   hash: z.string().optional(),
 });
 
+const FileFactsSchema = z.object({
+  summary: z.string().max(300).optional(),
+  role: z
+    .enum(["entry-point", "interface", "implementation", "test", "config"])
+    .optional(),
+  importance: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  facts: z.array(z.string().max(300)).max(10).optional(),
+});
+
 /**
  * Zod schema for the local context-gatherer cache file (`context.json`).
  *
@@ -47,8 +56,8 @@ export const TrackedFileSchema = z.object({
  * Size constraints enforced at write time:
  * - `global_facts`: max 20 entries; each string ≤ 300 characters.
  *   For cross-cutting structural observations only (e.g. repo layout, toolchain).
- * - `facts`: max 30 entries per file path; each string ≤ 800 characters.
- *   Facts must be concise observations — not raw file content or code snippets.
+ * - `facts`: per-file structured metadata with max 10 concise fact strings
+ *   (each string ≤ 300 characters).
  */
 export const LocalCacheFileSchema = z.looseObject({
   timestamp: z.string(),
@@ -68,24 +77,24 @@ export const LocalCacheFileSchema = z.looseObject({
         "max 20 global facts — choose only cross-cutting structural observations",
     })
     .optional(),
-  facts: z
-    .record(
-      z.string(),
-      z
-        .array(
-          z.string().max(800, {
-            message:
-              "write concise observations, not file content (max 800 chars per fact)",
-          }),
-        )
-        .max(30, {
-          message:
-            "max 30 facts per file — choose the most architecturally meaningful observations",
-        }),
-    )
-    .optional(),
+  facts: z.record(z.string(), FileFactsSchema).optional(),
+  modules: z.record(z.string(), z.array(z.string())).optional(),
 });
 
 export type TrackedFile = z.infer<typeof TrackedFileSchema>;
+export type FileFacts = z.infer<typeof FileFactsSchema>;
 export type ExternalCacheFile = z.infer<typeof ExternalCacheFileSchema>;
 export type LocalCacheFile = z.infer<typeof LocalCacheFileSchema>;
+
+const GraphNodeSchema = z.object({
+  rank: z.number(),
+  deps: z.array(z.string()),
+  defs: z.array(z.string()),
+});
+
+export const GraphCacheFileSchema = z.object({
+  files: z.record(z.string(), GraphNodeSchema),
+  computed_at: z.string(),
+});
+
+export type GraphCacheFile = z.infer<typeof GraphCacheFileSchema>;

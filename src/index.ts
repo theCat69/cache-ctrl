@@ -10,6 +10,9 @@ import { checkFilesCommand } from "./commands/checkFiles.js";
 import { searchCommand } from "./commands/search.js";
 import { writeCommand } from "./commands/write.js";
 import { installCommand } from "./commands/install.js";
+import { graphCommand } from "./commands/graph.js";
+import { mapCommand } from "./commands/map.js";
+import { watchCommand } from "./commands/watch.js";
 import { ErrorCode } from "./types/result.js";
 
 type CommandName =
@@ -23,7 +26,10 @@ type CommandName =
   | "check-files"
   | "search"
   | "write"
-  | "install";
+  | "install"
+  | "graph"
+  | "map"
+  | "watch";
 
 function isKnownCommand(cmd: string): cmd is CommandName {
   return Object.hasOwn(COMMAND_HELP as Record<string, unknown>, cmd);
@@ -179,6 +185,48 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "  Output: JSON object describing installed tool/skill paths.",
     ].join("\n"),
   },
+  graph: {
+    usage: "graph [--max-tokens <number>] [--seed <path>[,<path>...]]",
+    description: "Return a PageRank-ranked dependency graph under a token budget",
+    details: [
+      "  Arguments:",
+      "    (none)",
+      "",
+      "  Options:",
+      "    --max-tokens <number>        Token budget for ranked_files output (default: 1024)",
+      "    --seed <path>[,<path>...]    Personalize rank toward specific file path(s)",
+      "                                 (repeat --seed to provide multiple values)",
+      "",
+      "  Output: Ranked files with deps, defs, and ref_count from graph.json.",
+    ].join("\n"),
+  },
+  map: {
+    usage: "map [--depth overview|modules|full] [--folder <path-prefix>]",
+    description: "Return a semantic map of local context.json",
+    details: [
+      "  Arguments:",
+      "    (none)",
+      "",
+      "  Options:",
+      "    --depth overview|modules|full   Output depth (default: overview)",
+      "    --folder <path-prefix>          Restrict map to files whose path starts with prefix",
+      "",
+      "  Output: JSON object with global_facts, files, optional modules, and total_files.",
+    ].join("\n"),
+  },
+  watch: {
+    usage: "watch [--verbose]",
+    description: "Watch for file changes and recompute the dependency graph",
+    details: [
+      "  Arguments:",
+      "    (none)",
+      "",
+      "  Options:",
+      "    --verbose   Log watcher lifecycle and rebuild events",
+      "",
+      "  Output: Long-running daemon process that updates graph.json on source changes.",
+    ].join("\n"),
+  },
 };
 
 const GLOBAL_OPTIONS_SECTION = [
@@ -265,7 +313,36 @@ function usageError(message: string): never {
 export { usageError };
 
 /** Flags that consume the following token as their value. Boolean flags must NOT appear here. */
-const VALUE_FLAGS = new Set(["data", "agent", "url", "max-age", "filter", "folder", "search-facts", "config-dir"]);
+const VALUE_FLAGS = new Set([
+  "data",
+  "agent",
+  "url",
+  "max-age",
+  "filter",
+  "folder",
+  "search-facts",
+  "config-dir",
+  "max-tokens",
+  "seed",
+  "depth",
+]);
+
+function collectFlagValues(argv: string[], flagName: string): string[] {
+  const values: string[] = [];
+
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] !== `--${flagName}`) {
+      continue;
+    }
+    const next = argv[i + 1];
+    if (next !== undefined) {
+      values.push(next);
+      i += 1;
+    }
+  }
+
+  return values;
+}
 
 export function parseArgs(argv: string[]): { args: string[]; flags: Record<string, string | boolean> } {
   const positional: string[] = [];
@@ -305,7 +382,7 @@ async function main(): Promise<void> {
 
   const command = args[0];
   if (!command) {
-    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install");
+    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install, graph, map, watch");
   }
 
   switch (command) {
@@ -543,8 +620,79 @@ async function main(): Promise<void> {
       break;
     }
 
+    case "graph": {
+      if (flags["max-tokens"] === true) {
+        usageError("--max-tokens requires a numeric value");
+      }
+      const maxTokensRaw = typeof flags["max-tokens"] === "string" ? flags["max-tokens"] : undefined;
+      let maxTokensParsed: number | undefined;
+      if (maxTokensRaw !== undefined) {
+        const parsed = Number(maxTokensRaw);
+        if (!Number.isFinite(parsed) || Number.isNaN(parsed) || parsed < 0) {
+          usageError(`Invalid --max-tokens value: "${maxTokensRaw}". Must be a non-negative number`);
+        }
+        maxTokensParsed = parsed;
+      }
+      if (flags.seed === true) {
+        usageError("--seed requires a value: --seed <path>[,<path>...]");
+      }
+      const seedFlagValues = collectFlagValues(rawArgs, "seed");
+      const seed = seedFlagValues
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0);
+
+      const result = await graphCommand({
+        ...(maxTokensParsed !== undefined ? { maxTokens: maxTokensParsed } : {}),
+        ...(seed.length > 0 ? { seed } : {}),
+      });
+      if (result.ok) {
+        printResult(result, pretty);
+      } else {
+        printError(result, pretty);
+        process.exit(1);
+      }
+      break;
+    }
+
+    case "map": {
+      if (flags.depth === true) {
+        usageError("--depth requires a value: --depth overview|modules|full");
+      }
+      const depthRaw = typeof flags.depth === "string" ? flags.depth : undefined;
+      if (depthRaw !== undefined && depthRaw !== "overview" && depthRaw !== "modules" && depthRaw !== "full") {
+        usageError(`Invalid --depth value: "${depthRaw}". Must be overview, modules, or full`);
+      }
+      if (flags.folder === true) {
+        usageError("--folder requires a value: --folder <path-prefix>");
+      }
+      const folder = typeof flags.folder === "string" ? flags.folder : undefined;
+
+      const result = await mapCommand({
+        ...(depthRaw !== undefined ? { depth: depthRaw } : {}),
+        ...(folder !== undefined ? { folder } : {}),
+      });
+
+      if (result.ok) {
+        printResult(result, pretty);
+      } else {
+        printError(result, pretty);
+        process.exit(1);
+      }
+      break;
+    }
+
+    case "watch": {
+      const result = await watchCommand({ verbose: flags.verbose === true });
+      if (!result.ok) {
+        printError(result, pretty);
+        process.exit(1);
+      }
+      break;
+    }
+
     default:
-      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install`);
+      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install, graph, map, watch`);
   }
 }
 

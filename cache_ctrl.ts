@@ -6,6 +6,8 @@ import { checkFreshnessCommand } from "./src/commands/checkFreshness.js";
 import { checkFilesCommand } from "./src/commands/checkFiles.js";
 import { searchCommand } from "./src/commands/search.js";
 import { writeCommand } from "./src/commands/write.js";
+import { graphCommand } from "./src/commands/graph.js";
+import { mapCommand } from "./src/commands/map.js";
 import { ErrorCode } from "./src/types/result.js";
 
 const z = tool.schema;
@@ -144,6 +146,52 @@ export const write = tool({
         agent: args.agent,
         ...(args.subject !== undefined ? { subject: args.subject } : {}),
         content: args.content,
+      });
+      return withServerTime(result);
+    } catch (err) {
+      return handleUnknownError(err);
+    }
+  },
+});
+
+export const graph = tool({
+  description:
+    "Return a PageRank-ranked file dependency graph within a token budget. Use this to understand which files are most central to recent changes. Reads from the pre-computed graph.json updated by 'cache-ctrl watch'.",
+  args: {
+    maxTokens: z.number().optional().describe("Token budget for the response (default: 1024)"),
+    seed: z
+      .array(z.string())
+      .optional()
+      .describe("File paths to personalize PageRank toward (e.g. recently changed files)"),
+  },
+  async execute(args) {
+    try {
+      const result = await graphCommand({
+        ...(args.maxTokens !== undefined ? { maxTokens: args.maxTokens } : {}),
+        ...(args.seed !== undefined ? { seed: args.seed } : {}),
+      });
+      return withServerTime(result);
+    } catch (err) {
+      return handleUnknownError(err);
+    }
+  },
+});
+
+export const map = tool({
+  description:
+    "Return a semantic mental map of the codebase from the local context cache. Use 'overview' (default) for a ~300-token summary of what each file does. Use 'modules' to see logical groupings. Use 'full' to include all per-file facts.",
+  args: {
+    depth: z
+      .enum(["overview", "modules", "full"])
+      .optional()
+      .describe("Map depth (default: 'overview')"),
+    folder: z.string().optional().describe("Restrict map to files under this path prefix"),
+  },
+  async execute(args) {
+    try {
+      const result = await mapCommand({
+        ...(args.depth !== undefined ? { depth: args.depth } : {}),
+        ...(args.folder !== undefined ? { folder: args.folder } : {}),
       });
       return withServerTime(result);
     } catch (err) {

@@ -551,8 +551,8 @@ describe("writeCommand", () => {
         description: "both files",
         tracked_files: [{ path: fileA }, { path: fileB }],
         facts: {
-          [fileA]: ["fact about A"],
-          [fileB]: ["fact about B"],
+          [fileA]: { facts: ["fact about A"] },
+          [fileB]: { facts: ["fact about B"] },
         },
       },
     });
@@ -564,7 +564,7 @@ describe("writeCommand", () => {
         topic: "delta",
         description: "only file A",
         tracked_files: [{ path: fileA }],
-        facts: { [fileA]: ["updated fact about A"] },
+        facts: { [fileA]: { facts: ["updated fact about A"] } },
       },
     });
 
@@ -573,9 +573,9 @@ describe("writeCommand", () => {
 
     const raw = await readFile(result.value.file, "utf-8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const facts = parsed["facts"] as Record<string, string[]>;
-    expect(facts[fileB]).toEqual(["fact about B"]);
-    expect(facts[fileA]).toEqual(["updated fact about A"]);
+    const facts = parsed["facts"] as Record<string, { facts?: string[] }>;
+    expect(facts[fileB]).toEqual({ facts: ["fact about B"] });
+    expect(facts[fileA]).toEqual({ facts: ["updated fact about A"] });
   });
 
   it("facts per-path replace: submitted path overwrites existing facts for that path", async () => {
@@ -588,7 +588,7 @@ describe("writeCommand", () => {
         topic: "first",
         description: "initial facts",
         tracked_files: [{ path: fileA }],
-        facts: { [fileA]: ["original fact"] },
+        facts: { [fileA]: { facts: ["original fact"] } },
       },
     });
 
@@ -598,7 +598,7 @@ describe("writeCommand", () => {
         topic: "second",
         description: "updated facts",
         tracked_files: [{ path: fileA }],
-        facts: { [fileA]: ["replacement fact"] },
+        facts: { [fileA]: { facts: ["replacement fact"] } },
       },
     });
 
@@ -607,8 +607,8 @@ describe("writeCommand", () => {
 
     const raw = await readFile(result.value.file, "utf-8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const facts = parsed["facts"] as Record<string, string[]>;
-    expect(facts[fileA]).toEqual(["replacement fact"]);
+    const facts = parsed["facts"] as Record<string, { facts?: string[] }>;
+    expect(facts[fileA]).toEqual({ facts: ["replacement fact"] });
   });
 
   it("facts eviction: facts for file deleted from disk are removed after next write", async () => {
@@ -627,8 +627,8 @@ describe("writeCommand", () => {
         description: "all three",
         tracked_files: [{ path: fileA }, { path: fileB }],
         facts: {
-          [fileA]: ["fact A"],
-          [fileB]: ["fact B"],
+          [fileA]: { facts: ["fact A"] },
+          [fileB]: { facts: ["fact B"] },
         },
       },
     });
@@ -643,7 +643,7 @@ describe("writeCommand", () => {
         topic: "after delete",
         description: "write C",
         tracked_files: [{ path: fileC }],
-        facts: { [fileC]: ["fact C"] },
+        facts: { [fileC]: { facts: ["fact C"] } },
       },
     });
 
@@ -652,9 +652,9 @@ describe("writeCommand", () => {
 
     const raw = await readFile(result.value.file, "utf-8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const facts = parsed["facts"] as Record<string, string[]>;
-    expect(facts[fileA]).toEqual(["fact A"]);
-    expect(facts[fileC]).toEqual(["fact C"]);
+    const facts = parsed["facts"] as Record<string, { facts?: string[] }>;
+    expect(facts[fileA]).toEqual({ facts: ["fact A"] });
+    expect(facts[fileC]).toEqual({ facts: ["fact C"] });
     expect(Object.keys(facts)).not.toContain(fileB);
   });
 
@@ -672,7 +672,7 @@ describe("writeCommand", () => {
         topic: "initial",
         description: "two files with facts",
         tracked_files: [{ path: fileA }, { path: fileB }],
-        facts: { [fileA]: ["fact A"], [fileB]: ["fact B"] },
+        facts: { [fileA]: { facts: ["fact A"] }, [fileB]: { facts: ["fact B"] } },
       },
     });
 
@@ -694,7 +694,7 @@ describe("writeCommand", () => {
 
     const raw = await readFile(result.value.file, "utf-8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const facts = parsed["facts"] as Record<string, string[]>;
+    const facts = parsed["facts"] as Record<string, { facts?: string[] }>;
     expect(Object.keys(facts)).toHaveLength(0);
   });
 
@@ -708,7 +708,7 @@ describe("writeCommand", () => {
         topic: "guard pass",
         description: "valid scope",
         tracked_files: [{ path: fileA }],
-        facts: { [fileA]: ["fact"] },
+        facts: { [fileA]: { facts: ["fact"] } },
       },
     });
 
@@ -726,7 +726,7 @@ describe("writeCommand", () => {
         topic: "guard fail",
         description: "invalid scope",
         tracked_files: [{ path: fileA }],
-        facts: { [fileB]: ["fact about B — not in tracked_files"] },
+        facts: { [fileB]: { facts: ["fact about B — not in tracked_files"] } },
       },
     });
 
@@ -757,7 +757,7 @@ describe("writeCommand", () => {
         topic: "guard fail empty tracked_files",
         description: "facts with no tracked_files",
         tracked_files: [],
-        facts: { "a.ts": ["some fact"] },
+        facts: { "a.ts": { facts: ["some fact"] } },
       },
     });
 
@@ -884,7 +884,7 @@ describe("writeCommand", () => {
           topic: "traversal test",
           description: "facts key with traversal attempt",
           tracked_files: [],
-          facts: { "../../etc/passwd": ["secret"] },
+          facts: { "../../etc/passwd": { facts: ["secret"] } },
         },
       });
 
@@ -904,7 +904,7 @@ describe("writeCommand", () => {
           topic: "normal key test",
           description: "valid facts key",
           tracked_files: [{ path: filePath }],
-          facts: { [filePath]: ["some fact about foo"] },
+          facts: { [filePath]: { facts: ["some fact about foo"] } },
         },
       });
 
@@ -913,7 +913,7 @@ describe("writeCommand", () => {
   });
 
   describe("local schema constraints", () => {
-    it("returns VALIDATION_ERROR when a fact string exceeds 800 chars", async () => {
+    it("returns VALIDATION_ERROR when a fact string exceeds 300 chars", async () => {
       const trackedPath = join(tmpDir, "constraint-fact-len.ts");
       await writeFile(trackedPath, "export const x = 1;");
 
@@ -923,7 +923,7 @@ describe("writeCommand", () => {
           topic: "constraint test",
           description: "fact string over limit",
           tracked_files: [{ path: trackedPath }],
-          facts: { [trackedPath]: ["a".repeat(801)] },
+          facts: { [trackedPath]: { facts: ["a".repeat(301)] } },
         },
       });
 
@@ -933,7 +933,7 @@ describe("writeCommand", () => {
       expect(result.error).toMatch(/facts\./);
     });
 
-    it("returns VALIDATION_ERROR when facts array for a file exceeds 30 entries", async () => {
+    it("returns VALIDATION_ERROR when facts array for a file exceeds 10 entries", async () => {
       const trackedPath = join(tmpDir, "constraint-facts-count.ts");
       await writeFile(trackedPath, "export const x = 1;");
 
@@ -943,7 +943,7 @@ describe("writeCommand", () => {
           topic: "constraint test",
           description: "too many facts per file",
           tracked_files: [{ path: trackedPath }],
-          facts: { [trackedPath]: Array.from({ length: 31 }, (_, i) => `fact ${i}`) },
+          facts: { [trackedPath]: { facts: Array.from({ length: 11 }, (_, i) => `fact ${i}`) } },
         },
       });
 

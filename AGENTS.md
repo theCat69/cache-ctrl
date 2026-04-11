@@ -23,7 +23,7 @@ Concrete, annotated snippets extracted from the real codebase live in `.code-exa
 - **Language**: TypeScript strict mode (ESNext, verbatimModuleSyntax, noUncheckedIndexedAccess, exactOptionalPropertyTypes)
 - **Schema validation**: Zod 4.x
 - **Test framework**: Vitest 4.x (unit in `tests/`, E2E in `e2e/` via Docker)
-- **Architecture**: CLI command layer (`src/commands/`) + core services (`src/cache/`, `src/files/`, `src/http/`, `src/search/`)
+- **Architecture**: CLI command layer (`src/commands/`) + core services (`src/cache/`, `src/files/`, `src/http/`, `src/search/`) + analysis engine (`src/analysis/` — symbol extraction, dependency graph, PageRank)
 
 ## Key Rules
 

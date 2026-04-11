@@ -39,6 +39,18 @@ describe("parseArgs", () => {
     expect(result.flags).toEqual({ agent: "external", "max-age": "48h" });
   });
 
+  it("parses graph flags with values", () => {
+    const result = parseArgs(["graph", "--max-tokens", "512", "--seed", "src/a.ts,src/b.ts"]);
+    expect(result.args).toEqual(["graph"]);
+    expect(result.flags).toEqual({ "max-tokens": "512", seed: "src/a.ts,src/b.ts" });
+  });
+
+  it("parses map depth flag with value", () => {
+    const result = parseArgs(["map", "--depth", "full", "--folder", "src/commands"]);
+    expect(result.args).toEqual(["map"]);
+    expect(result.flags).toEqual({ depth: "full", folder: "src/commands" });
+  });
+
   it("parses a flag with a JSON value containing special characters", () => {
     const json = '{"key":"val"}';
     const result = parseArgs(["write", "--data", json]);
@@ -109,7 +121,7 @@ describe("printHelp", () => {
     expect(output).toContain("Usage");
   });
 
-  it("full help contains all 10 command names", () => {
+  it("full help contains all command names", () => {
     printHelp();
     const output = capturedOutput();
     const commands = [
@@ -123,6 +135,9 @@ describe("printHelp", () => {
       "check-files",
       "search",
       "write",
+      "install",
+      "graph",
+      "map",
     ];
     for (const cmd of commands) {
       expect(output).toContain(cmd);
@@ -163,7 +178,7 @@ describe("printHelp", () => {
     expect(output).toContain("Usage");
   });
 
-  it.each(["list", "inspect", "flush", "invalidate", "touch", "prune", "check-freshness", "check-files", "search", "write"])(
+  it.each(["list", "inspect", "flush", "invalidate", "touch", "prune", "check-freshness", "check-files", "search", "write", "install", "graph", "map"])(
     "per-command help for '%s' writes to stdout",
     (cmd) => {
       const ok = printHelp(cmd);

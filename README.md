@@ -49,23 +49,28 @@ src/index.ts              cache_ctrl.ts
    src/commands/{list, inspect, flush,
     invalidate, touch, prune,
     checkFreshness, checkFiles, search,
-    write}.ts
-                │
-          Core Services
+    write, graph, map, watch}.ts
+                 │
+           Core Services
    cacheManager  ← read/write + advisory lock
    externalCache ← external staleness logic
    localCache    ← local scan path logic
+   graphCache    ← graph.json read/write path
    freshnessChecker ← HTTP HEAD requests
    changeDetector   ← mtime/hash comparison
    keywordSearch    ← scoring engine
-                │
+   analysis/symbolExtractor ← import/export AST pass
+   analysis/graphBuilder    ← dependency graph construction
+   analysis/pageRank        ← Personalized PageRank ranking
+                 │
        Cache Directories (on disk)
    .ai/external-context-gatherer_cache/
      ├── <subject>.json
      └── <subject>.json.lock  (advisory)
    .ai/local-context-gatherer_cache/
      ├── context.json
-     └── context.json.lock    (advisory)
+     ├── context.json.lock    (advisory)
+     └── graph.json           (dependency graph; written by watch daemon)
 ```
 
 **Key design decisions:**
@@ -73,6 +78,7 @@ src/index.ts              cache_ctrl.ts
 - The CLI and plugin share the same command functions — no duplicated business logic.
 - All operations return `Result<T, CacheError>` — nothing throws into the caller.
 - `writeCache` defaults to merging updates onto the existing object (preserving unknown agent fields). Local writes use per-path merge — submitted `tracked_files` entries replace existing entries for those paths; entries for other paths are preserved; entries for files no longer present on disk are evicted automatically.
+- `write.ts` and `inspect.ts` are thin routers; all business logic lives in `writeLocal.ts`, `writeExternal.ts`, `inspectLocal.ts`, `inspectExternal.ts`.
 
 ---
 
@@ -404,9 +410,122 @@ Writes a validated cache entry to disk. The `--data` argument must be a valid JS
 
 ---
 
+### `graph`
+
+```
+cache-ctrl graph [--max-tokens <number>] [--seed <path>[,<path>...]] [--pretty]
+```
+
+Returns a PageRank-ranked dependency graph within a token budget. Reads from `graph.json` computed by the `watch` daemon. Files are ranked by their centrality in the import graph; use `--seed` to personalize the ranking toward specific files (e.g. recently changed files).
+
+**Options:**
+
+| Flag | Description |
+|---|---|
+| `--max-tokens <number>` | Token budget for `ranked_files` output (default: 1024, clamped 64–128000) |
+| `--seed <path>[,<path>...]` | Personalize PageRank toward these file paths (repeat `--seed` for multiple values) |
+
+Returns `FILE_NOT_FOUND` if `graph.json` does not exist — run `cache-ctrl watch` to generate it.
+
+```jsonc
+// cache-ctrl graph --max-tokens 512 --pretty
+{
+  "ok": true,
+  "value": {
+    "ranked_files": [
+      {
+        "path": "src/cache/cacheManager.ts",
+        "rank": 0.142,
+        "deps": ["src/utils/validate.ts"],
+        "defs": ["readCache", "writeCache", "findRepoRoot"],
+        "ref_count": 12
+      }
+    ],
+    "total_files": 36,
+    "computed_at": "2026-04-11T10:00:00Z",
+    "token_estimate": 487
+  }
+}
+```
+
+---
+
+### `map`
+
+```
+cache-ctrl map [--depth overview|modules|full] [--folder <path-prefix>] [--pretty]
+```
+
+Returns a semantic map of the local `context.json` using the structured `FileFacts` metadata. Files are sorted by `importance` (ascending) then path. Use `--folder` to scope the output to a subtree.
+
+**Options:**
+
+| Flag | Description |
+|---|---|
+| `--depth overview\|modules\|full` | Output depth (default: `overview`) |
+| `--folder <path-prefix>` | Restrict output to files whose path equals or starts with this prefix |
+
+**Depth values:**
+- `overview` — includes `summary`, `role`, `importance` per file (no individual facts)
+- `modules` — same as `overview` plus the `modules` grouping from `context.json`
+- `full` — includes all per-file `facts[]` strings
+
+Returns `FILE_NOT_FOUND` if `context.json` does not exist.
+
+```jsonc
+// cache-ctrl map --depth overview --folder src/commands --pretty
+{
+  "ok": true,
+  "value": {
+    "depth": "overview",
+    "global_facts": ["TypeScript CLI, Bun runtime"],
+    "files": [
+      {
+        "path": "src/commands/graph.ts",
+        "summary": "Reads graph.json and returns PageRank-ranked file list",
+        "role": "implementation",
+        "importance": 2
+      }
+    ],
+    "total_files": 1,
+    "folder_filter": "src/commands"
+  }
+}
+```
+
+---
+
+### `watch`
+
+```
+cache-ctrl watch [--verbose]
+```
+
+Long-running daemon that watches the repo for source file changes (`.ts`, `.tsx`, `.js`, `.jsx`) and incrementally rebuilds `graph.json`. On startup it performs an initial full graph build. Subsequent file changes trigger a debounced rebuild (200 ms). Rebuilds are serialized — concurrent changes are queued.
+
+Writes to `.ai/local-context-gatherer_cache/graph.json`. The graph is then available to `cache-ctrl graph` and `cache_ctrl_graph`.
+
+**Options:**
+
+| Flag | Description |
+|---|---|
+| `--verbose` | Log watcher lifecycle events and rebuild completion to stdout |
+
+The process runs until `SIGINT` or `SIGTERM`, which trigger a clean shutdown. Exit code `1` on startup failure (e.g., `Bun.watch` unavailable or graph write error).
+
+```sh
+# Start the daemon in the background
+cache-ctrl watch &
+
+# Or run it in a dedicated terminal with verbose output
+cache-ctrl watch --verbose
+```
+
+---
+
 ## opencode Plugin Tools
 
-The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/cache_ctrl.ts` and registers 7 tools that call the same command functions as the CLI:
+The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/cache_ctrl.ts` and registers 9 tools that call the same command functions as the CLI:
 
 | Tool | Description |
 |---|---|
@@ -417,10 +536,12 @@ The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/ca
 | `cache_ctrl_check_freshness` | HTTP HEAD check for external source URLs |
 | `cache_ctrl_check_files` | Compare tracked files against stored mtime/hash |
 | `cache_ctrl_write` | Write a validated cache entry; validates against ExternalCacheFile or LocalCacheFile schema |
+| `cache_ctrl_graph` | Return a PageRank-ranked dependency graph within a token budget (reads `graph.json`) |
+| `cache_ctrl_map` | Return a semantic map of `context.json` with per-file FileFacts metadata |
 
 No bash permission is required for agents that use the plugin tools directly.
 
-All 7 plugin tool responses include a `server_time` field at the outer JSON level:
+All 9 plugin tool responses include a `server_time` field at the outer JSON level:
 
 ```json
 { "ok": true, "value": { ... }, "server_time": "2026-04-05T12:34:56.789Z" }
@@ -495,22 +616,50 @@ cache-ctrl invalidate local
 ```jsonc
 {
   "timestamp": "2026-04-04T12:00:00Z",   // auto-set on write; "" when invalidated
-  "topic": "neovim plugin configuration",
-  "description": "Scan of nvim lua plugins",
+  "topic": "cache-ctrl source",
+  "description": "Scan of cache-ctrl TypeScript source",
   "cache_miss_reason": "files changed",  // optional: why the previous cache was discarded
   "tracked_files": [
-    { "path": "lua/plugins/ui/bufferline.lua", "mtime": 1743768000000, "hash": "sha256hex..." }
+    { "path": "src/commands/graph.ts", "mtime": 1743768000000, "hash": "sha256hex..." }
     // mtime is auto-populated by the write command; agents only need to supply path (and optionally hash)
   ],
   "global_facts": [                       // optional: repo-level facts; last-write-wins; max 20 entries, each ≤ 300 chars
-    "Kubuntu dotfiles repo",
-    "StyLua for Lua (140 col, 2-space indent)"
+    "TypeScript CLI tool executed by Bun",
+    "All errors use Result<T,E> — no thrown exceptions across command boundaries"
   ],
-  "facts": {                              // optional: per-file facts; per-path merge; max 30 entries per file, each ≤ 800 chars
-    "lua/plugins/ui/bufferline.lua": ["lazy-loaded via ft = lua", "uses catppuccin mocha theme"]
-    // Facts for files deleted from disk are evicted automatically on the next write
+  "facts": {                              // optional: per-file structured FileFacts; per-path merge
+    "src/commands/graph.ts": {
+      "summary": "Reads graph.json and returns PageRank-ranked file list within a token budget",
+      "role": "implementation",           // one of: entry-point | interface | implementation | test | config
+      "importance": 2,                    // 1 = critical, 2 = important, 3 = peripheral
+      "facts": [                          // max 10 entries, each ≤ 300 chars
+        "Uses computePageRank with optional seed files for personalized ranking",
+        "Token budget clamped to 64–128000; defaults to 1024"
+      ]
+    }
+    // FileFacts entries for files deleted from disk are evicted automatically on the next write
+  },
+  "modules": {                            // optional: logical groupings of file paths
+    "commands": ["src/commands/graph.ts", "src/commands/map.ts"]
   }
   // Any additional agent fields are preserved unchanged
+}
+```
+
+### Graph: `.ai/local-context-gatherer_cache/graph.json`
+
+Written and maintained by the `watch` daemon. Read by `cache-ctrl graph` and `cache_ctrl_graph`. Agents do not write this file directly.
+
+```jsonc
+{
+  "computed_at": "2026-04-11T10:00:00Z",
+  "files": {
+    "src/cache/cacheManager.ts": {
+      "rank": 0.0,          // stored as 0.0; PageRank is recomputed on every graph command call
+      "deps": ["src/utils/validate.ts", "src/types/result.ts"],
+      "defs": ["readCache", "writeCache", "findRepoRoot"]
+    }
+  }
 }
 ```
 

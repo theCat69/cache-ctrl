@@ -66,6 +66,62 @@ describe("invalidateCommand", () => {
     expect(content.timestamp).toBe("");
   });
 
+  it("also zeros out graph computed_at when graph.json exists for local invalidation", async () => {
+    const localPath = join(tmpDir, LOCAL_DIR, "context.json");
+    const graphPath = join(tmpDir, LOCAL_DIR, "graph.json");
+
+    await writeFile(
+      localPath,
+      JSON.stringify({
+        timestamp: "2026-01-01T00:00:00Z",
+        topic: "local scan",
+        description: "Local context",
+        tracked_files: [],
+      }),
+    );
+    await writeFile(
+      graphPath,
+      JSON.stringify({
+        files: {
+          "src/index.ts": { rank: 1, deps: [], defs: ["main"] },
+        },
+        computed_at: "2026-01-01T00:00:00Z",
+      }),
+    );
+
+    const result = await invalidateCommand({ agent: "local" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.invalidated).toContain(localPath);
+    expect(result.value.invalidated).not.toContain(graphPath);
+
+    const localContent = JSON.parse(await readFile(localPath, "utf-8")) as Record<string, unknown>;
+    const graphContent = JSON.parse(await readFile(graphPath, "utf-8")) as Record<string, unknown>;
+    expect(localContent.timestamp).toBe("");
+    expect(graphContent.computed_at).toBe("");
+  });
+
+  it("does not throw when graph.json is missing and still invalidates local context", async () => {
+    const localPath = join(tmpDir, LOCAL_DIR, "context.json");
+    await writeFile(
+      localPath,
+      JSON.stringify({
+        timestamp: "2026-01-01T00:00:00Z",
+        topic: "local scan",
+        description: "Local context",
+        tracked_files: [],
+      }),
+    );
+
+    const result = await invalidateCommand({ agent: "local" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.invalidated).toContain(localPath);
+
+    const localContent = JSON.parse(await readFile(localPath, "utf-8")) as Record<string, unknown>;
+    expect(localContent.timestamp).toBe("");
+  });
+
   it("preserves all other fields after invalidation", async () => {
     const filePath = join(tmpDir, EXTERNAL_DIR, "mylib.json");
     const originalData = {
