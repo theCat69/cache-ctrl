@@ -1,4 +1,3 @@
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { ExternalCacheFile, CacheEntry } from "../types/cache.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
@@ -14,29 +13,18 @@ export function resolveExternalCacheDir(repoRoot: string): string {
 }
 
 export async function resolveExternalFiles(repoRoot: string): Promise<Result<string[]>> {
-  const cacheDir = resolveExternalCacheDir(repoRoot);
-  try {
-    const entries = await readdir(cacheDir);
-    return {
-      ok: true,
-      value: entries
-        .filter((name) => name.endsWith(".json") && !name.endsWith(".lock"))
-        .map((name) => join(cacheDir, name)),
-    };
-  } catch (err) {
-    const error = err as NodeJS.ErrnoException;
-    if (error.code === "ENOENT") {
-      return { ok: true, value: [] };
-    }
-    return { ok: false, error: `Failed to list external cache directory: ${error.message}`, code: ErrorCode.FILE_READ_ERROR };
-  }
+  return listCacheFiles("external", repoRoot);
+}
+
+export function isFetchedAtStale(fetchedAt: string, maxAgeMs?: number): boolean {
+  if (!fetchedAt) return true;
+  const threshold = maxAgeMs ?? DEFAULT_MAX_AGE_MS;
+  const age = Date.now() - new Date(fetchedAt).getTime();
+  return age > threshold;
 }
 
 export function isExternalStale(entry: ExternalCacheFile, maxAgeMs?: number): boolean {
-  if (!entry.fetched_at) return true;
-  const threshold = maxAgeMs ?? DEFAULT_MAX_AGE_MS;
-  const age = Date.now() - new Date(entry.fetched_at).getTime();
-  return age > threshold;
+  return isFetchedAtStale(entry.fetched_at ?? "", maxAgeMs);
 }
 
 export interface HeaderMeta {

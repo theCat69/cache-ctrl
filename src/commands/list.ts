@@ -1,17 +1,10 @@
 import { findRepoRoot, loadExternalCacheEntries, readCache } from "../cache/cacheManager.js";
-import { getAgeHuman } from "../cache/externalCache.js";
+import { getAgeHuman, isFetchedAtStale } from "../cache/externalCache.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { checkFilesCommand } from "./checkFiles.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { ListArgs, ListEntry, ListResult } from "../types/commands.js";
-
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-function isEntryStale(fetchedAt: string): boolean {
-  if (!fetchedAt) return true;
-  return Date.now() - new Date(fetchedAt).getTime() > MAX_AGE_MS;
-}
 
 export async function listCommand(args: ListArgs): Promise<Result<ListResult["value"]>> {
   try {
@@ -31,7 +24,7 @@ export async function listCommand(args: ListArgs): Promise<Result<ListResult["va
           ...(entry.description !== undefined ? { description: entry.description } : {}),
           fetched_at: entry.fetched_at,
           age_human: getAgeHuman(entry.fetched_at),
-          is_stale: isEntryStale(entry.fetched_at),
+          is_stale: isFetchedAtStale(entry.fetched_at),
         });
       }
     }

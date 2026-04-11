@@ -29,7 +29,7 @@ function getSubmittedTrackedPaths(rawTrackedFiles: unknown): string[] {
   return rawTrackedFiles.filter(hasStringPath).map((entry) => entry.path);
 }
 
-function toUnknownRecord(rawValue: unknown): Record<string, unknown> {
+function toPlainObjectRecord(rawValue: unknown): Record<string, unknown> {
   if (typeof rawValue === "object" && rawValue !== null && !Array.isArray(rawValue)) {
     return Object.fromEntries(Object.entries(rawValue));
   }
@@ -52,7 +52,7 @@ export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteRe
 
     const rawSubmittedFacts = contentWithTimestamp["facts"];
     if (typeof rawSubmittedFacts === "object" && rawSubmittedFacts !== null && !Array.isArray(rawSubmittedFacts)) {
-      const submittedFactsRecord = toUnknownRecord(rawSubmittedFacts);
+      const submittedFactsRecord = toPlainObjectRecord(rawSubmittedFacts);
       const violatingPaths = Object.keys(submittedFactsRecord).filter((path) => !guardedPaths.has(path));
       if (violatingPaths.length > 0) {
         return {
@@ -90,7 +90,7 @@ export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteRe
     const survivingExisting = await filterExistingFiles(existingNotSubmitted, repoRoot);
     const mergedTrackedFiles = [...survivingExisting, ...survivingSubmitted];
 
-    const submittedFacts = toUnknownRecord(contentWithTimestamp["facts"]);
+    const submittedFacts = toPlainObjectRecord(contentWithTimestamp["facts"]);
     const rawMergedFacts = { ...existingFacts, ...submittedFacts };
     const mergedFacts = evictFactsForDeletedPaths(rawMergedFacts, mergedTrackedFiles);
 

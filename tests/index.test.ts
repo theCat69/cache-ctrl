@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { parseArgs, usageError, printHelp } from "../src/index.js";
+import { __test__ } from "../cache_ctrl.js";
 
 describe("parseArgs", () => {
   it("returns empty args and flags for empty input", () => {
@@ -188,4 +189,70 @@ describe("printHelp", () => {
       expect(output).toContain(cmd);
     },
   );
+});
+
+describe("cache_ctrl helper guards", () => {
+  describe("isRefinementContext", () => {
+    it("returns true for object with addIssue function", () => {
+      const context = { addIssue: vi.fn() };
+      expect(__test__.isRefinementContext(context)).toBe(true);
+    });
+
+    it("returns false for boundary non-object values", () => {
+      expect(__test__.isRefinementContext(null)).toBe(false);
+      expect(__test__.isRefinementContext(undefined)).toBe(false);
+      expect(__test__.isRefinementContext("ctx")).toBe(false);
+      expect(__test__.isRefinementContext(42)).toBe(false);
+      expect(__test__.isRefinementContext({})).toBe(false);
+      expect(__test__.isRefinementContext({ addIssue: "not-a-function" })).toBe(false);
+    });
+  });
+
+  describe("rejectTraversalKeys", () => {
+    it("does not add issues for valid keys", () => {
+      const addIssue = vi.fn();
+      __test__.rejectTraversalKeys(
+        {
+          "src/index.ts": { summary: "ok" },
+          "docs/readme.md": { summary: "ok" },
+        },
+        { addIssue },
+      );
+      expect(addIssue).not.toHaveBeenCalled();
+    });
+
+    it("adds issues for traversal and invalid-character keys", () => {
+      const addIssue = vi.fn();
+      __test__.rejectTraversalKeys(
+        {
+          "../secret": {},
+          "/etc/passwd": {},
+          "safe\x00evil": {},
+        },
+        { addIssue },
+      );
+
+      expect(addIssue).toHaveBeenCalledTimes(3);
+      expect(addIssue).toHaveBeenNthCalledWith(1, {
+        code: "custom",
+        message: 'facts key contains a path traversal or invalid character: "../secret"',
+        path: ["../secret"],
+      });
+      expect(addIssue).toHaveBeenNthCalledWith(2, {
+        code: "custom",
+        message: 'facts key contains a path traversal or invalid character: "/etc/passwd"',
+        path: ["/etc/passwd"],
+      });
+      expect(addIssue).toHaveBeenNthCalledWith(3, {
+        code: "custom",
+        message: 'facts key contains a path traversal or invalid character: "safe\u0000evil"',
+        path: ["safe\x00evil"],
+      });
+    });
+
+    it("is a no-op when refinement context is invalid", () => {
+      const badContext = { addIssue: "nope" };
+      expect(() => __test__.rejectTraversalKeys({ "../secret": {} }, badContext)).not.toThrow();
+    });
+  });
 });
