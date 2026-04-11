@@ -50,10 +50,10 @@ export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteRe
     const resolvedTrackedFiles = await resolveTrackedFileStats(submittedPaths.map((path) => ({ path })), repoRoot);
     const survivingSubmitted = resolvedTrackedFiles.filter((trackedFile) => trackedFile.mtime !== 0);
 
+    const submittedFacts = toPlainObjectRecord(contentWithTimestamp["facts"]);
     const rawSubmittedFacts = contentWithTimestamp["facts"];
     if (typeof rawSubmittedFacts === "object" && rawSubmittedFacts !== null && !Array.isArray(rawSubmittedFacts)) {
-      const submittedFactsRecord = toPlainObjectRecord(rawSubmittedFacts);
-      const violatingPaths = Object.keys(submittedFactsRecord).filter((path) => !guardedPaths.has(path));
+      const violatingPaths = Object.keys(submittedFacts).filter((path) => !guardedPaths.has(path));
       if (violatingPaths.length > 0) {
         return {
           ok: false,
@@ -90,7 +90,6 @@ export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteRe
     const survivingExisting = await filterExistingFiles(existingNotSubmitted, repoRoot);
     const mergedTrackedFiles = [...survivingExisting, ...survivingSubmitted];
 
-    const submittedFacts = toPlainObjectRecord(contentWithTimestamp["facts"]);
     const rawMergedFacts = { ...existingFacts, ...submittedFacts };
     const mergedFacts = evictFactsForDeletedPaths(rawMergedFacts, mergedTrackedFiles);
 
