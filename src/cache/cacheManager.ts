@@ -11,6 +11,14 @@ const LOCK_RETRY_INTERVAL_MS = 50;
 const LOCK_TIMEOUT_MS = 5000;
 const LOCK_STALE_AGE_MS = 30_000;
 
+/**
+ * Resolves the repository root by walking upward until a `.git` directory is found.
+ *
+ * @param startDir - Directory where upward detection starts.
+ * @returns Absolute path to detected repo root, or `startDir` when no `.git` is found.
+ * @remarks Uses a parent-directory walk; on filesystem root fallback it intentionally
+ * returns `startDir` so CLI behavior remains deterministic outside git repositories.
+ */
 export async function findRepoRoot(startDir: string): Promise<string> {
   let current = startDir;
   while (true) {
@@ -28,6 +36,7 @@ export async function findRepoRoot(startDir: string): Promise<string> {
   }
 }
 
+/** Resolves the on-disk cache directory for a given agent namespace. */
 export function resolveCacheDir(agent: AgentType, repoRoot: string): string {
   if (agent === "external") {
     return join(repoRoot, ".ai", "external-context-gatherer_cache");
@@ -35,6 +44,14 @@ export function resolveCacheDir(agent: AgentType, repoRoot: string): string {
   return join(repoRoot, ".ai", "local-context-gatherer_cache");
 }
 
+/**
+ * Reads and JSON-parses one cache file.
+ *
+ * @param filePath - Absolute cache file path.
+ * @returns Parsed object on success, or typed read/parse failures.
+ * @remarks Returns `FILE_NOT_FOUND` when the file is absent, and `PARSE_ERROR` when the
+ * file exists but contains invalid JSON. Low-level I/O failures return `FILE_READ_ERROR`.
+ */
 export async function readCache(filePath: string): Promise<Result<Record<string, unknown>>> {
   try {
     const content = await readFile(filePath, "utf-8");
@@ -53,6 +70,17 @@ export async function readCache(filePath: string): Promise<Result<Record<string,
   }
 }
 
+/**
+ * Writes cache content using advisory locking and atomic rename.
+ *
+ * @param filePath - Absolute cache file path to write.
+ * @param updates - Partial updates (`merge`) or full replacement payload (`replace`).
+ * @param mode - `merge` overlays updates onto existing JSON; `replace` writes payload as-is.
+ * @remarks In `merge` mode the function performs read-modify-write preserving unknown fields.
+ * Writes use temp-file + `rename()` for atomic visibility. A per-file advisory lock is
+ * acquired before mutation and released in `finally`, preventing concurrent writers from
+ * interleaving updates.
+ */
 export async function writeCache(
   filePath: string,
   updates: Partial<ExternalCacheFile> | Partial<LocalCacheFile> | Record<string, unknown>,
@@ -101,6 +129,13 @@ export async function writeCache(
   }
 }
 
+/**
+ * Lists JSON cache files for an agent namespace.
+ *
+ * @param agent - Cache namespace to inspect.
+ * @param repoRoot - Repository root used to resolve cache directory paths.
+ * @returns Absolute `.json` file paths; returns an empty array when directory is absent.
+ */
 export async function listCacheFiles(agent: AgentType, repoRoot: string): Promise<Result<string[]>> {
   const cacheDir = resolveCacheDir(agent, repoRoot);
   try {
@@ -157,6 +192,15 @@ export async function loadExternalCacheEntries(repoRoot: string): Promise<Result
   return { ok: true, value: entries };
 }
 
+/**
+ * Acquires an advisory lock file for a cache path.
+ *
+ * @param filePath - Cache file path whose lock (`.lock`) should be acquired.
+ * @returns `ok: true` when lock is acquired, otherwise typed lock failure.
+ * @remarks Uses atomic `O_EXCL` create semantics to guarantee single-writer lock acquisition.
+ * Existing locks are checked for staleness via lock age and PID liveness (`process.kill(pid, 0)`).
+ * Retries every 50ms and fails with `LOCK_TIMEOUT` after 5 seconds.
+ */
 export async function acquireLock(filePath: string): Promise<Result<void>> {
   const lockPath = `${filePath}.lock`;
   const start = Date.now();
@@ -197,6 +241,12 @@ export async function acquireLock(filePath: string): Promise<Result<void>> {
   }
 }
 
+/**
+ * Releases a previously acquired advisory lock file.
+ *
+ * @param filePath - Cache file path whose `.lock` file should be removed.
+ * @remarks `ENOENT` is intentionally ignored to keep release fire-and-forget safe.
+ */
 export async function releaseLock(filePath: string): Promise<void> {
   const lockPath = `${filePath}.lock`;
   try {

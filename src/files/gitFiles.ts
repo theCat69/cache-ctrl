@@ -10,6 +10,11 @@ function parseGitOutput(stdout: string): string[] {
     .filter((l) => l.length > 0);
 }
 
+/**
+ * Returns git-tracked file paths for a repository.
+ *
+ * Falls back to `[]` when git is unavailable, command execution fails, or directory is not a git repo.
+ */
 export async function getGitTrackedFiles(repoRoot: string): Promise<string[]> {
   try {
     const result = await execFileAsync("git", ["ls-files"], { cwd: repoRoot, maxBuffer: 10 * 1024 * 1024 });
@@ -19,6 +24,11 @@ export async function getGitTrackedFiles(repoRoot: string): Promise<string[]> {
   }
 }
 
+/**
+ * Returns git-tracked files deleted from the working tree.
+ *
+ * Falls back to `[]` when git is unavailable, command execution fails, or directory is not a git repo.
+ */
 export async function getGitDeletedFiles(repoRoot: string): Promise<string[]> {
   try {
     const result = await execFileAsync("git", ["ls-files", "--deleted"], { cwd: repoRoot, maxBuffer: 10 * 1024 * 1024 });
@@ -28,6 +38,11 @@ export async function getGitDeletedFiles(repoRoot: string): Promise<string[]> {
   }
 }
 
+/**
+ * Returns untracked files that are not ignored by git.
+ *
+ * Falls back to `[]` when git is unavailable, command execution fails, or directory is not a git repo.
+ */
 export async function getUntrackedNonIgnoredFiles(repoRoot: string): Promise<string[]> {
   try {
     const result = await execFileAsync("git", ["ls-files", "--others", "--exclude-standard"], {

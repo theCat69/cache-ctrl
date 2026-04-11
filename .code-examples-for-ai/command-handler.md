@@ -10,10 +10,12 @@ Commands are thin orchestrators — they validate, delegate to services, and ret
 
 import { join } from "node:path";
 import { findRepoRoot, listCacheFiles, readCache } from "../cache/cacheManager.js";
-import { getAgeHuman, isExternalStale, getFileStem } from "../cache/externalCache.js";
+import { getAgeHuman, isExternalStale } from "../cache/externalCache.js";
 import { ExternalCacheFileSchema, LocalCacheFileSchema } from "../types/cache.js";
-import { ErrorCode, type Result } from "../types/result.js";
+import { type Result } from "../types/result.js";
 import type { ListArgs, ListEntry, ListResult } from "../types/commands.js";  // import type for type-only imports
+import { getFileStem } from "../utils/fileStem.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 // The command function signature: typed Args in, Promise<Result<T>> out
 export async function listCommand(args: ListArgs): Promise<Result<ListResult["value"]>> {
@@ -56,9 +58,8 @@ export async function listCommand(args: ListArgs): Promise<Result<ListResult["va
     return { ok: true, value: entries };
 
   } catch (err) {
-    // 5. Top-level catch converts unexpected throws to a typed UNKNOWN error
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg, code: ErrorCode.UNKNOWN };
+    // 5. Top-level catch converts unexpected throws to canonical UNKNOWN Result
+    return toUnknownResult(err);
   }
 }
 ```

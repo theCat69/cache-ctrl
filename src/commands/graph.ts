@@ -40,6 +40,13 @@ function countReferences(graph: DependencyGraph): Map<string, number> {
   return refCounts;
 }
 
+/**
+ * Returns a token-budgeted, PageRank-ranked projection of the dependency graph cache.
+ *
+ * @param args - {@link GraphArgs} command arguments.
+ * @returns Promise<Result<GraphResult["value"]>>; common failures include FILE_NOT_FOUND,
+ * PARSE_ERROR, FILE_READ_ERROR, and UNKNOWN.
+ */
 export async function graphCommand(args: GraphArgs): Promise<Result<GraphResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

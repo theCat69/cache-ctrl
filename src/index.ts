@@ -332,6 +332,12 @@ function printError(error: { ok: false; error: string; code: string }, pretty: b
   }
 }
 
+/**
+ * Prints a structured usage error and terminates the process.
+ *
+ * @param message - Human-readable usage failure detail.
+ * @remarks Always exits with process code `2` to distinguish usage failures from runtime errors.
+ */
 function usageError(message: string): never {
   process.stderr.write(JSON.stringify({ ok: false, error: message, code: ErrorCode.INVALID_ARGS }) + "\n");
   process.exit(2);
@@ -371,6 +377,14 @@ function collectFlagValues(argv: string[], flagName: string): string[] {
   return values;
 }
 
+/**
+ * Parses raw CLI argv tokens into positional args and flag key/value pairs.
+ *
+ * @param argv - Raw argument tokens (typically `process.argv.slice(2)`).
+ * @returns Parsed positional args and normalized flags map.
+ * @remarks Flags listed in `VALUE_FLAGS` consume the following token as their value;
+ * all other `--flag` tokens are treated as boolean flags.
+ */
 export function parseArgs(argv: string[]): { args: string[]; flags: Record<string, string | boolean> } {
   const positional: string[] = [];
   const flags: Record<string, string | boolean> = {};

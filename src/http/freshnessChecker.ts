@@ -1,9 +1,16 @@
+/** Input payload for one HTTP freshness check request. */
 export interface FreshnessCheckInput {
   url: string;
   etag?: string;
   last_modified?: string;
 }
 
+/**
+ * Output payload for one HTTP freshness check request.
+ *
+ * @remarks Status semantics: HTTP 304 maps to `fresh`, HTTP 200 maps to `stale`, and
+ * all other outcomes (network errors, blocked URLs, non-200/304 responses) map to `error`.
+ */
 export interface FreshnessCheckOutput {
   url: string;
   status: "fresh" | "stale" | "error";
@@ -32,6 +39,13 @@ export interface FreshnessCheckOutput {
 const PRIVATE_IP_PATTERN =
   /^(127\.|localhost$|10\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.0\.0\.0$|\[::1\]$|::1$|::ffff:|\[::ffff:|f[cd][0-9a-f]{0,2}:|\[f[cd][0-9a-f]{0,2}:)/i;
 
+/**
+ * Validates whether a URL is eligible for outbound freshness checks.
+ *
+ * @remarks Security control for SSRF risk reduction. Blocks non-HTTP(S) schemes and host
+ * patterns that target loopback/private address space or raw IP-style local endpoints
+ * (for example localhost, RFC1918 IPv4 ranges, loopback/link-local, and mapped/ULA IPv6).
+ */
 export function isAllowedUrl(url: string): { allowed: boolean; reason?: string } {
   try {
     const parsed = new URL(url);
@@ -47,6 +61,14 @@ export function isAllowedUrl(url: string): { allowed: boolean; reason?: string }
   }
 }
 
+/**
+ * Performs a conditional HTTP HEAD freshness check.
+ *
+ * @param input - URL plus optional stored validators (`etag`, `last_modified`).
+ * @returns Freshness verdict and response metadata for one URL.
+ * @remarks Uses a 10-second abort timeout, sends conditional headers when available,
+ * maps 304→fresh and 200→stale, and reports all other outcomes as `error`.
+ */
 export async function checkFreshness(input: FreshnessCheckInput): Promise<FreshnessCheckOutput> {
   const allowCheck = isAllowedUrl(input.url);
   if (!allowCheck.allowed) {

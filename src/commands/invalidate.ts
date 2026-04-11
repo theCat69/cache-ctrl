@@ -7,6 +7,13 @@ import type { InvalidateArgs, InvalidateResult } from "../types/commands.js";
 import { toUnknownResult } from "../utils/errors.js";
 import { validateSubject } from "../utils/validate.js";
 
+/**
+ * Marks cache entries stale by zeroing their freshness timestamps.
+ *
+ * @param args - {@link InvalidateArgs} command arguments.
+ * @returns Promise<Result<InvalidateResult["value"]>>; common failures include INVALID_ARGS,
+ * NO_MATCH, FILE_NOT_FOUND, FILE_WRITE_ERROR, and UNKNOWN.
+ */
 export async function invalidateCommand(args: InvalidateArgs): Promise<Result<InvalidateResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

@@ -52,7 +52,7 @@ export function validateSubject(subject: string): Result<void> {
 ## Usage at the call site
 
 ```typescript
-// src/commands/write.ts — validate before any file path construction
+// src/commands/writeExternal.ts — validate before any file path construction
 const subjectValidation = validateSubject(args.subject);
 if (!subjectValidation.ok) return subjectValidation;  // propagate as-is
 

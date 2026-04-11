@@ -8,6 +8,13 @@ import type { CheckFreshnessArgs, CheckFreshnessResult } from "../types/commands
 import { getFileStem } from "../utils/fileStem.js";
 import { toUnknownResult } from "../utils/errors.js";
 
+/**
+ * Performs HTTP freshness checks for the matched external cache entry sources.
+ *
+ * @param args - {@link CheckFreshnessArgs} command arguments.
+ * @returns Promise<Result<CheckFreshnessResult["value"]>>; common failures include
+ * NO_MATCH, URL_NOT_FOUND, PARSE_ERROR, FILE_READ_ERROR/FILE_WRITE_ERROR, and UNKNOWN.
+ */
 export async function checkFreshnessCommand(args: CheckFreshnessArgs): Promise<Result<CheckFreshnessResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

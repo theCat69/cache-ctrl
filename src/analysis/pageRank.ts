@@ -1,5 +1,6 @@
 import type { DependencyGraph } from "./graphBuilder.js";
 
+/** Tuning options for dependency-graph PageRank computation. */
 export interface PageRankOptions {
   /** Damping factor (default 0.85) */
   dampingFactor?: number;

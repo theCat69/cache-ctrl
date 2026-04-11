@@ -19,6 +19,15 @@ export const ExternalCacheFileSchema = z.looseObject({
   header_metadata: z.record(z.string(), HeaderMetaSchema),
 });
 
+const FileFactsSchema = z.object({
+  summary: z.string().max(300).optional(),
+  role: z
+    .enum(["entry-point", "interface", "implementation", "test", "config"])
+    .optional(),
+  importance: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  facts: z.array(z.string().max(300)).max(10).optional(),
+});
+
 export const LocalCacheFileSchema = z.looseObject({
   timestamp: z.string(),
   topic: z.string(),
@@ -36,21 +45,7 @@ export const LocalCacheFileSchema = z.looseObject({
       message: "max 20 global facts — choose only cross-cutting structural observations",
     })
     .optional(),
-  // max 30 facts per file; each string ≤ 800 chars
-  facts: z
-    .record(
-      z.string(),
-      z
-        .array(
-          z.string().max(800, {
-            message: "write concise observations, not file content (max 800 chars per fact)",
-          }),
-        )
-        .max(30, {
-          message: "max 30 facts per file — choose the most architecturally meaningful observations",
-        }),
-    )
-    .optional(),
+  facts: z.record(z.string(), FileFactsSchema).optional(),
 });
 
 // Inferred TypeScript types from the Zod schemas — single source of truth
@@ -59,7 +54,7 @@ export type LocalCacheFile = z.infer<typeof LocalCacheFileSchema>;
 ```
 
 ```typescript
-// src/commands/write.ts — validation before writing an external cache entry
+// src/commands/writeExternal.ts — validation before writing an external cache entry
 
 // Step 1: validate the subject (path traversal guard)
 const subjectValidation = validateSubject(args.subject);

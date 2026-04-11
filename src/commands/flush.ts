@@ -5,6 +5,13 @@ import { ErrorCode, type Result } from "../types/result.js";
 import type { FlushArgs, FlushResult } from "../types/commands.js";
 import { toUnknownResult } from "../utils/errors.js";
 
+/**
+ * Deletes cache files for one or both agent namespaces.
+ *
+ * @param args - {@link FlushArgs} command arguments.
+ * @returns Promise<Result<FlushResult["value"]>>; common failures include
+ * CONFIRMATION_REQUIRED, FILE_WRITE_ERROR, FILE_READ_ERROR, and UNKNOWN.
+ */
 export async function flushCommand(args: FlushArgs): Promise<Result<FlushResult["value"]>> {
   if (!args.confirm) {
     return {

@@ -7,6 +7,13 @@ import { ErrorCode, type Result } from "../types/result.js";
 import type { SearchArgs, SearchResult } from "../types/commands.js";
 import { toUnknownResult } from "../utils/errors.js";
 
+/**
+ * Searches cache entries across namespaces using keyword-based scoring.
+ *
+ * @param args - {@link SearchArgs} command arguments.
+ * @returns Promise<Result<SearchResult["value"]>>; common failures include FILE_READ_ERROR
+ * (external directory listing), PARSE_ERROR (malformed local cache), and UNKNOWN.
+ */
 export async function searchCommand(args: SearchArgs): Promise<Result<SearchResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

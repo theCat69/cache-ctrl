@@ -5,6 +5,13 @@ import type { MapArgs, MapDepth, MapResult } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../utils/errors.js";
 
+/**
+ * Returns a semantic map view of local context cache content.
+ *
+ * @param args - {@link MapArgs} command arguments.
+ * @returns Promise<Result<MapResult["value"]>>; common failures include FILE_NOT_FOUND,
+ * PARSE_ERROR, FILE_READ_ERROR, and UNKNOWN.
+ */
 export async function mapCommand(args: MapArgs): Promise<Result<MapResult["value"]>> {
   try {
     const depth: MapDepth = args.depth ?? "overview";

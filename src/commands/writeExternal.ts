@@ -7,6 +7,13 @@ import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../utils/errors.js";
 import { formatZodError, validateSubject } from "../utils/validate.js";
 
+/**
+ * Validates and writes one external cache entry.
+ *
+ * @param args - {@link WriteArgs} command arguments for the external agent.
+ * @returns Promise<Result<WriteResult["value"]>>; common failures include INVALID_ARGS,
+ * VALIDATION_ERROR, FILE_WRITE_ERROR, LOCK_TIMEOUT/LOCK_ERROR, and UNKNOWN.
+ */
 export async function writeExternalCommand(args: WriteArgs): Promise<Result<WriteResult["value"]>> {
   try {
     if (!args.subject) {

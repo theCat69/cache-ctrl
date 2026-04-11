@@ -7,6 +7,13 @@ import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../utils/errors.js";
 import type { ListArgs, ListEntry, ListResult } from "../types/commands.js";
 
+/**
+ * Lists cache entries for external and/or local namespaces.
+ *
+ * @param args - {@link ListArgs} command arguments.
+ * @returns Promise<Result<ListResult["value"]>>; common failures include FILE_READ_ERROR,
+ * FILE_NOT_FOUND, PARSE_ERROR, and UNKNOWN.
+ */
 export async function listCommand(args: ListArgs): Promise<Result<ListResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

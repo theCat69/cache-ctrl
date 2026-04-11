@@ -1,7 +1,11 @@
 import { z } from "zod";
 
+/** Supported cache namespaces exposed by the CLI and plugin tools. */
 export type AgentType = "external" | "local";
 
+/**
+ * Normalized cache entry summary returned by the `list` command prior to formatting.
+ */
 export interface CacheEntry {
   file: string;
   agent: AgentType;
@@ -25,8 +29,12 @@ const HeaderMetaSchema = z.object({
   status: z.enum(["fresh", "stale", "unchecked"]),
 });
 
+/** Stored HTTP validator metadata for one source URL in an external cache entry. */
 export type HeaderMeta = z.infer<typeof HeaderMetaSchema>;
 
+/**
+ * Validates external context cache JSON files stored under `.ai/external-context-gatherer_cache/`.
+ */
 export const ExternalCacheFileSchema = z.looseObject({
   subject: z.string(),
   description: z.string(),
@@ -35,6 +43,7 @@ export const ExternalCacheFileSchema = z.looseObject({
   header_metadata: z.record(z.string(), HeaderMetaSchema),
 });
 
+/** Validates one tracked file baseline used by local file-change detection. */
 export const TrackedFileSchema = z.object({
   path: z.string(),
   mtime: z.number(),
@@ -95,6 +104,9 @@ const GraphNodeSchema = z.object({
   defs: z.array(z.string()),
 });
 
+/**
+ * Validates graph cache payloads written by `watch` and consumed by `graph`.
+ */
 export const GraphCacheFileSchema = z.object({
   files: z.record(z.string(), GraphNodeSchema),
   computed_at: z.string(),

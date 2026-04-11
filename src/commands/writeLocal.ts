@@ -37,6 +37,13 @@ function toPlainObjectRecord(rawValue: unknown): Record<string, unknown> {
   return {};
 }
 
+/**
+ * Validates and writes local context cache content with per-path merge semantics.
+ *
+ * @param args - {@link WriteArgs} command arguments for the local agent.
+ * @returns Promise<Result<WriteResult["value"]>>; common failures include VALIDATION_ERROR,
+ * FILE_READ_ERROR/FILE_WRITE_ERROR, LOCK_TIMEOUT/LOCK_ERROR, and UNKNOWN.
+ */
 export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());
