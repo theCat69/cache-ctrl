@@ -75,7 +75,7 @@ describe("write external", () => {
       ["write-external", "--data", JSON.stringify(entryData)],
       { cwd: repo.dir },
     );
-    expect(result.exitCode).toBe(1);
+    expect(result.exitCode).toBe(2);
 
     const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
     expect(errorOutput.ok).toBe(false);
@@ -163,8 +163,8 @@ describe("write local — facts", () => {
       description: "facts round-trip test",
       tracked_files: [{ path: fileA }, { path: fileB }],
       facts: {
-        [fileA]: ["exports fetchUser"],
-        [fileB]: ["exports validateInput"],
+        [fileA]: { facts: ["exports fetchUser"] },
+        [fileB]: { facts: ["exports validateInput"] },
       },
     };
     const firstResult = await runCli(
@@ -176,18 +176,20 @@ describe("write local — facts", () => {
     // Verify both fact entries after first write
     const inspectResult1 = await runCli(["inspect", "local", "context"], { cwd: repo.dir });
     expect(inspectResult1.exitCode).toBe(0);
-    const inspected1 = parseJsonOutput<{ value: { facts: Record<string, string[]> } }>(
+    const inspected1 = parseJsonOutput<{
+      value: { facts: Record<string, { facts?: string[] }> };
+    }>(
       inspectResult1.stdout,
     );
-    expect(inspected1.value.facts[fileA]).toEqual(["exports fetchUser"]);
-    expect(inspected1.value.facts[fileB]).toEqual(["exports validateInput"]);
+    expect(inspected1.value.facts[fileA]?.facts).toEqual(["exports fetchUser"]);
+    expect(inspected1.value.facts[fileB]?.facts).toEqual(["exports validateInput"]);
 
     // Second write: only fileA with updated facts
     const secondData = {
       topic: "delta scan",
       description: "only file A updated",
       tracked_files: [{ path: fileA }],
-      facts: { [fileA]: ["exports fetchUser — updated"] },
+      facts: { [fileA]: { facts: ["exports fetchUser — updated"] } },
     };
     const secondResult = await runCli(
       ["write-local", "--data", JSON.stringify(secondData)],
@@ -198,11 +200,13 @@ describe("write local — facts", () => {
     // Verify fileA updated, fileB preserved
     const inspectResult2 = await runCli(["inspect", "local", "context"], { cwd: repo.dir });
     expect(inspectResult2.exitCode).toBe(0);
-    const inspected2 = parseJsonOutput<{ value: { facts: Record<string, string[]> } }>(
+    const inspected2 = parseJsonOutput<{
+      value: { facts: Record<string, { facts?: string[] }> };
+    }>(
       inspectResult2.stdout,
     );
-    expect(inspected2.value.facts[fileA]).toEqual(["exports fetchUser — updated"]);
-    expect(inspected2.value.facts[fileB]).toEqual(["exports validateInput"]);
+    expect(inspected2.value.facts[fileA]?.facts).toEqual(["exports fetchUser — updated"]);
+    expect(inspected2.value.facts[fileB]?.facts).toEqual(["exports validateInput"]);
   });
 
   it("scope guard rejection via CLI — facts path not in tracked_files returns VALIDATION_ERROR", async () => {
@@ -216,7 +220,7 @@ describe("write local — facts", () => {
       description: "scope guard rejection",
       tracked_files: [{ path: fileA }],
       // fileB is NOT in tracked_files — should fail
-      facts: { [fileB]: ["this should be rejected"] },
+      facts: { [fileB]: { facts: ["this should be rejected"] } },
     };
     const result = await runCli(
       ["write-local", "--data", JSON.stringify(invalidData)],

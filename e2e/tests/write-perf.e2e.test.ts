@@ -31,9 +31,9 @@ function toTrackedFiles(paths: string[]): Array<{ path: string }> {
  * must pass paths in their original seeding order to get stable, predictable values.
  * Never pass a sub-slice — the index used here will not match the file number in the name.
  */
-function toFacts(paths: string[]): Record<string, string[]> {
+function toFacts(paths: string[]): Record<string, { facts: string[] }> {
   return Object.fromEntries(
-    paths.map((p, i) => [p, [`exported const v${i}`, "pure module"]]),
+    paths.map((p, i) => [p, { facts: [`exported const v${i}`, "pure module"] }]),
   );
 }
 
@@ -60,8 +60,7 @@ async function runDeltaWriteTest(
 
   const coldResult = await runCli(
     [
-      "write",
-      "local",
+      "write-local",
       "--data",
       JSON.stringify({
         topic: "cold start",
@@ -75,13 +74,14 @@ async function runDeltaWriteTest(
   expect(coldResult.exitCode, `cold-start write failed: ${coldResult.stderr}`).toBe(0);
 
   const updatedPath = paths[0]!;
-  const updatedFacts = ["updated export signature", "adds optional second param"];
+  const updatedFacts = {
+    facts: ["updated export signature", "adds optional second param"],
+  };
 
   const start = performance.now();
   const deltaResult = await runCli(
     [
-      "write",
-      "local",
+      "write-local",
       "--data",
       JSON.stringify({
         topic: "delta",
@@ -106,7 +106,7 @@ async function runDeltaWriteTest(
   );
   const ctx = parseJsonOutput<{
     tracked_files: Array<{ path: string }>;
-    facts: Record<string, string[]>;
+    facts: Record<string, { facts?: string[] }>;
   }>(raw);
 
   expect(ctx.tracked_files).toHaveLength(n);
@@ -115,7 +115,7 @@ async function runDeltaWriteTest(
   // Verify facts for the last file are preserved using its known seeding index
   const lastIndex = n - 1;
   const preservedPath = paths[lastIndex]!;
-  expect(ctx.facts[preservedPath]).toEqual(expectedFactsForIndex(lastIndex));
+  expect(ctx.facts[preservedPath]?.facts).toEqual(expectedFactsForIndex(lastIndex));
 
   expect(elapsed, `delta write exceeded ${elapsedLimitMs} ms`).toBeLessThan(elapsedLimitMs);
 }
@@ -147,7 +147,7 @@ describe("write local — performance", () => {
 
       const start = performance.now();
       const result = await runCli(
-        ["write", "local", "--data", JSON.stringify(payload)],
+        ["write-local", "--data", JSON.stringify(payload)],
         { cwd: repo.dir },
       );
       const elapsed = Math.round(performance.now() - start);
@@ -190,7 +190,7 @@ describe("write local — performance", () => {
 
       const start = performance.now();
       const result = await runCli(
-        ["write", "local", "--data", JSON.stringify(payload)],
+        ["write-local", "--data", JSON.stringify(payload)],
         { cwd: repo.dir },
       );
       const elapsed = Math.round(performance.now() - start);
