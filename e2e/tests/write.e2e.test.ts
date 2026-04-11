@@ -19,14 +19,13 @@ describe("write external", () => {
     await rm(join(repo.dir, ".ai"), { recursive: true, force: true });
 
     const entryData = {
-      subject: "mywrite",
       description: "test",
       fetched_at: "2026-04-01T00:00:00Z",
       sources: [],
       header_metadata: {},
     };
     const result = await runCli(
-      ["write", "external", "mywrite", "--data", JSON.stringify(entryData)],
+      ["write-external", "mywrite", "--data", JSON.stringify(entryData)],
       { cwd: repo.dir },
     );
     expect(result.exitCode).toBe(0);
@@ -50,13 +49,12 @@ describe("write external", () => {
   it("fails with VALIDATION_ERROR for missing required field", async () => {
     // missing description
     const incompleteData = {
-      subject: "bad",
       fetched_at: "2026-04-01T00:00:00Z",
       sources: [],
       header_metadata: {},
     };
     const result = await runCli(
-      ["write", "external", "bad", "--data", JSON.stringify(incompleteData)],
+      ["write-external", "bad", "--data", JSON.stringify(incompleteData)],
       { cwd: repo.dir },
     );
     expect(result.exitCode).toBe(1);
@@ -74,7 +72,7 @@ describe("write external", () => {
       header_metadata: {},
     };
     const result = await runCli(
-      ["write", "external", "--data", JSON.stringify(entryData)],
+      ["write-external", "--data", JSON.stringify(entryData)],
       { cwd: repo.dir },
     );
     expect(result.exitCode).toBe(1);
@@ -86,7 +84,7 @@ describe("write external", () => {
 
   it("--data must be valid JSON — exits 2 on invalid JSON string", async () => {
     const result = await runCli(
-      ["write", "external", "test", "--data", "not-valid-json"],
+      ["write-external", "test", "--data", "not-valid-json"],
       { cwd: repo.dir },
     );
     expect(result.exitCode).toBe(2);
@@ -97,7 +95,7 @@ describe("write external", () => {
   });
 
   it("missing --data flag exits with code 2", async () => {
-    const result = await runCli(["write", "external", "test"], { cwd: repo.dir });
+    const result = await runCli(["write-external", "test"], { cwd: repo.dir });
     expect(result.exitCode).toBe(2);
 
     const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
@@ -112,7 +110,7 @@ describe("write local", () => {
 
     const entryData = { topic: "e2e test", description: "local write test", tracked_files: [] };
     const result = await runCli(
-      ["write", "local", "--data", JSON.stringify(entryData)],
+      ["write-local", "--data", JSON.stringify(entryData)],
       { cwd: repo.dir },
     );
     expect(result.exitCode).toBe(0);
@@ -131,7 +129,7 @@ describe("write local", () => {
       tracked_files: [{ path: "src/file-a.ts", mtime: 1, hash: "fake" }],
     };
     const result = await runCli(
-      ["write", "local", "--data", JSON.stringify(entryData)],
+      ["write-local", "--data", JSON.stringify(entryData)],
       { cwd: repo.dir },
     );
     expect(result.exitCode).toBe(0);
@@ -170,7 +168,7 @@ describe("write local — facts", () => {
       },
     };
     const firstResult = await runCli(
-      ["write", "local", "--data", JSON.stringify(firstData)],
+      ["write-local", "--data", JSON.stringify(firstData)],
       { cwd: repo.dir },
     );
     expect(firstResult.exitCode).toBe(0);
@@ -192,7 +190,7 @@ describe("write local — facts", () => {
       facts: { [fileA]: ["exports fetchUser — updated"] },
     };
     const secondResult = await runCli(
-      ["write", "local", "--data", JSON.stringify(secondData)],
+      ["write-local", "--data", JSON.stringify(secondData)],
       { cwd: repo.dir },
     );
     expect(secondResult.exitCode).toBe(0);
@@ -221,7 +219,7 @@ describe("write local — facts", () => {
       facts: { [fileB]: ["this should be rejected"] },
     };
     const result = await runCli(
-      ["write", "local", "--data", JSON.stringify(invalidData)],
+      ["write-local", "--data", JSON.stringify(invalidData)],
       { cwd: repo.dir },
     );
 

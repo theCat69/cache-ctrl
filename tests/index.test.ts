@@ -15,8 +15,8 @@ describe("parseArgs", () => {
   });
 
   it("parses a flag with a value", () => {
-    const result = parseArgs(["write", "--agent", "external"]);
-    expect(result.args).toEqual(["write"]);
+    const result = parseArgs(["write-external", "--agent", "external"]);
+    expect(result.args).toEqual(["write-external"]);
     expect(result.flags).toEqual({ agent: "external" });
   });
 
@@ -28,8 +28,8 @@ describe("parseArgs", () => {
 
   it("parses --data value starting with '--'", () => {
     // MED-6: values beginning with '--' must be consumed as flag values, not treated as flags
-    const result = parseArgs(["write", "--data", "--some-value"]);
-    expect(result.args).toEqual(["write"]);
+    const result = parseArgs(["write-local", "--data", "--some-value"]);
+    expect(result.args).toEqual(["write-local"]);
     expect(result.flags).toEqual({ data: "--some-value" });
   });
 
@@ -53,8 +53,8 @@ describe("parseArgs", () => {
 
   it("parses a flag with a JSON value containing special characters", () => {
     const json = '{"key":"val"}';
-    const result = parseArgs(["write", "--data", json]);
-    expect(result.args).toEqual(["write"]);
+    const result = parseArgs(["write-local", "--data", json]);
+    expect(result.args).toEqual(["write-local"]);
     expect(result.flags).toEqual({ data: json });
   });
 
@@ -134,7 +134,8 @@ describe("printHelp", () => {
       "check-freshness",
       "check-files",
       "search",
-      "write",
+      "write-local",
+      "write-external",
       "install",
       "graph",
       "map",
@@ -178,7 +179,7 @@ describe("printHelp", () => {
     expect(output).toContain("Usage");
   });
 
-  it.each(["list", "inspect", "flush", "invalidate", "touch", "prune", "check-freshness", "check-files", "search", "write", "install", "graph", "map"])(
+  it.each(["list", "inspect", "flush", "invalidate", "touch", "prune", "check-freshness", "check-files", "search", "write-local", "write-external", "install", "graph", "map"])(
     "per-command help for '%s' writes to stdout",
     (cmd) => {
       const ok = printHelp(cmd);

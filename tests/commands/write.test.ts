@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, readFile, mkdir, writeFile, stat, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeCommand } from "../../src/commands/write.js";
+import { writeLocalCommand } from "../../src/commands/writeLocal.js";
+import { writeExternalCommand } from "../../src/commands/writeExternal.js";
 import { ErrorCode } from "../../src/types/result.js";
 
 const EXTERNAL_DIR = join(".ai", "external-context-gatherer_cache");
@@ -41,7 +42,7 @@ describe("writeCommand", () => {
   });
 
   it("writes a valid external entry", async () => {
-    const result = await writeCommand({
+    const result = await writeExternalCommand({
       agent: "external",
       subject: "mysubject",
       content: { ...validExternalContent },
@@ -64,7 +65,7 @@ describe("writeCommand", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-05T10:00:00.000Z"));
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: { ...validLocalContent },
     });
@@ -85,7 +86,7 @@ describe("writeCommand", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-05T10:00:00.000Z"));
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: { ...validLocalContent, timestamp: "1999-01-01T00:00:00.000Z" },
     });
@@ -102,14 +103,14 @@ describe("writeCommand", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-05T10:00:00.000Z"));
 
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: { ...validLocalContent, extra_field: "preserved" },
     });
 
     vi.setSystemTime(new Date("2026-04-05T12:00:00.000Z"));
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: { ...validLocalContent, topic: "updated topic" },
     });
@@ -136,7 +137,7 @@ describe("writeCommand", () => {
     const realStat = await stat(trackedPath);
     const realMtime = realStat.mtimeMs;
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "mtime test",
@@ -159,7 +160,7 @@ describe("writeCommand", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-05T10:00:00.000Z"));
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "fallback mtime test",
@@ -184,7 +185,7 @@ describe("writeCommand", () => {
     const realStat = await stat(trackedPath);
     const realMtime = realStat.mtimeMs;
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "strip test",
@@ -213,7 +214,7 @@ describe("writeCommand", () => {
       header_metadata: {},
     };
 
-    const result = await writeCommand({
+    const result = await writeExternalCommand({
       agent: "external",
       subject: "mysubject",
       content: contentMissingDescription,
@@ -234,7 +235,7 @@ describe("writeCommand", () => {
       header_metadata: {},
     };
 
-    const result = await writeCommand({
+    const result = await writeExternalCommand({
       agent: "external",
       subject: "mysubject",
       content: contentWrongType,
@@ -254,7 +255,7 @@ describe("writeCommand", () => {
       header_metadata: {},
     };
 
-    const result = await writeCommand({
+    const result = await writeExternalCommand({
       agent: "external",
       subject: "injected-subject",
       content: contentWithoutSubject,
@@ -277,7 +278,7 @@ describe("writeCommand", () => {
       header_metadata: {},
     };
 
-    const result = await writeCommand({
+    const result = await writeExternalCommand({
       agent: "external",
       subject: "mysubject",
       content: contentWithMismatch,
@@ -290,7 +291,7 @@ describe("writeCommand", () => {
   });
 
   it("returns INVALID_ARGS when subject missing for external", async () => {
-    const result = await writeCommand({
+    const result = await writeExternalCommand({
       agent: "external",
       content: { ...validExternalContent },
     });
@@ -307,7 +308,7 @@ describe("writeCommand", () => {
       nested_extra: { foo: 42 },
     };
 
-    const result = await writeCommand({
+    const result = await writeExternalCommand({
       agent: "external",
       subject: "mysubject",
       content: contentWithExtra,
@@ -324,7 +325,7 @@ describe("writeCommand", () => {
 
   it("merges with existing file on second write", async () => {
     // First write — full valid content
-    await writeCommand({
+    await writeExternalCommand({
       agent: "external",
       subject: "mysubject",
       content: { ...validExternalContent, existing_field: "original" },
@@ -339,7 +340,7 @@ describe("writeCommand", () => {
       header_metadata: {},
     };
 
-    const result = await writeCommand({
+    const result = await writeExternalCommand({
       agent: "external",
       subject: "mysubject",
       content: partialUpdate,
@@ -363,7 +364,7 @@ describe("writeCommand", () => {
     await writeFile(fileA, "export const a = 1;");
     await writeFile(fileB, "export const b = 2;");
 
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "initial scan",
@@ -372,7 +373,7 @@ describe("writeCommand", () => {
       },
     });
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "incremental scan",
@@ -396,7 +397,7 @@ describe("writeCommand", () => {
     const fileA = join(tmpDir, "fileA-upsert.ts");
     await writeFile(fileA, "export const a = 1;");
 
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "first write",
@@ -408,7 +409,7 @@ describe("writeCommand", () => {
     // Modify the file so mtime changes
     await writeFile(fileA, "export const a = 2;");
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "second write",
@@ -437,7 +438,7 @@ describe("writeCommand", () => {
     await writeFile(fileC, "export const c = 3;");
 
     // Write fileA and fileB to cache
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "initial",
@@ -450,7 +451,7 @@ describe("writeCommand", () => {
     await rm(fileB);
 
     // Now write only fileC — fileB should be evicted from existing entries
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "after eviction",
@@ -475,7 +476,7 @@ describe("writeCommand", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-05T10:00:00.000Z"));
 
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "old topic",
@@ -486,7 +487,7 @@ describe("writeCommand", () => {
 
     vi.setSystemTime(new Date("2026-04-05T11:00:00.000Z"));
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "new topic",
@@ -507,7 +508,7 @@ describe("writeCommand", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-05T10:00:00.000Z"));
 
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "initial",
@@ -519,7 +520,7 @@ describe("writeCommand", () => {
 
     vi.setSystemTime(new Date("2026-04-05T11:00:00.000Z"));
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "update",
@@ -544,7 +545,7 @@ describe("writeCommand", () => {
     await writeFile(fileB, "export const b = 2;");
 
     // First write: submit both files with facts
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "initial",
@@ -558,7 +559,7 @@ describe("writeCommand", () => {
     });
 
     // Second write: submit only fileA — facts for fileB must be preserved
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "delta",
@@ -582,7 +583,7 @@ describe("writeCommand", () => {
     const fileA = join(tmpDir, "facts-replace-a.ts");
     await writeFile(fileA, "export const a = 1;");
 
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "first",
@@ -592,7 +593,7 @@ describe("writeCommand", () => {
       },
     });
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "second",
@@ -620,7 +621,7 @@ describe("writeCommand", () => {
     await writeFile(fileC, "c");
 
     // Write all three files with facts
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "initial",
@@ -637,7 +638,7 @@ describe("writeCommand", () => {
     await rm(fileB);
 
     // Write fileC — fileB should be evicted from facts
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "after delete",
@@ -666,7 +667,7 @@ describe("writeCommand", () => {
     await writeFile(fileB, "b");
     await writeFile(fileC, "c");
 
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "initial",
@@ -680,7 +681,7 @@ describe("writeCommand", () => {
     await rm(fileB);
 
     // Write fileC with no facts — fileA and fileB evicted, leaving facts: {}
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "after all deleted",
@@ -702,7 +703,7 @@ describe("writeCommand", () => {
     const fileA = join(tmpDir, "scope-pass-a.ts");
     await writeFile(fileA, "a");
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "guard pass",
@@ -720,7 +721,7 @@ describe("writeCommand", () => {
     const fileB = join(tmpDir, "scope-fail-b.ts");
     await writeFile(fileA, "a");
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "guard fail",
@@ -737,7 +738,7 @@ describe("writeCommand", () => {
   });
 
   it("scope guard — pass: empty facts object always passes regardless of tracked_files", async () => {
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "empty facts",
@@ -751,7 +752,7 @@ describe("writeCommand", () => {
   });
 
   it("scope guard — fail: non-empty facts with empty tracked_files returns VALIDATION_ERROR", async () => {
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "guard fail empty tracked_files",
@@ -768,7 +769,7 @@ describe("writeCommand", () => {
   });
 
   it("scope guard — pass: facts key absent means no validation occurs", async () => {
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "no facts key",
@@ -781,7 +782,7 @@ describe("writeCommand", () => {
   });
 
   it("global_facts last-write-wins: submitted value replaces existing", async () => {
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "first",
@@ -791,7 +792,7 @@ describe("writeCommand", () => {
       },
     });
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "second",
@@ -810,7 +811,7 @@ describe("writeCommand", () => {
   });
 
   it("global_facts preserved when not submitted in second write", async () => {
-    await writeCommand({
+    await writeLocalCommand({
       agent: "local",
       content: {
         topic: "first",
@@ -821,7 +822,7 @@ describe("writeCommand", () => {
     });
 
     // Second write omits global_facts — must be preserved via top-level merge
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "second",
@@ -856,7 +857,7 @@ describe("writeCommand", () => {
     const trackedPath = join(tmpDir, "fresh-file.ts");
     await writeFile(trackedPath, "export const x = 1;");
 
-    const result = await writeCommand({
+    const result = await writeLocalCommand({
       agent: "local",
       content: {
         topic: "recovery write",
@@ -878,7 +879,7 @@ describe("writeCommand", () => {
 
   describe("facts key path traversal guard", () => {
     it("rejects a facts key containing '../' segment that is not in tracked_files", async () => {
-      const result = await writeCommand({
+      const result = await writeLocalCommand({
         agent: "local",
         content: {
           topic: "traversal test",
@@ -898,7 +899,7 @@ describe("writeCommand", () => {
       await mkdir(join(tmpDir, "src"), { recursive: true });
       await writeFile(filePath, "export const x = 1;");
 
-      const result = await writeCommand({
+      const result = await writeLocalCommand({
         agent: "local",
         content: {
           topic: "normal key test",
@@ -917,7 +918,7 @@ describe("writeCommand", () => {
       const trackedPath = join(tmpDir, "constraint-fact-len.ts");
       await writeFile(trackedPath, "export const x = 1;");
 
-      const result = await writeCommand({
+      const result = await writeLocalCommand({
         agent: "local",
         content: {
           topic: "constraint test",
@@ -937,7 +938,7 @@ describe("writeCommand", () => {
       const trackedPath = join(tmpDir, "constraint-facts-count.ts");
       await writeFile(trackedPath, "export const x = 1;");
 
-      const result = await writeCommand({
+      const result = await writeLocalCommand({
         agent: "local",
         content: {
           topic: "constraint test",
@@ -954,7 +955,7 @@ describe("writeCommand", () => {
     });
 
     it("returns VALIDATION_ERROR when a global_fact string exceeds 300 chars", async () => {
-      const result = await writeCommand({
+      const result = await writeLocalCommand({
         agent: "local",
         content: {
           topic: "constraint test",
@@ -971,7 +972,7 @@ describe("writeCommand", () => {
     });
 
     it("returns VALIDATION_ERROR when global_facts array exceeds 20 entries", async () => {
-      const result = await writeCommand({
+      const result = await writeLocalCommand({
         agent: "local",
         content: {
           topic: "constraint test",
