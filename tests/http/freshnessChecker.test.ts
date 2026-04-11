@@ -183,6 +183,24 @@ describe("isAllowedUrl (SSRF guard)", () => {
     expect(result.reason).toContain("private/loopback");
   });
 
+  it("blocks SSRF bypass vector: IPv4-mapped IPv6 loopback (::ffff:127.0.0.1)", () => {
+    const result = isAllowedUrl("http://[::ffff:127.0.0.1]/");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("private/loopback");
+  });
+
+  it("blocks SSRF bypass vector: IPv4-mapped IPv6 RFC-1918 class A (::ffff:10.0.0.1)", () => {
+    const result = isAllowedUrl("http://[::ffff:10.0.0.1]/");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("private/loopback");
+  });
+
+  it("blocks SSRF bypass vector: IPv4-mapped IPv6 RFC-1918 class C (::ffff:192.168.1.1)", () => {
+    const result = isAllowedUrl("http://[::ffff:192.168.1.1]/");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("private/loopback");
+  });
+
   it("allows public HTTPS URL", () => {
     const result = isAllowedUrl("https://api.example.com/data");
     expect(result.allowed).toBe(true);
