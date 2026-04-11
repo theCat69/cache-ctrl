@@ -140,6 +140,8 @@ describe("printHelp", () => {
       "install",
       "graph",
       "map",
+      "watch",
+      "version",
     ];
     for (const cmd of commands) {
       expect(output).toContain(cmd);
