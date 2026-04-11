@@ -24,6 +24,8 @@ const HeaderMetaSchema = z.object({
   status: z.enum(["fresh", "stale", "unchecked"]),
 });
 
+export type HeaderMeta = z.infer<typeof HeaderMetaSchema>;
+
 export const ExternalCacheFileSchema = z.looseObject({
   subject: z.string(),
   description: z.string(),

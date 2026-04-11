@@ -2,7 +2,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readCache, writeCache, listCacheFiles, acquireLock, releaseLock } from "../../src/cache/cacheManager.js";
+import {
+  acquireLock,
+  listCacheFiles,
+  readCache,
+  releaseLock,
+  resolveCacheDir,
+  writeCache,
+} from "../../src/cache/cacheManager.js";
 
 let origCwd: string;
 let tmpDir: string;
@@ -127,6 +134,11 @@ describe("cacheManager", () => {
   });
 
   describe("listCacheFiles", () => {
+    it("resolves external cache directory under .ai", () => {
+      const externalDir = resolveCacheDir("external", tmpDir);
+      expect(externalDir).toBe(join(tmpDir, ".ai", "external-context-gatherer_cache"));
+    });
+
     it("lists .json files and excludes .lock files", async () => {
       const cacheDir = join(tmpDir, ".ai", "external-context-gatherer_cache");
       await mkdir(cacheDir, { recursive: true });

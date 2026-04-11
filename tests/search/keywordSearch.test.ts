@@ -24,6 +24,14 @@ describe("isExactWordMatch", () => {
   it("returns false when keyword is only a partial word with no delimiter boundary", () => {
     expect(isExactWordMatch("cacheManager", "cache")).toBe(false);
   });
+
+  it("treats hyphen as a word delimiter", () => {
+    expect(isExactWordMatch("my-lib", "lib")).toBe(true);
+  });
+
+  it("treats underscore as a word delimiter", () => {
+    expect(isExactWordMatch("my_lib", "lib")).toBe(true);
+  });
 });
 
 describe("scoreEntry", () => {
