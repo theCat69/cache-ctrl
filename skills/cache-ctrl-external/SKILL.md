@@ -51,22 +51,18 @@ Before fetching a brand-new subject, check whether related info is already cache
 
 **Always use the write tool/command — never write cache files directly via `edit`.** Direct writes bypass schema validation and can silently corrupt the cache format.
 
-**Tier 1:** Call `cache_ctrl_write` with:
+**Tier 1:** Call `cache_ctrl_write_external` with:
 ```json
 {
-  "agent": "external",
   "subject": "<subject>",
-  "content": {
-    "subject": "<subject>",
-    "description": "<one-line summary>",
-    "fetched_at": "<ISO 8601 now>",
-    "sources": [{ "type": "<type>", "url": "<canonical-url>" }],
-    "header_metadata": {}
-  }
+  "description": "<one-line summary>",
+  "fetched_at": "<ISO 8601 now>",
+  "sources": [{ "type": "<type>", "url": "<canonical-url>" }],
+  "header_metadata": {}
 }
 ```
 
-**Tier 2:** `cache-ctrl write external <subject> --data '<json>'`
+**Tier 2:** `cache-ctrl write-external <subject> --data '<json>'`
 
 **Tier 3:** Same as Tier 2 — there is no direct-file fallback for writes. If neither Tier 1 nor Tier 2 is available, request access to one of them.
 
@@ -111,7 +107,7 @@ All fields are validated on write. Unknown extra fields are allowed and preserve
 | Search entries | `cache_ctrl_search` | `cache-ctrl search <kw>...` | `glob` + scan `subject`/`description` |
 | View full entry | `cache_ctrl_inspect` | `cache-ctrl inspect external <subject>` | `read` file directly |
 | Invalidate entry | `cache_ctrl_invalidate` | `cache-ctrl invalidate external <subject>` | set `fetched_at` to `""` via `edit` |
-| Write entry | `cache_ctrl_write` | `cache-ctrl write external <subject> --data '<json>'` | ❌ not available |
+| Write entry | `cache_ctrl_write_external` | `cache-ctrl write-external <subject> --data '<json>'` | ❌ not available |
 
 ## Cache Location
 

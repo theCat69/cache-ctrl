@@ -5,7 +5,8 @@ import { invalidateCommand } from "./src/commands/invalidate.js";
 import { checkFreshnessCommand } from "./src/commands/checkFreshness.js";
 import { checkFilesCommand } from "./src/commands/checkFiles.js";
 import { searchCommand } from "./src/commands/search.js";
-import { writeCommand } from "./src/commands/write.js";
+import { writeLocalCommand } from "./src/commands/writeLocal.js";
+import { writeExternalCommand } from "./src/commands/writeExternal.js";
 import { graphCommand } from "./src/commands/graph.js";
 import { mapCommand } from "./src/commands/map.js";
 import { ErrorCode } from "./src/types/result.js";
@@ -13,6 +14,31 @@ import { ErrorCode } from "./src/types/result.js";
 const z = tool.schema;
 
 const AgentRequiredSchema = z.enum(["external", "local"]);
+
+function isRefinementContext(
+  value: unknown,
+): value is { addIssue: (issue: { code: "custom"; message: string; path: string[] }) => void } {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  return typeof (value as Record<string, unknown>)["addIssue"] === "function"; // Safe: value is already narrowed to non-null object above
+}
+
+function rejectTraversalKeys(record: Record<string, unknown>, ctx: unknown): void {
+  if (!isRefinementContext(ctx)) {
+    return;
+  }
+
+  for (const key of Object.keys(record)) {
+    if (key.includes("..") || key.startsWith("/") || key.includes("\x00")) {
+      ctx.addIssue({
+        code: "custom",
+        message: `facts key contains a path traversal or invalid character: "${key}"`,
+        path: [key],
+      });
+    }
+  }
+}
 
 function withServerTime(result: unknown): string {
   const base = result !== null && typeof result === "object" ? result : {};
@@ -132,20 +158,83 @@ export const check_files = tool({
   },
 });
 
-export const write = tool({
+export const write_local = tool({
   description:
-    "Write a validated cache entry to disk. Validates the content object against the ExternalCacheFile or LocalCacheFile schema before writing. Returns VALIDATION_ERROR if required fields are missing or have wrong types. For 'external': subject arg is required and must match content.subject (or will be injected if absent). For 'local': omit subject; timestamp is auto-set to current UTC time — do not include it in content. In tracked_files, each entry needs only { path } — mtime and hash are auto-computed by the tool; any caller-provided mtime or hash values are stripped. For local: uses per-path merge — tracked_files entries are merged by path (submitted paths replace existing entries for those paths; other paths are preserved). Entries for files no longer present on disk are evicted automatically. On cold start (no existing cache), submit all relevant files. On subsequent writes, submit only new and changed files. For 'external': uses atomic write-with-merge — existing unknown fields in the file are preserved. Call cache_ctrl_schema or read the skill to see required fields before calling this.",
+    "Write a validated local cache entry. timestamp is auto-set to current UTC time — do not include it in content. tracked_files entries need only { path }; mtime/hash are computed by the command. Uses per-path merge and evicts entries for files deleted from disk.",
   args: {
-    agent: AgentRequiredSchema,
-    subject: z.string().min(1).optional(),
-    content: z.record(z.string(), z.unknown()),
+    topic: z.string(),
+    description: z.string(),
+    tracked_files: z.array(z.object({ path: z.string() })),
+    global_facts: z.array(z.string().max(300)).max(20).optional(),
+    facts: z
+      .record(
+        z.string(),
+        z.object({
+          summary: z.string().optional(),
+          role: z.string().optional(),
+          importance: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+          facts: z.array(z.string()).optional(),
+        }),
+      )
+      .superRefine(rejectTraversalKeys)
+      .optional(),
+    cache_miss_reason: z.string().optional(),
   },
   async execute(args) {
     try {
-      const result = await writeCommand({
-        agent: args.agent,
-        ...(args.subject !== undefined ? { subject: args.subject } : {}),
-        content: args.content,
+      const result = await writeLocalCommand({
+        agent: "local",
+        content: {
+          topic: args.topic,
+          description: args.description,
+          tracked_files: args.tracked_files,
+          ...(args.global_facts !== undefined ? { global_facts: args.global_facts } : {}),
+          ...(args.facts !== undefined ? { facts: args.facts } : {}),
+          ...(args.cache_miss_reason !== undefined ? { cache_miss_reason: args.cache_miss_reason } : {}),
+        },
+      });
+      return withServerTime(result);
+    } catch (err) {
+      return handleUnknownError(err);
+    }
+  },
+});
+
+export const write_external = tool({
+  description:
+    "Write a validated external cache entry to disk. Uses atomic write-with-merge so unknown fields are preserved.",
+  args: {
+    subject: z.string(),
+    description: z.string(),
+    fetched_at: z.string().datetime(),
+    sources: z.array(
+      z.object({
+        type: z.string(),
+        url: z.string(),
+        version: z.string().optional(),
+      }),
+    ),
+    header_metadata: z.record(
+      z.string(),
+      z.object({
+        etag: z.string().optional(),
+        last_modified: z.string().optional(),
+        checked_at: z.string(),
+        status: z.number(),
+      }),
+    ),
+  },
+  async execute(args) {
+    try {
+      const result = await writeExternalCommand({
+        agent: "external",
+        subject: args.subject,
+        content: {
+          description: args.description,
+          fetched_at: args.fetched_at,
+          sources: args.sources,
+          header_metadata: args.header_metadata,
+        },
       });
       return withServerTime(result);
     } catch (err) {

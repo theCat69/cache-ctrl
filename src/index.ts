@@ -8,7 +8,8 @@ import { pruneCommand } from "./commands/prune.js";
 import { checkFreshnessCommand } from "./commands/checkFreshness.js";
 import { checkFilesCommand } from "./commands/checkFiles.js";
 import { searchCommand } from "./commands/search.js";
-import { writeCommand } from "./commands/write.js";
+import { writeLocalCommand } from "./commands/writeLocal.js";
+import { writeExternalCommand } from "./commands/writeExternal.js";
 import { installCommand } from "./commands/install.js";
 import { graphCommand } from "./commands/graph.js";
 import { mapCommand } from "./commands/map.js";
@@ -26,7 +27,8 @@ type CommandName =
   | "check-freshness"
   | "check-files"
   | "search"
-  | "write"
+  | "write-local"
+  | "write-external"
   | "install"
   | "graph"
   | "map"
@@ -160,13 +162,25 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "  Output: Ranked list of matching cache entries.",
     ].join("\n"),
   },
-  write: {
-    usage: "write <agent> [subject] --data '<json>'",
-    description: "Write a validated cache entry from JSON",
+  "write-local": {
+    usage: "write-local --data '<json>'",
+    description: "Write a validated local cache entry",
     details: [
       "  Arguments:",
-      "    <agent>     Agent type: external or local",
-      "    [subject]   Optional subject identifier (required for external agent)",
+      "    (none)",
+      "",
+      "  Options:",
+      "    --data '<json>'   JSON string containing the cache entry payload",
+      "",
+      "  Output: Confirmation with the written entry's key.",
+    ].join("\n"),
+  },
+  "write-external": {
+    usage: "write-external <subject> --data '<json>'",
+    description: "Write a validated external cache entry",
+    details: [
+      "  Arguments:",
+      "    <subject>   Subject identifier for the external entry",
       "",
       "  Options:",
       "    --data '<json>'   JSON string containing the cache entry payload",
@@ -394,7 +408,7 @@ async function main(): Promise<void> {
 
   const command = args[0];
   if (!command) {
-    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install, graph, map, watch, version");
+    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write-local, write-external, install, graph, map, watch, version");
   }
 
   switch (command) {
@@ -587,28 +601,54 @@ async function main(): Promise<void> {
       break;
     }
 
-    case "write": {
-      const agent = args[1];
-      if (!agent) {
-        usageError("Usage: cache-ctrl write <agent> [subject] --data '<json>'");
-      }
-      if (agent !== "external" && agent !== "local") {
-        usageError(`Invalid agent: "${agent}". Must be external or local`);
-      }
+    case "write-local": {
       const dataStr = typeof flags.data === "string" ? flags.data : undefined;
       if (!dataStr) {
-        usageError("Usage: cache-ctrl write <agent> [subject] --data '<json>'");
+        usageError("Usage: cache-ctrl write-local --data '<json>'");
       }
       let content: Record<string, unknown>;
       try {
-        content = JSON.parse(dataStr) as Record<string, unknown>;
+        content = JSON.parse(dataStr) as Record<string, unknown>; // JSON.parse returns any; writeLocalCommand validates the payload shape via Zod before use.
       } catch {
         usageError("--data must be valid JSON");
       }
-      const subject = agent === "external" ? args[2] : undefined;
-      const result = await writeCommand({
-        agent,
-        ...(subject !== undefined ? { subject } : {}),
+      if (typeof content !== "object" || content === null || Array.isArray(content)) {
+        usageError("--data must be a JSON object");
+      }
+      const result = await writeLocalCommand({
+        agent: "local",
+        content,
+      });
+      if (result.ok) {
+        printResult(result, pretty);
+      } else {
+        printError(result, pretty);
+        process.exit(1);
+      }
+      break;
+    }
+
+    case "write-external": {
+      const subject = args[1];
+      if (!subject) {
+        usageError("Usage: cache-ctrl write-external <subject> --data '<json>'");
+      }
+      const dataStr = typeof flags.data === "string" ? flags.data : undefined;
+      if (!dataStr) {
+        usageError("Usage: cache-ctrl write-external <subject> --data '<json>'");
+      }
+      let content: Record<string, unknown>;
+      try {
+        content = JSON.parse(dataStr) as Record<string, unknown>; // JSON.parse returns any; writeExternalCommand validates the payload shape via Zod before use.
+      } catch {
+        usageError("--data must be valid JSON");
+      }
+      if (typeof content !== "object" || content === null || Array.isArray(content)) {
+        usageError("--data must be a JSON object");
+      }
+      const result = await writeExternalCommand({
+        agent: "external",
+        subject,
         content,
       });
       if (result.ok) {
@@ -715,7 +755,7 @@ async function main(): Promise<void> {
     }
 
     default:
-      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install, graph, map, watch, version`);
+      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write-local, write-external, install, graph, map, watch, version`);
   }
 }
 

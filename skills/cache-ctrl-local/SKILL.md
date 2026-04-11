@@ -65,19 +65,19 @@ Content quality rules:
 
 ## Mandatory: Write Before Return
 
-**Every invocation that reads any file MUST call `cache_ctrl_write` before returning — no exceptions, no edge cases.**
+**Every invocation that reads any file MUST call `cache_ctrl_write_local` before returning — no exceptions, no edge cases.**
 
 Sequential checklist (do not skip any step):
 
 1. Call `cache_ctrl_check_files` — identify changed/new files
 2. Read only the changed/new files (skip unchanged ones)
 3. Extract concise facts per file (follow Fact-Writing Rules above)
-4. **Call `cache_ctrl_write` — MANDATORY. NO EXCEPTIONS.** (even if only 1 file changed, even if only global_facts changed, even if you believe the facts are identical to what is cached)
+4. **Call `cache_ctrl_write_local` — MANDATORY. NO EXCEPTIONS.** (even if only 1 file changed, even if only global_facts changed, even if you believe the facts are identical to what is cached)
 5. Return your summary
 
-> **⛔ Write-or-fail rule**: If you read any file in steps 2–3, you MUST call `cache_ctrl_write` in step 4. Returning without writing after reading files is a critical failure — the cache will be stale and the orchestrator will detect the missing write and re-invoke you. Even if zero files were read, you must still consult the decision table below before deciding to skip the write.
+> **⛔ Write-or-fail rule**: If you read any file in steps 2–3, you MUST call `cache_ctrl_write_local` in step 4. Returning without writing after reading files is a critical failure — the cache will be stale and the orchestrator will detect the missing write and re-invoke you. Even if zero files were read, you must still consult the decision table below before deciding to skip the write.
 
-**The only time you may skip `cache_ctrl_write` is when ALL of the following are true simultaneously:**
+**The only time you may skip `cache_ctrl_write_local` is when ALL of the following are true simultaneously:**
 
 | Condition | Required value |
 |---|---|
@@ -126,7 +126,7 @@ The response also reports:
 
 > **Write is per-path merge**: Submitted `tracked_files` entries replace existing entries for the same paths. Paths not in the submission are preserved. Entries for files deleted from disk are evicted automatically (no agent action needed).
 
-#### Input fields (`content` object)
+#### Input fields (top-level args)
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -165,7 +165,7 @@ distinct notable properties, up to the 10-item limit.
 Each per-file `facts` entry MUST include `summary` + `role`, should include `importance`,
 and may include an optional `facts[]` list.
 
-#### `cache_ctrl_write` facts shape example (`FileFacts`)
+#### `cache_ctrl_write_local` facts shape example (`FileFacts`)
 
 ```json
 {
@@ -196,25 +196,22 @@ The existing value is preserved automatically.
 Facts for files deleted from disk are evicted automatically on the next write — no agent
 action needed. `global_facts` is never evicted.
 
-#### Tier 1 — `cache_ctrl_write`
+#### Tier 1 — `cache_ctrl_write_local`
 
 ```json
 {
-  "agent": "local",
-  "content": {
-    "topic": "neovim plugin configuration scan",
-    "description": "Full scan of lua/plugins tree for neovim lazy.nvim setup",
-    "tracked_files": [
-      { "path": "lua/plugins/ui/bufferline.lua" },
-      { "path": "lua/plugins/lsp/nvim-lspconfig.lua" }
-    ]
-  }
+  "topic": "neovim plugin configuration scan",
+  "description": "Full scan of lua/plugins tree for neovim lazy.nvim setup",
+  "tracked_files": [
+    { "path": "lua/plugins/ui/bufferline.lua" },
+    { "path": "lua/plugins/lsp/nvim-lspconfig.lua" }
+  ]
 }
 ```
 
 #### Tier 2 — CLI
 
-`cache-ctrl write local --data '<json>'` — pass the same `content` object as JSON string.
+`cache-ctrl write-local --data '<json>'` — pass the same top-level fields as the JSON value.
 
 #### Tier 3
 
@@ -239,7 +236,7 @@ Note: local entries show `is_stale: true` only when `cache_ctrl_check_files` det
 | Confirm written | `cache_ctrl_list` | `cache-ctrl list --agent local` | `read` file, check `timestamp` |
 | Read facts (filtered) | `cache_ctrl_inspect` with `filter`, `folder`, or `searchFacts` | `cache-ctrl inspect local context --filter <kw>[,<kw>...]` / `--folder <path>` / `--search-facts <kw>[,<kw>...]` | `read` file, extract `facts`/`global_facts` |
 | Read all facts (rare) | `cache_ctrl_inspect` (no filter) | `cache-ctrl inspect local context` | `read` file directly |
-| Write cache | `cache_ctrl_write` | `cache-ctrl write local --data '<json>'` | ❌ not available |
+| Write cache | `cache_ctrl_write_local` | `cache-ctrl write-local --data '<json>'` | ❌ not available |
 
 ## New Tooling: `cache_ctrl_map` and `cache_ctrl_graph`
 

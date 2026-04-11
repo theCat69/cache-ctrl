@@ -20,14 +20,13 @@ describe("smoke: external cache pipeline", () => {
 
     // Step 1: write external entry
     const writeData = {
-      subject: "mysmoke",
       description: "smoke test external entry",
       fetched_at: "2026-04-01T00:00:00Z",
       sources: [],
       header_metadata: {},
     };
     const writeResult = await runCli(
-      ["write", "external", "mysmoke", "--data", JSON.stringify(writeData)],
+      ["write-external", "mysmoke", "--data", JSON.stringify(writeData)],
       { cwd: repo.dir },
     );
     expect(writeResult.exitCode).toBe(0);
@@ -99,7 +98,7 @@ describe("smoke: local cache pipeline", () => {
     // Step 1: write local with empty tracked_files
     const writeData = { topic: "smoke", description: "smoke test", tracked_files: [] };
     const writeResult = await runCli(
-      ["write", "local", "--data", JSON.stringify(writeData)],
+      ["write-local", "--data", JSON.stringify(writeData)],
       { cwd: repo.dir },
     );
     expect(writeResult.exitCode).toBe(0);
