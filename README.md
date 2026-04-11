@@ -535,7 +535,7 @@ No flags or arguments.
 
 ```jsonc
 // cache-ctrl version
-{ "ok": true, "value": { "version": "1.1.0" } }
+{ "ok": true, "value": { "version": "1.1.1" } }
 ```
 
 ---
