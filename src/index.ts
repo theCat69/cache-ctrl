@@ -13,6 +13,7 @@ import { installCommand } from "./commands/install.js";
 import { graphCommand } from "./commands/graph.js";
 import { mapCommand } from "./commands/map.js";
 import { watchCommand } from "./commands/watch.js";
+import { versionCommand } from "./commands/version.js";
 import { ErrorCode } from "./types/result.js";
 
 type CommandName =
@@ -29,7 +30,8 @@ type CommandName =
   | "install"
   | "graph"
   | "map"
-  | "watch";
+  | "watch"
+  | "version";
 
 function isKnownCommand(cmd: string): cmd is CommandName {
   return Object.hasOwn(COMMAND_HELP as Record<string, unknown>, cmd);
@@ -227,6 +229,16 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "  Output: Long-running daemon process that updates graph.json on source changes.",
     ].join("\n"),
   },
+  version: {
+    usage: "version",
+    description: "Show the current cache-ctrl package version",
+    details: [
+      "  Arguments:",
+      "    (none)",
+      "",
+      "  Output: JSON object containing the current package version.",
+    ].join("\n"),
+  },
 };
 
 const GLOBAL_OPTIONS_SECTION = [
@@ -382,7 +394,7 @@ async function main(): Promise<void> {
 
   const command = args[0];
   if (!command) {
-    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install, graph, map, watch");
+    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install, graph, map, watch, version");
   }
 
   switch (command) {
@@ -691,8 +703,19 @@ async function main(): Promise<void> {
       break;
     }
 
+    case "version": {
+      const result = versionCommand({});
+      if (result.ok) {
+        printResult(result, pretty);
+      } else {
+        printError(result, pretty);
+        process.exit(1);
+      }
+      break;
+    }
+
     default:
-      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install, graph, map, watch`);
+      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write, install, graph, map, watch, version`);
   }
 }
 

@@ -244,3 +244,9 @@ export interface InstallResult {
   skillPaths: string[];
   configDir: string;
 }
+
+// ── version ───────────────────────────────────────────────────────────────────
+
+export type VersionArgs = Record<string, never>;
+
+export type VersionResult = { value: { version: string } };

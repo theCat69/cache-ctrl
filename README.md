@@ -47,9 +47,9 @@ src/index.ts              cache_ctrl.ts
                │
         Command Layer
    src/commands/{list, inspect, flush,
-    invalidate, touch, prune,
-    checkFreshness, checkFiles, search,
-    write, graph, map, watch}.ts
+     invalidate, touch, prune,
+     checkFreshness, checkFiles, search,
+     write, graph, map, watch, version}.ts
                  │
            Core Services
    cacheManager  ← read/write + advisory lock
@@ -519,6 +519,23 @@ cache-ctrl watch &
 
 # Or run it in a dedicated terminal with verbose output
 cache-ctrl watch --verbose
+```
+
+---
+
+### `version`
+
+```
+cache-ctrl version
+```
+
+Prints the current package version as JSON and exits.
+
+No flags or arguments.
+
+```jsonc
+// cache-ctrl version
+{ "ok": true, "value": { "version": "1.1.0" } }
 ```
 
 ---
