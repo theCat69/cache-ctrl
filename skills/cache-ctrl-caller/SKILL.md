@@ -10,8 +10,6 @@ For any agent that calls **local-context-gatherer** and **external-context-gathe
 The cache avoids expensive subagent calls when their data is already fresh.
 Use `cache_ctrl_*` tools directly for all status checks — **never spawn a subagent just to check cache state**.
 
----
-
 ## Availability Detection (run once at startup)
 
 1. Call `cache_ctrl_list` (built-in tool).
@@ -19,9 +17,7 @@ Use `cache_ctrl_*` tools directly for all status checks — **never spawn a suba
    - Failure (tool not found / permission denied) → try step 2.
 2. Run `bash: "which cache-ctrl"`.
    - Exit 0 → **use Tier 2** for all operations.
-   - Not found → **use Tier 3** for all operations.
-
----
+   - Not found → **neither Tier is available**. Stop and request environment access to `cache_ctrl_*` tools or the `cache-ctrl` CLI before proceeding.
 
 ## Before Calling local-context-gatherer
 
@@ -59,10 +55,6 @@ After `local-context-gatherer` returns, verify it actually wrote to cache:
 4. Re-invoke the gatherer **once** with the explicit instruction appended: *"IMPORTANT: You MUST call `cache_ctrl_write` before returning. Your previous invocation did not update the cache (timestamp was not advanced)."*
 5. Do not retry more than once.
 
-> **Why `timestamp`, not `check-files`?** A `check-files` result of `"changed"` after a successful write is expected — it does not indicate a missing write. Only the `timestamp` advancing is a reliable signal that the write occurred.
-
----
-
 ## Before Calling external-context-gatherer
 
 Check whether external docs for a given subject are already cached and fresh.
@@ -71,7 +63,6 @@ Check whether external docs for a given subject are already cached and fresh.
 
 **Tier 1:** Call `cache_ctrl_list` with `agent: "external"`.
 **Tier 2:** `cache-ctrl list --agent external`
-**Tier 3:** `glob` `.ai/external-context-gatherer_cache/*.json` → for each file, `read` and check `fetched_at` (stale if empty or older than 24 hours).
 
 ### Step 2 — Search for a matching subject
 
@@ -79,7 +70,6 @@ If entries exist, check whether one already covers the topic:
 
 **Tier 1:** Call `cache_ctrl_search` with relevant keywords.
 **Tier 2:** `cache-ctrl search <keyword> [<keyword>...]`
-**Tier 3:** Scan `subject` and `description` fields in the listed files.
 
 ### Step 3 — Decide
 
@@ -97,7 +87,38 @@ To **force a re-fetch** for a specific subject:
 **Tier 1:** Call `cache_ctrl_invalidate` with `agent: "external"` and the subject keyword.
 **Tier 2:** `cache-ctrl invalidate external <subject>`
 
----
+## Exploring Local Context: map and graph
+
+### `cache_ctrl_map`
+
+- **Purpose:** Build a semantic mental map of the codebase (what each file does, plus role/importance metadata).
+- **Params:**
+  - `depth` (optional):
+    - `overview` (default): ~300-token orientation (summaries + roles)
+    - `modules`: adds module/grouping information
+    - `full`: includes per-file `facts[]` arrays
+  - `folder` (optional): restrict output to a path prefix
+- **When to use:** first call when entering a new task, before deeper inspection.
+
+### `cache_ctrl_graph`
+
+- **Purpose:** Return a structural dependency graph with PageRank-ranked files by centrality.
+- **Params:**
+  - `maxTokens` (optional, default `1024`)
+  - `seed` (optional `string[]`): personalize ranking toward specific files (for example changed files)
+- **Requirements:** `cache-ctrl watch` must be running (or must have run recently) to populate `graph.json`.
+- **When to use:** after `cache_ctrl_map`, to identify the most connected/high-leverage files.
+
+## Progressive Disclosure protocol (4-step)
+
+Use this 4-step sequence to control token usage while preserving accuracy:
+
+1. `cache_ctrl_map(depth: "overview")` — orient quickly (~300 tokens)
+2. `cache_ctrl_graph(maxTokens: 1024, seed: [changedFiles])` — structural dependency view
+3. `cache_ctrl_inspect(filter: [...])` — deep facts for specific files
+4. Read only the relevant source files (typically 2–5 files)
+
+> See **Reading a Full Cache Entry** below for the three filter targeting options and when to use each.
 
 ## Reading a Full Cache Entry
 
@@ -105,7 +126,6 @@ Use when you want to pass a cached summary to a subagent or include it inline in
 
 **Tier 1:** Call `cache_ctrl_inspect` with `agent` and `subject`.
 **Tier 2:** `cache-ctrl inspect external <subject>` or `cache-ctrl inspect local context --filter <kw>[,<kw>...]`
-**Tier 3:** `read` the file directly from `.ai/<agent>_cache/<subject>.json`.
 
 > **For `agent: "local"`: always use at least one filter on large codebases.** Three targeting options are available — use the most specific one that fits your task:
 >
@@ -114,25 +134,21 @@ Use when you want to pass a cached summary to a subagent or include it inline in
 > | `filter` | File path contains keyword | When you know which files by name/path segment |
 > | `folder` | File path starts with folder prefix (recursive) | When you need all files in a directory subtree |
 > | `search_facts` | Any fact string contains keyword | When you need files related to a concept, pattern, or API |
->
-> Unfiltered local inspect returns the **entire facts map**. This is only appropriate for codebases with ≤ ~20 tracked files. On larger codebases, always use at least one of the above.
-
----
 
 ## Quick Reference
 
-| Operation | Tier 1 | Tier 2 | Tier 3 |
-|---|---|---|---|
-| Check local freshness | `cache_ctrl_check_files` | `cache-ctrl check-files` | read context.json, check timestamp |
-| List external entries | `cache_ctrl_list` (agent: "external") | `cache-ctrl list --agent external` | glob + read each JSON |
-| Search entries | `cache_ctrl_search` | `cache-ctrl search <kw>...` | scan subject/description fields |
-| Read facts (local) | `cache_ctrl_inspect` + `filter` | `cache-ctrl inspect local context --filter <kw>` | read file, extract facts |
-| Read entry (external) | `cache_ctrl_inspect` | `cache-ctrl inspect external <subject>` | read file directly |
-| Invalidate local | `cache_ctrl_invalidate` (agent: "local") | `cache-ctrl invalidate local` | delete or overwrite file |
-| Invalidate external | `cache_ctrl_invalidate` (agent: "external", subject) | `cache-ctrl invalidate external <subject>` | set `fetched_at` to `""` via edit |
-| HTTP freshness check | `cache_ctrl_check_freshness` | `cache-ctrl check-freshness <subject>` | compare `fetched_at` with now |
-
----
+| Operation | Tier 1 | Tier 2 |
+|---|---|---|
+| Check local freshness | `cache_ctrl_check_files` | `cache-ctrl check-files` |
+| List external entries | `cache_ctrl_list` (agent: "external") | `cache-ctrl list --agent external` |
+| Search entries | `cache_ctrl_search` | `cache-ctrl search <kw>...` |
+| Read facts (local) | `cache_ctrl_inspect` + `filter` | `cache-ctrl inspect local context --filter <kw>` |
+| Read entry (external) | `cache_ctrl_inspect` | `cache-ctrl inspect external <subject>` |
+| Invalidate local | `cache_ctrl_invalidate` (agent: "local") | `cache-ctrl invalidate local` |
+| Invalidate external | `cache_ctrl_invalidate` (agent: "external", subject) | `cache-ctrl invalidate external <subject>` |
+| HTTP freshness check | `cache_ctrl_check_freshness` | `cache-ctrl check-freshness <subject>` |
+| Codebase map | `cache_ctrl_map` | `cache-ctrl map [--depth <overview|modules|full>] [--folder <path>]` |
+| Dependency graph | `cache_ctrl_graph` | `cache-ctrl graph [--max-tokens <n>] [--seed <file1,file2,...>]` |
 
 ## Anti-Bloat Rules
 
@@ -140,8 +156,6 @@ Use when you want to pass a cached summary to a subagent or include it inline in
 - Require subagents to return **≤ 500 token summaries** — never let raw context dump into chat.
 - Use `cache_ctrl_inspect` to read only the entries you actually need.
 - Cache entries are the source of truth. Prefer them over re-fetching.
-
----
 
 ## server_time in Responses
 
