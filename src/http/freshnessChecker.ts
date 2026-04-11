@@ -30,7 +30,7 @@ export interface FreshnessCheckOutput {
  *   - ::ffff:        IPv4-mapped IPv6
  */
 const PRIVATE_IP_PATTERN =
-  /^(127\.|localhost$|10\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.0\.0\.0$|\[::1\]$|::1$|::ffff:|f[cd][0-9a-f]{0,2}:|\[f[cd][0-9a-f]{0,2}:)/i;
+  /^(127\.|localhost$|10\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.0\.0\.0$|\[::1\]$|::1$|::ffff:|\[::ffff:|f[cd][0-9a-f]{0,2}:|\[f[cd][0-9a-f]{0,2}:)/i;
 
 export function isAllowedUrl(url: string): { allowed: boolean; reason?: string } {
   try {
