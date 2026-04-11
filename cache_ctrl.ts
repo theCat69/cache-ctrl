@@ -225,7 +225,7 @@ export const write_external = tool({
         etag: z.string().optional(),
         last_modified: z.string().optional(),
         checked_at: z.string(),
-        status: z.number(),
+        status: z.enum(["fresh", "stale", "unchecked"]),
       }),
     ),
   },

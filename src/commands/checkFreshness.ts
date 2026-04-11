@@ -1,11 +1,10 @@
 import { findRepoRoot, readCache, writeCache } from "../cache/cacheManager.js";
 import { isExternalStale, mergeHeaderMetadata, resolveTopExternalMatch } from "../cache/externalCache.js";
 import { checkFreshness } from "../http/freshnessChecker.js";
-import type { ExternalCacheFile } from "../types/cache.js";
+import type { ExternalCacheFile, HeaderMeta } from "../types/cache.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { CheckFreshnessArgs, CheckFreshnessResult } from "../types/commands.js";
-import type { HeaderMeta } from "../cache/externalCache.js";
 import { getFileStem } from "../utils/fileStem.js";
 
 export async function checkFreshnessCommand(args: CheckFreshnessArgs): Promise<Result<CheckFreshnessResult["value"]>> {

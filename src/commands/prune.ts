@@ -15,8 +15,7 @@ export function parseDurationMs(duration: string): number | null {
   if (unit === "s") return value * 1_000;
   if (unit === "m") return value * 60_000;
   if (unit === "h") return value * 3_600_000;
-  if (unit === "d") return value * 86_400_000;
-  return null;
+  return value * 86_400_000;
 }
 
 export async function pruneCommand(args: PruneArgs): Promise<Result<PruneResult["value"]>> {
