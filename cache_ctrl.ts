@@ -40,6 +40,11 @@ function rejectTraversalKeys(record: Record<string, unknown>, ctx: unknown): voi
   }
 }
 
+export const __test__ = {
+  isRefinementContext,
+  rejectTraversalKeys,
+};
+
 function withServerTime(result: unknown): string {
   const base = result !== null && typeof result === "object" ? result : {};
   return JSON.stringify({ ...base, server_time: new Date().toISOString() });

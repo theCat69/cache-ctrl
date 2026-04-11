@@ -204,7 +204,7 @@ export async function releaseLock(filePath: string): Promise<void> {
   } catch (err) {
     const error = err as NodeJS.ErrnoException;
     if (error.code !== "ENOENT") {
-      console.warn(`[cache-ctrl] Warning: failed to release lock ${lockPath}: ${error.message}`);
+      process.stderr.write(`[cache-ctrl] Warning: failed to release lock ${lockPath}: ${error.message}\n`);
     }
   }
 }

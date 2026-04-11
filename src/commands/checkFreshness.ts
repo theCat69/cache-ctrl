@@ -33,21 +33,15 @@ export async function checkFreshnessCommand(args: CheckFreshnessArgs): Promise<R
 
     // Determine which URLs to check
     const sources = cacheEntry.sources ?? [];
-    let urlsToCheck = sources;
-
-    if (args.url) {
-      const found = sources.find((s) => s.url === args.url);
-      if (!found) {
-        return {
-          ok: false,
-          error: `URL not found in sources for subject '${subject}'`,
-          code: ErrorCode.URL_NOT_FOUND,
-        };
-      }
-      urlsToCheck = [found];
-    } else {
-      urlsToCheck = sources;
+    const specificSource = args.url ? sources.find((source) => source.url === args.url) : undefined;
+    if (args.url && !specificSource) {
+      return {
+        ok: false,
+        error: `URL not found in sources for subject '${subject}'`,
+        code: ErrorCode.URL_NOT_FOUND,
+      };
     }
+    const urlsToCheck = specificSource ? [specificSource] : sources;
 
     // Check freshness for each URL
     const sourceResults: Array<{
