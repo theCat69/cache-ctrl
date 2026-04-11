@@ -6,6 +6,13 @@ import type { TouchArgs, TouchResult } from "../types/commands.js";
 import { toUnknownResult } from "../utils/errors.js";
 import { validateSubject } from "../utils/validate.js";
 
+/**
+ * Marks cache entries fresh by setting timestamps to current UTC time.
+ *
+ * @param args - {@link TouchArgs} command arguments.
+ * @returns Promise<Result<TouchResult["value"]>>; common failures include INVALID_ARGS,
+ * NO_MATCH, FILE_WRITE_ERROR, and UNKNOWN.
+ */
 export async function touchCommand(args: TouchArgs): Promise<Result<TouchResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

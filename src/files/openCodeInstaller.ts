@@ -8,6 +8,14 @@ import { toUnknownResult } from "../utils/errors.js";
 
 const SKILL_NAMES = ["cache-ctrl-external", "cache-ctrl-local", "cache-ctrl-caller"] as const;
 
+/**
+ * Resolves the OpenCode configuration directory.
+ *
+ * @param overrideDir - Explicit CLI override path.
+ * @returns Absolute config directory path used for tool and skill installation.
+ * @remarks Resolution order: explicit override → `%APPDATA%/opencode` on Windows →
+ * `$XDG_CONFIG_HOME/opencode` on Unix-like systems → `~/.config/opencode` fallback.
+ */
 export function resolveOpenCodeConfigDir(overrideDir?: string): string {
   if (overrideDir !== undefined) {
     return overrideDir;
@@ -22,6 +30,7 @@ export function resolveOpenCodeConfigDir(overrideDir?: string): string {
   return path.join(xdgConfigHome, "opencode");
 }
 
+/** Builds the generated OpenCode tool wrapper file content. */
 export function buildToolWrapperContent(packageRoot: string): string {
   const normalizedPackageRoot = packageRoot.replace(/\\/g, "/");
 
@@ -32,6 +41,15 @@ export function buildToolWrapperContent(packageRoot: string): string {
   ].join("\n");
 }
 
+/**
+ * Installs or refreshes OpenCode tool + skill integration files.
+ *
+ * @param configDir - Target OpenCode config directory.
+ * @param packageRoot - Installed package root used to resolve bundled assets.
+ * @returns Written tool path and copied skill file paths.
+ * @remarks Operation is idempotent: reruns overwrite the wrapper and recopy skill files
+ * to align the config directory with the currently installed package version.
+ */
 export async function installOpenCodeIntegration(configDir: string, packageRoot: string): Promise<Result<InstallResult>> {
   try {
     const toolDir = path.join(configDir, "tools");

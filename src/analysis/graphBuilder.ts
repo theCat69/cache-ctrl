@@ -2,11 +2,13 @@ import path from "node:path";
 
 import { extractSymbols } from "./symbolExtractor.js";
 
+/** Dependency metadata tracked for one source file node in the graph. */
 export interface GraphNode {
   deps: string[];
   defs: string[];
 }
 
+/** Directed dependency graph keyed by absolute source file path. */
 export type DependencyGraph = Map<string, GraphNode>;
 
 const RESOLUTION_EXTENSIONS = ["", ".ts", ".tsx", ".js", ".jsx"];
@@ -43,6 +45,11 @@ function resolveDependencyToKnownFile(depPath: string, knownFiles: Set<string>):
 
 /**
  * Build a dependency graph for all source files under repoRoot.
+ *
+ * @param filePaths - Source file paths to include as graph nodes.
+ * @param repoRoot - Repository root for symbol extraction and import resolution.
+ * @returns Dependency graph keyed by resolved absolute file paths.
+ *
  * Files not in the provided list are filtered from deps.
  */
 export async function buildGraph(filePaths: string[], repoRoot: string): Promise<DependencyGraph> {

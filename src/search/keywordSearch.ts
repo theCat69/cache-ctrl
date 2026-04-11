@@ -1,6 +1,15 @@
 import type { CacheEntry } from "../types/cache.js";
 import { getFileStem } from "../utils/fileStem.js";
 
+/**
+ * Scores a cache entry against one or more keywords.
+ *
+ * @param entry - Candidate cache entry.
+ * @param keywords - Search keywords.
+ * @returns Numeric relevance score (higher is better).
+ * Scoring matrix uses max-per-keyword weights: exact stem (100), stem substring (80),
+ * exact word in subject/topic (70), subject/topic substring (50), description substring (30).
+ */
 export function scoreEntry(entry: CacheEntry, keywords: string[]): number {
   const stem = getFileStem(entry.file).toLowerCase();
   const subject = entry.subject.toLowerCase();
@@ -37,6 +46,13 @@ export function scoreEntry(entry: CacheEntry, keywords: string[]): number {
   return total;
 }
 
+/**
+ * Ranks cache entries by keyword relevance.
+ *
+ * @param entries - Candidate entries to rank.
+ * @param keywords - Search keywords.
+ * @returns Score-sorted entries with zero-score candidates removed.
+ */
 export function rankResults(entries: CacheEntry[], keywords: string[]): CacheEntry[] {
   const scored = entries.map((entry) => ({
     entry,
@@ -52,6 +68,14 @@ export function rankResults(entries: CacheEntry[], keywords: string[]): CacheEnt
   return matched.map((s) => ({ ...s.entry, score: s.score }));
 }
 
+/**
+ * Checks whether a keyword appears as an exact word in text.
+ *
+ * @param text - Candidate text.
+ * @param keyword - Lowercased keyword to match.
+ * @returns `true` when an exact token match exists.
+ * @remarks Word matching is based on split boundaries (`space`, `_`, `-`, `.`, `/`).
+ */
 export function isExactWordMatch(text: string, keyword: string): boolean {
   // Match whole words — split on non-alphanumeric chars
   const words = text.split(/[\s\-_./]+/);

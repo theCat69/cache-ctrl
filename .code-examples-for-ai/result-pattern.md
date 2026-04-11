@@ -29,7 +29,6 @@ export enum ErrorCode {
   AMBIGUOUS_MATCH = "AMBIGUOUS_MATCH",
 
   // HTTP errors
-  HTTP_REQUEST_FAILED = "HTTP_REQUEST_FAILED",
   URL_NOT_FOUND = "URL_NOT_FOUND",
 
   // Internal
@@ -91,7 +90,6 @@ printResult(result, pretty);
 - Catch-all in commands:
   ```typescript
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
   ```

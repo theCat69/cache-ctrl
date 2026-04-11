@@ -2,10 +2,12 @@ import type { AgentType, ExternalCacheFile, LocalCacheFile } from "./cache.js";
 
 // ── list ──────────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `list` command. */
 export interface ListArgs {
   agent?: AgentType | "all";
 }
 
+/** One entry returned by the `list` command. */
 export interface ListEntry {
   file: string;
   agent: AgentType;
@@ -16,10 +18,16 @@ export interface ListEntry {
   is_stale: boolean;
 }
 
+/** Success payload shape returned by the `list` command. */
 export type ListResult = { ok: true; value: ListEntry[] };
 
 // ── inspect ───────────────────────────────────────────────────────────────────
 
+/**
+ * Arguments accepted by the `inspect` command.
+ * @remarks `agent` controls result shape: `external` returns an external entry, while
+ * `local` returns local cache content with `tracked_files` removed and optional facts filters.
+ */
 export interface InspectArgs {
   agent: AgentType;
   subject: string;
@@ -39,6 +47,7 @@ export interface InspectArgs {
   searchFacts?: string[];
 }
 
+/** Success payload shape returned by the `inspect` command. */
 export type InspectResult = {
   ok: true;
   value: (ExternalCacheFile | Omit<LocalCacheFile, "tracked_files">) & {
@@ -49,11 +58,13 @@ export type InspectResult = {
 
 // ── flush ─────────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `flush` command. */
 export interface FlushArgs {
   agent: AgentType | "all";
   confirm: boolean;
 }
 
+/** Success payload shape returned by the `flush` command. */
 export type FlushResult = {
   ok: true;
   value: {
@@ -64,11 +75,13 @@ export type FlushResult = {
 
 // ── invalidate ────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `invalidate` command. */
 export interface InvalidateArgs {
   agent: AgentType;
   subject?: string;
 }
 
+/** Success payload shape returned by the `invalidate` command. */
 export type InvalidateResult = {
   ok: true;
   value: {
@@ -78,11 +91,13 @@ export type InvalidateResult = {
 
 // ── touch ─────────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `touch` command. */
 export interface TouchArgs {
   agent: AgentType;
   subject?: string;
 }
 
+/** Success payload shape returned by the `touch` command. */
 export type TouchResult = {
   ok: true;
   value: {
@@ -93,12 +108,14 @@ export type TouchResult = {
 
 // ── prune ─────────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `prune` command. */
 export interface PruneArgs {
   agent?: AgentType | "all";
   maxAge?: string;
   delete?: boolean;
 }
 
+/** Success payload shape returned by the `prune` command. */
 export type PruneResult = {
   ok: true;
   value: {
@@ -110,11 +127,13 @@ export type PruneResult = {
 
 // ── check-freshness ───────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `check-freshness` command. */
 export interface CheckFreshnessArgs {
   subject: string;
   url?: string;
 }
 
+/** Success payload shape returned by the `check-freshness` command. */
 export type CheckFreshnessResult = {
   ok: true;
   value: {
@@ -131,6 +150,7 @@ export type CheckFreshnessResult = {
 
 // ── check-files ───────────────────────────────────────────────────────────────
 
+/** Success payload shape returned by the `check-files` command. */
 export type CheckFilesResult = {
   ok: true;
   value: {
@@ -148,10 +168,12 @@ export type CheckFilesResult = {
 
 // ── search ────────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `search` command. */
 export interface SearchArgs {
   keywords: string[];
 }
 
+/** Success payload shape returned by the `search` command. */
 export type SearchResult = {
   ok: true;
   value: Array<{
@@ -166,12 +188,18 @@ export type SearchResult = {
 
 // ── write ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Shared write-command input contract.
+ * @remarks `agent` selects write mode: `external` requires `subject`; `local` ignores
+ * `subject` and writes `context.json` using local schema semantics.
+ */
 export interface WriteArgs {
   agent: AgentType;
   subject?: string; // required for external, unused for local
   content: Record<string, unknown>;
 }
 
+/** Success payload shape returned by write commands. */
 export type WriteResult = {
   ok: true;
   value: {
@@ -181,6 +209,7 @@ export type WriteResult = {
 
 // ── graph ─────────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `graph` command. */
 export interface GraphArgs {
   maxTokens?: number;
   seed?: string[];
@@ -188,10 +217,12 @@ export interface GraphArgs {
 
 // ── watch ─────────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `watch` command. */
 export interface WatchArgs {
   verbose?: boolean;
 }
 
+/** Success payload shape returned by the `graph` command. */
 export interface GraphResult {
   value: {
     ranked_files: Array<{
@@ -209,13 +240,16 @@ export interface GraphResult {
 
 // ── map ───────────────────────────────────────────────────────────────────────
 
+/** Output depth levels supported by the `map` command. */
 export type MapDepth = "overview" | "modules" | "full";
 
+/** Arguments accepted by the `map` command. */
 export interface MapArgs {
   depth?: MapDepth;
   folder?: string;
 }
 
+/** Success payload shape returned by the `map` command. */
 export interface MapResult {
   value: {
     depth: MapDepth;
@@ -235,10 +269,12 @@ export interface MapResult {
 
 // ── install ───────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `install` command. */
 export interface InstallArgs {
   configDir?: string;
 }
 
+/** Success payload shape returned by the `install` command. */
 export interface InstallResult {
   toolPath: string;
   skillPaths: string[];
@@ -247,6 +283,8 @@ export interface InstallResult {
 
 // ── version ───────────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `version` command. */
 export type VersionArgs = Record<string, never>;
 
+/** Success payload shape returned by the `version` command. */
 export type VersionResult = { value: { version: string } };

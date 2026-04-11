@@ -3,12 +3,26 @@ import { createHash } from "node:crypto";
 import { resolve, isAbsolute } from "node:path";
 import type { TrackedFile } from "../types/cache.js";
 
+/**
+ * Comparison outcome for one tracked file baseline.
+ *
+ * `status` and `reason` are coupled: `changed` uses `mtime`/`hash`, `missing` uses `missing`,
+ * and `unchanged` omits `reason`. `missing` covers both deleted files and traversal-rejected
+ * paths blocked by path-safety guards.
+ */
 export interface FileComparisonResult {
   path: string;
   status: "changed" | "unchanged" | "missing";
   reason?: "mtime" | "hash" | "missing";
 }
 
+/**
+ * Compares one tracked file against current filesystem state.
+ *
+ * Uses `mtime` as a fast path and falls back to SHA-256 hash comparison when stored hash is
+ * available and `mtime` changed. Paths that escape `repoRoot` are rejected by traversal guard
+ * and reported as `missing`. `ENOENT` is also reported as `missing`.
+ */
 export async function compareTrackedFile(file: TrackedFile, repoRoot: string): Promise<FileComparisonResult> {
   const absolutePath = resolveTrackedFilePath(file.path, repoRoot);
 
@@ -47,6 +61,7 @@ export async function compareTrackedFile(file: TrackedFile, repoRoot: string): P
   }
 }
 
+/** Computes SHA-256 hex digest for a file's current bytes. */
 export async function computeFileHash(filePath: string): Promise<string> {
   const content = await readFile(filePath);
   return createHash("sha256").update(content).digest("hex");

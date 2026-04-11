@@ -4,6 +4,12 @@ import { installOpenCodeIntegration, resolveOpenCodeConfigDir } from "../files/o
 import type { InstallArgs, InstallResult } from "../types/commands.js";
 import type { Result } from "../types/result.js";
 
+/**
+ * Installs OpenCode tool wrapper and bundled skill files.
+ *
+ * @param args - {@link InstallArgs} command arguments.
+ * @returns Promise<Result<InstallResult>>; common failures include FILE_WRITE_ERROR and UNKNOWN.
+ */
 export async function installCommand(
   args: InstallArgs,
   packageRoot: string = path.resolve(import.meta.dir, "../.."),

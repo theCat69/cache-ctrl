@@ -46,10 +46,12 @@ src/index.ts              cache_ctrl.ts
      └──────────┬──────────────┘
                │
         Command Layer
-   src/commands/{list, inspect, flush,
-     invalidate, touch, prune,
-     checkFreshness, checkFiles, search,
-     write, graph, map, watch, version}.ts
+   src/commands/{list, inspect, inspectExternal,
+     inspectLocal, flush, invalidate,
+     touch, prune, checkFreshness,
+     checkFiles, search, writeLocal,
+     writeExternal, install, graph,
+     map, watch, version}.ts
                  │
            Core Services
    cacheManager  ← read/write + advisory lock
@@ -283,7 +285,7 @@ cache-ctrl prune [--agent external|local|all] [--max-age <duration>] [--delete] 
 
 Finds entries older than `--max-age` and invalidates them (default) or deletes them (`--delete`).
 
-**Duration format**: `<number><unit>` — `h` for hours, `d` for days. Examples: `24h`, `7d`, `1d`.
+**Duration format**: `<number><unit>` — `s` for seconds, `m` for minutes, `h` for hours, `d` for days. Examples: `30s`, `15m`, `24h`, `7d`.
 
 **Defaults**: `--agent all`, `--max-age 24h` for external. Local cache **always** matches (no TTL).
 
@@ -311,6 +313,8 @@ Sends HTTP HEAD requests to each URL in the matched external entry's `sources[]`
 - Network / 4xx / 5xx → `error` (does not update metadata for that URL)
 
 With `--url`: checks only that specific URL (must exist in `sources[]`).
+
+Security: before any request, the URL is validated. Non-HTTP(S) schemes and local-network targets (RFC1918/private, loopback, link-local, and IPv4-mapped IPv6 addresses) are blocked and reported with `blocked` status.
 
 ```jsonc
 // cache-ctrl check-freshness opencode-skills --pretty
@@ -352,10 +356,14 @@ If `tracked_files` is absent or empty → returns `{ status: "unchanged", ... }`
     "status": "unchanged",
     "changed_files": [],
     "unchanged_files": ["lua/plugins/ui/bufferline.lua"],
-    "missing_files": []
+    "missing_files": [],
+    "new_files": [],
+    "deleted_git_files": []
   }
 }
 ```
+
+`new_files` lists non-ignored files absent from cache (includes git-tracked and untracked non-ignored files). `deleted_git_files` lists git-tracked files removed from the working tree.
 
 ---
 
@@ -384,11 +392,11 @@ cache-ctrl search neovim --pretty
 
 ---
 
-### `write`
+### `write-local` / `write-external`
 
 ```
-cache-ctrl write external <subject> --data '<json>' [--pretty]
-cache-ctrl write local --data '<json>' [--pretty]
+cache-ctrl write-external <subject> --data '<json>' [--pretty]
+cache-ctrl write-local --data '<json>' [--pretty]
 ```
 
 Writes a validated cache entry to disk. The `--data` argument must be a valid JSON string matching the ExternalCacheFile or LocalCacheFile schema. Schema validation runs first — all required fields must be present in `--data` or the write is rejected with `VALIDATION_ERROR`.
@@ -401,10 +409,10 @@ Writes a validated cache entry to disk. The `--data` argument must be a valid JS
 
 > The `subject` parameter (external agent) must match `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/` and be at most 128 characters. Returns `INVALID_ARGS` if it fails validation.
 
-**Always use this command (or `cache_ctrl_write`) instead of writing cache files directly.** Direct writes skip schema validation and risk corrupting the cache.
+**Always use these commands (or `cache_ctrl_write_local` / `cache_ctrl_write_external`) instead of writing cache files directly.** Direct writes skip schema validation and risk corrupting the cache.
 
 ```json
-// cache-ctrl write external mysubject --data '{"subject":"mysubject","description":"...","fetched_at":"2026-04-05T10:00:00Z","sources":[],"header_metadata":{}}' --pretty
+// cache-ctrl write-external mysubject --data '{"subject":"mysubject","description":"...","fetched_at":"2026-04-05T10:00:00Z","sources":[],"header_metadata":{}}' --pretty
 { "ok": true, "value": { "file": "/path/to/.ai/external-context-gatherer_cache/mysubject.json" } }
 ```
 
@@ -542,7 +550,7 @@ No flags or arguments.
 
 ## opencode Plugin Tools
 
-The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/cache_ctrl.ts` and registers 9 tools that call the same command functions as the CLI:
+The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/cache_ctrl.ts` and registers 10 tools that call the same command functions as the CLI:
 
 | Tool | Description |
 |---|---|
@@ -552,13 +560,14 @@ The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/ca
 | `cache_ctrl_invalidate` | Zero out a cache entry's timestamp |
 | `cache_ctrl_check_freshness` | HTTP HEAD check for external source URLs |
 | `cache_ctrl_check_files` | Compare tracked files against stored mtime/hash |
-| `cache_ctrl_write` | Write a validated cache entry; validates against ExternalCacheFile or LocalCacheFile schema |
+| `cache_ctrl_write_local` | Write a validated local cache entry |
+| `cache_ctrl_write_external` | Write a validated external cache entry |
 | `cache_ctrl_graph` | Return a PageRank-ranked dependency graph within a token budget (reads `graph.json`) |
 | `cache_ctrl_map` | Return a semantic map of `context.json` with per-file FileFacts metadata |
 
 No bash permission is required for agents that use the plugin tools directly.
 
-All 9 plugin tool responses include a `server_time` field at the outer JSON level:
+All 10 plugin tool responses include a `server_time` field at the outer JSON level:
 
 ```json
 { "ok": true, "value": { ... }, "server_time": "2026-04-05T12:34:56.789Z" }
@@ -697,9 +706,8 @@ Written and maintained by the `watch` daemon. Read by `cache-ctrl graph` and `ca
 | `VALIDATION_ERROR` | Schema validation failed (e.g., missing required field or type mismatch in `write`) |
 | `NO_MATCH` | No cache file matched the keyword |
 | `AMBIGUOUS_MATCH` | Multiple files with identical top score |
-| `HTTP_REQUEST_FAILED` | Network error during HEAD request |
 | `URL_NOT_FOUND` | `--url` value not found in `sources[]` |
-| `UNKNOWN` | Unexpected internal error |
+| `UNKNOWN` | Unexpected internal/runtime error (including unexpected HTTP client failures) |
 
 ---
 

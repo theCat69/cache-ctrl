@@ -40,11 +40,23 @@ function resolveBunWatch(): Result<BunWatchFunction> {
   return { ok: true, value: watchFn };
 }
 
+/**
+ * Checks whether a file path is a supported source file for graph analysis.
+ *
+ * @param filePath - Absolute or relative file path.
+ * @returns `true` when extension is one of `.ts`, `.tsx`, `.js`, `.jsx`.
+ */
 export function isSourceFile(filePath: string): boolean {
   const extension = path.extname(filePath).toLowerCase();
   return SOURCE_EXTENSIONS.has(extension);
 }
 
+/**
+ * Converts in-memory dependency graph nodes into graph cache file shape.
+ *
+ * @param graph - Dependency graph to serialize.
+ * @returns `GraphCacheFile["files"]` payload suitable for `graph.json`.
+ */
 export function serializeGraphToCache(graph: DependencyGraph): GraphCacheFile["files"] {
   const files: GraphCacheFile["files"] = {};
 
@@ -59,6 +71,13 @@ export function serializeGraphToCache(graph: DependencyGraph): GraphCacheFile["f
   return files;
 }
 
+/**
+ * Resolves tracked source files to safe absolute paths for graph building.
+ *
+ * @param repoRoot - Repository root used for path resolution.
+ * @param trackedFilesProvider - Optional provider for tracked paths (defaults to git).
+ * @returns Absolute, de-duplicated source file paths constrained to `repoRoot`.
+ */
 export async function resolveSourceFilePaths(
   repoRoot: string,
   trackedFilesProvider: TrackedFilesProvider = getGitTrackedFiles,
@@ -112,6 +131,13 @@ async function rebuildGraphCache(repoRoot: string, changedPath: string | undefin
   }
 }
 
+/**
+ * Starts the long-running graph watch daemon.
+ *
+ * @param args - {@link WatchArgs} command arguments.
+ * @returns Promise<Result<never>>; common failures include FILE_WRITE_ERROR via wrapped
+ * UNKNOWN, runtime unavailability errors, and UNKNOWN.
+ */
 export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

@@ -152,7 +152,7 @@ and may include an optional `facts[]` list.
 ```json
 {
   "facts": {
-    "src/commands/write.ts": {
+    "src/commands/writeLocal.ts": {
       "summary": "Thin router dispatching write calls to writeLocal or writeExternal based on agent type.",
       "role": "implementation",
       "importance": 2,

@@ -5,6 +5,13 @@ import { scoreEntry } from "../search/keywordSearch.js";
 
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Checks whether an external `fetched_at` timestamp exceeds staleness threshold.
+ *
+ * @param fetchedAt - ISO timestamp string stored in cache entry.
+ * @param maxAgeMs - Optional max age override in milliseconds.
+ * @returns `true` when timestamp is empty or older than the threshold.
+ */
 export function isFetchedAtStale(fetchedAt: string, maxAgeMs?: number): boolean {
   if (!fetchedAt) return true;
   const threshold = maxAgeMs ?? DEFAULT_MAX_AGE_MS;
@@ -12,10 +19,24 @@ export function isFetchedAtStale(fetchedAt: string, maxAgeMs?: number): boolean 
   return age > threshold;
 }
 
+/**
+ * Evaluates staleness for a full external cache entry.
+ *
+ * @param entry - External cache entry.
+ * @param maxAgeMs - Optional max age override in milliseconds.
+ * @returns `true` when entry should be considered stale.
+ */
 export function isExternalStale(entry: ExternalCacheFile, maxAgeMs?: number): boolean {
   return isFetchedAtStale(entry.fetched_at ?? "", maxAgeMs);
 }
 
+/**
+ * Merges newly fetched header metadata into an external cache entry.
+ *
+ * @param existing - Existing external cache entry.
+ * @param updates - Per-URL header metadata updates.
+ * @returns New entry with merged `header_metadata`.
+ */
 export function mergeHeaderMetadata(
   existing: ExternalCacheFile,
   updates: Record<string, HeaderMeta>,
@@ -29,6 +50,13 @@ export function mergeHeaderMetadata(
   };
 }
 
+/**
+ * Formats human-readable age text from an external `fetched_at` timestamp.
+ *
+ * @param fetchedAt - ISO timestamp string from cache entry.
+ * @returns Relative age string such as `"just now"`, `"2 hours ago"`, or `"invalidated"`.
+ * @remarks Returns `"invalidated"` sentinel when `fetchedAt` is empty.
+ */
 export function getAgeHuman(fetchedAt: string): string {
   if (!fetchedAt) return "invalidated";
 

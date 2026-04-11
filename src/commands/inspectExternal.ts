@@ -6,6 +6,13 @@ import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../utils/errors.js";
 
+/**
+ * Inspects the best-matching external cache entry by subject keyword.
+ *
+ * @param args - {@link InspectArgs} with `agent: "external"`.
+ * @returns Promise<Result<InspectResult["value"]>>; common failures include INVALID_ARGS,
+ * FILE_NOT_FOUND, AMBIGUOUS_MATCH, PARSE_ERROR, and UNKNOWN.
+ */
 export async function inspectExternalCommand(args: InspectArgs): Promise<Result<InspectResult["value"]>> {
   try {
     if (args.folder !== undefined) {

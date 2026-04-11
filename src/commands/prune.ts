@@ -8,6 +8,12 @@ import type { PruneArgs, PruneResult } from "../types/commands.js";
 import { getFileStem } from "../utils/fileStem.js";
 import { toUnknownResult } from "../utils/errors.js";
 
+/**
+ * Parses duration text in `<number><unit>` form.
+ *
+ * @param duration - Duration string where unit is one of `s`, `m`, `h`, `d`.
+ * @returns Milliseconds value, or `null` when format is invalid.
+ */
 export function parseDurationMs(duration: string): number | null {
   const match = /^(\d+)(s|m|h|d)$/.exec(duration);
   if (!match) return null;
@@ -19,6 +25,13 @@ export function parseDurationMs(duration: string): number | null {
   return value * 86_400_000;
 }
 
+/**
+ * Prunes stale cache entries by invalidating or deleting them.
+ *
+ * @param args - {@link PruneArgs} command arguments.
+ * @returns Promise<Result<PruneResult["value"]>>; common failures include INVALID_ARGS,
+ * FILE_READ_ERROR, FILE_WRITE_ERROR, and UNKNOWN.
+ */
 export async function pruneCommand(args: PruneArgs): Promise<Result<PruneResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

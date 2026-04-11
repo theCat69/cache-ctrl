@@ -8,6 +8,11 @@ import { ErrorCode, type Result } from "../types/result.js";
 import type { CheckFilesResult } from "../types/commands.js";
 import { toUnknownResult } from "../utils/errors.js";
 
+/**
+ * Compares local tracked files against stored baselines and git file-set deltas.
+ * @returns Promise<Result<CheckFilesResult["value"]>>; common failures include FILE_NOT_FOUND,
+ * PARSE_ERROR, FILE_READ_ERROR, and UNKNOWN.
+ */
 export async function checkFilesCommand(): Promise<Result<CheckFilesResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

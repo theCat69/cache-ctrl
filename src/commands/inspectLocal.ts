@@ -42,6 +42,13 @@ function normalizeFolderArg(folder: string): Result<string> {
   return { ok: true, value: normalizedFolder };
 }
 
+/**
+ * Inspects local context cache content with optional path/fact filters.
+ *
+ * @param args - {@link InspectArgs} with `agent: "local"`.
+ * @returns Promise<Result<InspectResult["value"]>>; common failures include INVALID_ARGS,
+ * FILE_NOT_FOUND, PARSE_ERROR, and UNKNOWN.
+ */
 export async function inspectLocalCommand(args: InspectArgs): Promise<Result<InspectResult["value"]>> {
   try {
     let normalizedFolder: string | undefined;
