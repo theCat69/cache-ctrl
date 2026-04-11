@@ -8,6 +8,7 @@ import { getGitTrackedFiles } from "../files/gitFiles.js";
 import type { GraphCacheFile } from "../types/cache.js";
 import type { WatchArgs } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 const WATCH_DEBOUNCE_MS = 200;
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);
@@ -218,12 +219,9 @@ export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
       // Keep command alive until signal-based shutdown.
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const unknownError = toUnknownResult(err);
+    const message = unknownError.error;
     process.stderr.write(`[watch] Failed to start watcher: ${message}\n`);
-    return {
-      ok: false,
-      error: message,
-      code: ErrorCode.UNKNOWN,
-    };
+    return unknownError;
   }
 }

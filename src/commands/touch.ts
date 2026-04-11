@@ -3,6 +3,7 @@ import { resolveTopExternalMatch } from "../cache/externalCache.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { TouchArgs, TouchResult } from "../types/commands.js";
+import { toUnknownResult } from "../utils/errors.js";
 import { validateSubject } from "../utils/validate.js";
 
 export async function touchCommand(args: TouchArgs): Promise<Result<TouchResult["value"]>> {
@@ -41,7 +42,6 @@ export async function touchCommand(args: TouchArgs): Promise<Result<TouchResult[
 
     return { ok: true, value: { touched, new_timestamp: newTimestamp } };
   } catch (err) {
-    const error = err as Error;
-    return { ok: false, error: error.message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

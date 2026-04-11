@@ -16,6 +16,7 @@ import { mapCommand } from "./commands/map.js";
 import { watchCommand } from "./commands/watch.js";
 import { versionCommand } from "./commands/version.js";
 import { ErrorCode } from "./types/result.js";
+import { toUnknownResult } from "./utils/errors.js";
 
 type CommandName =
   | "list"
@@ -761,8 +762,7 @@ async function main(): Promise<void> {
 
 if (import.meta.main) {
   main().catch((err: unknown) => {
-    const error = err as Error;
-    process.stderr.write(JSON.stringify({ ok: false, error: error.message, code: ErrorCode.UNKNOWN }) + "\n");
+    process.stderr.write(JSON.stringify(toUnknownResult(err)) + "\n");
     process.exit(1);
   });
 }

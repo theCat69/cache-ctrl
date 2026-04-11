@@ -4,6 +4,7 @@ import path from "node:path";
 
 import type { InstallResult } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 const SKILL_NAMES = ["cache-ctrl-external", "cache-ctrl-local", "cache-ctrl-caller"] as const;
 
@@ -60,7 +61,7 @@ export async function installOpenCodeIntegration(configDir: string, packageRoot:
       },
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message, code: ErrorCode.FILE_WRITE_ERROR };
+    const unknownError = toUnknownResult(err);
+    return { ...unknownError, code: ErrorCode.FILE_WRITE_ERROR };
   }
 }

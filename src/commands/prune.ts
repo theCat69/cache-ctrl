@@ -6,6 +6,7 @@ import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { PruneArgs, PruneResult } from "../types/commands.js";
 import { getFileStem } from "../utils/fileStem.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 export function parseDurationMs(duration: string): number | null {
   const match = /^(\d+)(s|m|h|d)$/.exec(duration);
@@ -103,7 +104,6 @@ export async function pruneCommand(args: PruneArgs): Promise<Result<PruneResult[
       },
     };
   } catch (err) {
-    const error = err as Error;
-    return { ok: false, error: error.message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

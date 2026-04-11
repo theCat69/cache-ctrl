@@ -3,6 +3,7 @@ import { findRepoRoot, listCacheFiles } from "../cache/cacheManager.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { FlushArgs, FlushResult } from "../types/commands.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 export async function flushCommand(args: FlushArgs): Promise<Result<FlushResult["value"]>> {
   if (!args.confirm) {
@@ -49,7 +50,6 @@ export async function flushCommand(args: FlushArgs): Promise<Result<FlushResult[
 
     return { ok: true, value: { deleted, count: deleted.length } };
   } catch (err) {
-    const error = err as Error;
-    return { ok: false, error: error.message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

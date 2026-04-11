@@ -3,6 +3,7 @@ import { resolveLocalCachePath } from "../cache/localCache.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import type { MapArgs, MapDepth, MapResult } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 export async function mapCommand(args: MapArgs): Promise<Result<MapResult["value"]>> {
   try {
@@ -74,7 +75,6 @@ export async function mapCommand(args: MapArgs): Promise<Result<MapResult["value
       },
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

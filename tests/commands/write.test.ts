@@ -768,6 +768,24 @@ describe("writeCommand", () => {
     expect(result.error).toContain("a.ts");
   });
 
+  it("scope guard — fail: facts key not present in tracked_files returns VALIDATION_ERROR", async () => {
+    const result = await writeLocalCommand({
+      agent: "local",
+      content: {
+        topic: "guard fail unknown facts key",
+        description: "facts includes unknown path",
+        tracked_files: [{ path: "other.ts" }],
+        facts: {
+          "unknown/path.ts": { facts: ["unexpected file facts"] },
+        },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
+  });
+
   it("scope guard — pass: facts key absent means no validation occurs", async () => {
     const result = await writeLocalCommand({
       agent: "local",

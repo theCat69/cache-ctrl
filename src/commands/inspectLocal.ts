@@ -7,6 +7,7 @@ import type { CacheEntry, FileFacts } from "../types/cache.js";
 import type { InspectArgs, InspectResult } from "../types/commands.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 function filterFacts(
   facts: Record<string, FileFacts>,
@@ -121,7 +122,6 @@ export async function inspectLocalCommand(args: InspectArgs): Promise<Result<Ins
       value: resultValue,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

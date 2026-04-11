@@ -5,6 +5,7 @@ import type { CacheEntry } from "../types/cache.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { SearchArgs, SearchResult } from "../types/commands.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 export async function searchCommand(args: SearchArgs): Promise<Result<SearchResult["value"]>> {
   try {
@@ -51,7 +52,6 @@ export async function searchCommand(args: SearchArgs): Promise<Result<SearchResu
       })),
     };
   } catch (err) {
-    const error = err as Error;
-    return { ok: false, error: error.message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

@@ -6,6 +6,7 @@ import { getGitTrackedFiles, getGitDeletedFiles, getUntrackedNonIgnoredFiles } f
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { CheckFilesResult } from "../types/commands.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 export async function checkFilesCommand(): Promise<Result<CheckFilesResult["value"]>> {
   try {
@@ -75,7 +76,6 @@ export async function checkFilesCommand(): Promise<Result<CheckFilesResult["valu
       },
     };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

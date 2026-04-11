@@ -4,6 +4,7 @@ import { resolveGraphCachePath } from "../cache/graphCache.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { InvalidateArgs, InvalidateResult } from "../types/commands.js";
+import { toUnknownResult } from "../utils/errors.js";
 import { validateSubject } from "../utils/validate.js";
 
 export async function invalidateCommand(args: InvalidateArgs): Promise<Result<InvalidateResult["value"]>> {
@@ -57,7 +58,6 @@ export async function invalidateCommand(args: InvalidateArgs): Promise<Result<In
 
     return { ok: true, value: { invalidated } };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }
