@@ -220,7 +220,7 @@ async function isLockStale(lockPath: string): Promise<boolean> {
     const content = await readFile(lockPath, "utf-8");
     const pidStr = content.trim();
     const pid = parseInt(pidStr, 10);
-    if (isNaN(pid) || pid <= 0 || pid >= 4_194_304) {
+    if (Number.isNaN(pid) || pid <= 0 || pid >= 4_194_304) {
       return true;
     }
 
