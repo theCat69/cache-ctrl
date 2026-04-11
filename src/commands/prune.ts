@@ -8,10 +8,12 @@ import type { PruneArgs, PruneResult } from "../types/commands.js";
 import { getFileStem } from "../utils/fileStem.js";
 
 export function parseDurationMs(duration: string): number | null {
-  const match = /^(\d+)(h|d)$/.exec(duration);
+  const match = /^(\d+)(s|m|h|d)$/.exec(duration);
   if (!match) return null;
   const value = parseInt(match[1]!, 10);
   const unit = match[2]!;
+  if (unit === "s") return value * 1_000;
+  if (unit === "m") return value * 60_000;
   if (unit === "h") return value * 3_600_000;
   if (unit === "d") return value * 86_400_000;
   return null;

@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, writeFile, mkdir, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pruneCommand } from "../../src/commands/prune.js";
+import { parseDurationMs, pruneCommand } from "../../src/commands/prune.js";
+import { ErrorCode } from "../../src/types/result.js";
 
 const EXTERNAL_DIR = join(".ai", "external-context-gatherer_cache");
 const LOCAL_DIR = join(".ai", "local-context-gatherer_cache");
@@ -33,6 +34,30 @@ beforeEach(async () => {
 
 afterEach(() => {
   process.chdir(origCwd);
+});
+
+describe("parseDurationMs", () => {
+  it("parses valid duration units to exact millisecond values", () => {
+    expect(parseDurationMs("30s")).toBe(30_000);
+    expect(parseDurationMs("5m")).toBe(300_000);
+    expect(parseDurationMs("2h")).toBe(7_200_000);
+    expect(parseDurationMs("7d")).toBe(604_800_000);
+  });
+
+  it("returns null for unrecognized unit", () => {
+    expect(parseDurationMs("5w")).toBeNull();
+  });
+
+  it("accepts zero duration as valid", () => {
+    expect(parseDurationMs("0s")).toBe(0);
+    expect(parseDurationMs("0m")).toBe(0);
+    expect(parseDurationMs("0h")).toBe(0);
+    expect(parseDurationMs("0d")).toBe(0);
+  });
+
+  it("returns null for non-numeric prefix", () => {
+    expect(parseDurationMs("xh")).toBeNull();
+  });
 });
 
 describe("pruneCommand — external entries", () => {
@@ -127,7 +152,7 @@ describe("pruneCommand — external entries", () => {
     const result = await pruneCommand({ agent: "external", maxAge: "5minutes" });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.code).toBe("INVALID_ARGS");
+    expect(result.code).toBe(ErrorCode.INVALID_ARGS);
   });
 
   it("returns zero matched when all entries are fresh", async () => {
