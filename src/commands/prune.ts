@@ -83,9 +83,7 @@ export async function pruneCommand(args: PruneArgs): Promise<Result<PruneResult[
         // Only invalidate if the file already exists
         const readResult = await readCache(localPath);
         if (!readResult.ok) {
-          if (readResult.code === ErrorCode.FILE_NOT_FOUND) {
-            // Nothing to prune — skip silently
-          } else {
+          if (readResult.code !== ErrorCode.FILE_NOT_FOUND) {
             return readResult;
           }
         } else {

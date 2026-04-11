@@ -7,8 +7,6 @@ import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { CheckFilesResult } from "../types/commands.js";
 
-const toPosix = (p: string) => p.split(sep).join(posix.sep);
-
 export async function checkFilesCommand(): Promise<Result<CheckFilesResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());

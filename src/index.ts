@@ -280,7 +280,7 @@ export function printHelp(command?: string): boolean {
       ...Object.values(COMMAND_HELP).map((h) => h.usage.length),
     );
 
-    for (const [, help] of Object.entries(COMMAND_HELP) as [CommandName, CommandHelp][]) {
+    for (const help of Object.values(COMMAND_HELP)) {
       const paddedUsage = help.usage.padEnd(maxUsageLen);
       lines.push(`  ${paddedUsage}   ${help.description}`);
     }

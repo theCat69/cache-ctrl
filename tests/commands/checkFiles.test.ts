@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { checkFilesCommand } from "../../src/commands/checkFiles.js";
+import { ErrorCode } from "../../src/types/result.js";
 
 const LOCAL_DIR = join(".ai", "local-context-gatherer_cache");
 
@@ -50,6 +51,18 @@ describe("checkFilesCommand", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe("FILE_NOT_FOUND");
+  });
+
+  it("returns PARSE_ERROR when local cache JSON is malformed", async () => {
+    const localPath = join(tmpDir, LOCAL_DIR, "context.json");
+    await writeFile(localPath, "{ this is not valid json }");
+
+    const result = await checkFilesCommand();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.PARSE_ERROR);
+    expect(result.error).toContain("Failed to parse JSON");
   });
 
   it("returns unchanged for empty tracked_files list", async () => {
