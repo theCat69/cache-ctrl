@@ -4,6 +4,7 @@ import { resolveLocalCachePath } from "../cache/localCache.js";
 import { checkFilesCommand } from "./checkFiles.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { toUnknownResult } from "../utils/errors.js";
 import type { ListArgs, ListEntry, ListResult } from "../types/commands.js";
 
 export async function listCommand(args: ListArgs): Promise<Result<ListResult["value"]>> {
@@ -70,7 +71,6 @@ export async function listCommand(args: ListArgs): Promise<Result<ListResult["va
 
     return { ok: true, value: entries };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

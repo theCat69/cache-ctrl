@@ -5,6 +5,7 @@ import { GraphCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { DependencyGraph } from "../analysis/graphBuilder.js";
 import type { GraphArgs, GraphResult } from "../types/commands.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 interface RankedFileEntry {
   path: string;
@@ -118,7 +119,6 @@ export async function graphCommand(args: GraphArgs): Promise<Result<GraphResult[
       },
     };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

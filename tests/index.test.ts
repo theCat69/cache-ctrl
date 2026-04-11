@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { parseArgs, usageError, printHelp } from "../src/index.js";
-import { __test__ } from "../cache_ctrl.js";
+import { isRefinementContext, rejectTraversalKeys } from "../src/utils/traversal.js";
 
 describe("parseArgs", () => {
   it("returns empty args and flags for empty input", () => {
@@ -197,23 +197,23 @@ describe("cache_ctrl helper guards", () => {
   describe("isRefinementContext", () => {
     it("returns true for object with addIssue function", () => {
       const context = { addIssue: vi.fn() };
-      expect(__test__.isRefinementContext(context)).toBe(true);
+      expect(isRefinementContext(context)).toBe(true);
     });
 
     it("returns false for boundary non-object values", () => {
-      expect(__test__.isRefinementContext(null)).toBe(false);
-      expect(__test__.isRefinementContext(undefined)).toBe(false);
-      expect(__test__.isRefinementContext("ctx")).toBe(false);
-      expect(__test__.isRefinementContext(42)).toBe(false);
-      expect(__test__.isRefinementContext({})).toBe(false);
-      expect(__test__.isRefinementContext({ addIssue: "not-a-function" })).toBe(false);
+      expect(isRefinementContext(null)).toBe(false);
+      expect(isRefinementContext(undefined)).toBe(false);
+      expect(isRefinementContext("ctx")).toBe(false);
+      expect(isRefinementContext(42)).toBe(false);
+      expect(isRefinementContext({})).toBe(false);
+      expect(isRefinementContext({ addIssue: "not-a-function" })).toBe(false);
     });
   });
 
   describe("rejectTraversalKeys", () => {
     it("does not add issues for valid keys", () => {
       const addIssue = vi.fn();
-      __test__.rejectTraversalKeys(
+      rejectTraversalKeys(
         {
           "src/index.ts": { summary: "ok" },
           "docs/readme.md": { summary: "ok" },
@@ -225,7 +225,7 @@ describe("cache_ctrl helper guards", () => {
 
     it("adds issues for traversal and invalid-character keys", () => {
       const addIssue = vi.fn();
-      __test__.rejectTraversalKeys(
+      rejectTraversalKeys(
         {
           "../secret": {},
           "/etc/passwd": {},
@@ -254,7 +254,7 @@ describe("cache_ctrl helper guards", () => {
 
     it("is a no-op when refinement context is invalid", () => {
       const badContext = { addIssue: "nope" };
-      expect(() => __test__.rejectTraversalKeys({ "../secret": {} }, badContext)).not.toThrow();
+      expect(() => rejectTraversalKeys({ "../secret": {} }, badContext)).not.toThrow();
     });
   });
 });

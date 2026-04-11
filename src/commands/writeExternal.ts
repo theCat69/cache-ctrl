@@ -4,6 +4,7 @@ import { findRepoRoot, resolveCacheDir, writeCache } from "../cache/cacheManager
 import type { WriteArgs, WriteResult } from "../types/commands.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { toUnknownResult } from "../utils/errors.js";
 import { formatZodError, validateSubject } from "../utils/validate.js";
 
 export async function writeExternalCommand(args: WriteArgs): Promise<Result<WriteResult["value"]>> {
@@ -38,7 +39,6 @@ export async function writeExternalCommand(args: WriteArgs): Promise<Result<Writ
     if (!writeResult.ok) return writeResult;
     return { ok: true, value: { file: filePath } };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

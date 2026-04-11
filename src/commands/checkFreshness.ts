@@ -6,6 +6,7 @@ import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { CheckFreshnessArgs, CheckFreshnessResult } from "../types/commands.js";
 import { getFileStem } from "../utils/fileStem.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 export async function checkFreshnessCommand(args: CheckFreshnessArgs): Promise<Result<CheckFreshnessResult["value"]>> {
   try {
@@ -110,7 +111,6 @@ export async function checkFreshnessCommand(args: CheckFreshnessArgs): Promise<R
       },
     };
   } catch (err) {
-    const error = err as Error;
-    return { ok: false, error: error.message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

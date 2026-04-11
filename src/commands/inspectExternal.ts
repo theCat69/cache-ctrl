@@ -4,6 +4,7 @@ import type { CacheEntry, ExternalCacheFile } from "../types/cache.js";
 import type { InspectArgs, InspectResult } from "../types/commands.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 export async function inspectExternalCommand(args: InspectArgs): Promise<Result<InspectResult["value"]>> {
   try {
@@ -66,7 +67,6 @@ export async function inspectExternalCommand(args: InspectArgs): Promise<Result<
       },
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }

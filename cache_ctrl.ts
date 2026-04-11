@@ -9,41 +9,12 @@ import { writeLocalCommand } from "./src/commands/writeLocal.js";
 import { writeExternalCommand } from "./src/commands/writeExternal.js";
 import { graphCommand } from "./src/commands/graph.js";
 import { mapCommand } from "./src/commands/map.js";
-import { ErrorCode } from "./src/types/result.js";
+import { toUnknownResult } from "./src/utils/errors.js";
+import { rejectTraversalKeys } from "./src/utils/traversal.js";
 
 const z = tool.schema;
 
 const AgentRequiredSchema = z.enum(["external", "local"]);
-
-function isRefinementContext(
-  value: unknown,
-): value is { addIssue: (issue: { code: "custom"; message: string; path: string[] }) => void } {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  return typeof (value as Record<string, unknown>)["addIssue"] === "function"; // Safe: value is already narrowed to non-null object above
-}
-
-function rejectTraversalKeys(record: Record<string, unknown>, ctx: unknown): void {
-  if (!isRefinementContext(ctx)) {
-    return;
-  }
-
-  for (const key of Object.keys(record)) {
-    if (key.includes("..") || key.startsWith("/") || key.includes("\x00")) {
-      ctx.addIssue({
-        code: "custom",
-        message: `facts key contains a path traversal or invalid character: "${key}"`,
-        path: [key],
-      });
-    }
-  }
-}
-
-export const __test__ = {
-  isRefinementContext,
-  rejectTraversalKeys,
-};
 
 function withServerTime(result: unknown): string {
   const base = result !== null && typeof result === "object" ? result : {};
@@ -51,8 +22,7 @@ function withServerTime(result: unknown): string {
 }
 
 function handleUnknownError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  return withServerTime({ ok: false, error: message, code: ErrorCode.UNKNOWN });
+  return withServerTime(toUnknownResult(err));
 }
 
 export const search = tool({

@@ -5,6 +5,7 @@ import { filterExistingFiles, resolveTrackedFileStats } from "../files/changeDet
 import type { WriteArgs, WriteResult } from "../types/commands.js";
 import { type FileFacts, LocalCacheFileSchema, type TrackedFile, TrackedFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { toUnknownResult } from "../utils/errors.js";
 import { formatZodError } from "../utils/validate.js";
 
 function evictFactsForDeletedPaths(
@@ -110,7 +111,6 @@ export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteRe
     if (!writeResult.ok) return writeResult;
     return { ok: true, value: { file: filePath } };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message, code: ErrorCode.UNKNOWN };
+    return toUnknownResult(err);
   }
 }
