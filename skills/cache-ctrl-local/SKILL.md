@@ -6,21 +6,13 @@ description: How to use cache-ctrl to detect file changes and manage the local c
 # cache-ctrl — Local Cache Usage
 
 Manage `.ai/local-context-gatherer_cache/context.json` to avoid redundant full-repo scans.
-Three tiers of access — use the best one available.
+Two tiers of access — use the best one available.
 
-## Availability Detection (run once at startup)
-
-1. Call `cache_ctrl_check_files` (built-in tool).
-   - Success → **use Tier 1** for all operations below.
-   - Failure (tool not found / permission denied) → continue to step 2.
-2. Run `bash: "which cache-ctrl"`.
-   - Exit 0 → **use Tier 2** for all operations below.
-   - Not found → **use Tier 3** for all operations below.
+> Availability Detection: see `cache-ctrl-caller`.
 
 ---
 
 ## Fact-Writing Rules
-
 Per-file `facts` entries are no longer flat string arrays. Each path now maps to a
 **`FileFacts` object**:
 
@@ -64,7 +56,6 @@ Content quality rules:
 ---
 
 ## Mandatory: Write Before Return
-
 **Every invocation that reads any file MUST call `cache_ctrl_write_local` before returning — no exceptions, no edge cases.**
 
 Sequential checklist (do not skip any step):
@@ -92,18 +83,14 @@ If any one of these conditions is not met, you **must** write.
 ---
 
 ## Startup Workflow
-
 ### 1. Check if tracked files changed
 
 **Tier 1:** Call `cache_ctrl_check_files` (no parameters).
 **Tier 2:** `cache-ctrl check-files`
-**Tier 3:** `read` `.ai/local-context-gatherer_cache/context.json`.
-  - File absent → cold start, proceed to scan.
-  - File present → check `timestamp`. If older than 1 hour, treat as stale and re-scan. Otherwise treat as fresh.
 
 Result interpretation (Tier 1 & 2):
 - `status: "unchanged"` → tracked files are content-stable; skip re-scan and return cached context.
-- `status: "changed"` → at least one tracked file changed; proceed to **delta scan** (read content of `changed_files` + `new_files` only — do not re-read unchanged files).
+- `status: "changed"` → at least one tracked file changed; proceed to **delta scan**.
 - `status: "unchanged"` with empty `tracked_files` → cold start, proceed to scan.
 
 The response also reports:
@@ -113,16 +100,13 @@ The response also reports:
 > **⚠ Cache is non-exhaustive**: `status: "unchanged"` only confirms that previously-tracked files are content-stable — it does not mean the file set is complete. Always check `new_files` and `deleted_git_files` in the response; if either is non-empty, include those paths in the next write to keep the cache up to date.
 
 ### 2. Invalidate before writing (optional)
-
 > Do this only if cache is really outdated and a full rescan is needed. Otherwise just proceed with next step (writing).
 
 **Tier 1:** Call `cache_ctrl_invalidate` with `agent: "local"`.
 **Tier 2:** `cache-ctrl invalidate local`
-**Tier 3:** Skip — overwriting the file in step 3 is sufficient.
 
 ### 3. Write cache after scanning
-
-**Always use the write tool/command — never edit the file directly.** Direct writes bypass schema validation and can silently corrupt the cache format.
+**Always use the write tool/command — never write the file directly.** Direct writes bypass schema validation and can silently corrupt the cache format.
 
 > **Write is per-path merge**: Submitted `tracked_files` entries replace existing entries for the same paths. Paths not in the submission are preserved. Entries for files deleted from disk are evicted automatically (no agent action needed).
 
@@ -142,7 +126,6 @@ The response also reports:
 > **Auto-set by the tool — do not include**: `timestamp` (current UTC), `mtime` (filesystem `lstat()`), and `hash` (SHA-256) per `tracked_files` entry.
 
 ### Scope rule for `facts`
-
 Submit `facts` ONLY for files you actually read in this session (i.e., files present in
 your submitted `tracked_files`). Never reconstruct or re-submit facts for unchanged files —
 the tool preserves them automatically via per-path merge.
@@ -151,7 +134,6 @@ Submitting a facts key for a path absent from submitted `tracked_files` is a
 VALIDATION_ERROR and the entire write is rejected.
 
 ### Fact completeness
-
 When a file appears in `changed_files` or `new_files`, read the **whole file** before writing
 facts — not just the diff. A 2-line change does not support a complete re-description of the
 file, and submitting partial facts for a re-read path **permanently replaces** whatever was
@@ -184,7 +166,6 @@ and may include an optional `facts[]` list.
 ```
 
 ### When to submit `global_facts`
-
 Submit `global_facts` only when you re-read at least one structural file in this session:
 AGENTS.md, install.sh, opencode.json, package.json, *.toml config files.
 
@@ -192,7 +173,6 @@ If none of those are in `changed_files` or `new_files`, omit `global_facts` from
 The existing value is preserved automatically.
 
 ### Eviction
-
 Facts for files deleted from disk are evicted automatically on the next write — no agent
 action needed. `global_facts` is never evicted.
 
@@ -213,87 +193,30 @@ action needed. `global_facts` is never evicted.
 
 `cache-ctrl write-local --data '<json>'` — pass the same top-level fields as the JSON value.
 
-#### Tier 3
-
-Not available — there is no direct-file fallback for writes. If neither Tier 1 nor Tier 2 is accessible, request access to one of them.
-
 ### 4. Confirm cache (optional)
-
 **Tier 1:** Call `cache_ctrl_list` with `agent: "local"` to confirm the entry was written.
 **Tier 2:** `cache-ctrl list --agent local`
-**Tier 3:** `read` `.ai/local-context-gatherer_cache/context.json` and verify `timestamp` is current.
 
-Note: local entries show `is_stale: true` only when `cache_ctrl_check_files` detects actual changes (changed files, new non-ignored files, or deleted files). A freshly-written cache with no subsequent file changes will show `is_stale: false`.
+Note: local entries show `is_stale: true` only when `cache_ctrl_check_files` detects actual changes.
 
 ---
 
 ## Tool / Command Reference
+| Operation | Tier 1 (built-in) | Tier 2 (CLI) |
+|---|---|---|
+| Detect file changes | `cache_ctrl_check_files` | `cache-ctrl check-files` |
+| Invalidate cache | `cache_ctrl_invalidate` | `cache-ctrl invalidate local` |
+| Confirm written | `cache_ctrl_list` | `cache-ctrl list --agent local` |
+| Read facts (filtered) | `cache_ctrl_inspect` with `filter`, `folder`, or `searchFacts` | `cache-ctrl inspect local context --filter <kw>[,<kw>...]` / `--folder <path>` / `--search-facts <kw>[,<kw>...]` |
+| Read all facts (rare) | `cache_ctrl_inspect` (no filter) | `cache-ctrl inspect local context` |
+| Write cache | `cache_ctrl_write_local` | `cache-ctrl write-local --data '<json>'` |
 
-| Operation | Tier 1 (built-in) | Tier 2 (CLI) | Tier 3 (manual) |
-|---|---|---|---|
-| Detect file changes | `cache_ctrl_check_files` | `cache-ctrl check-files` | read `context.json`, check `timestamp` |
-| Invalidate cache | `cache_ctrl_invalidate` | `cache-ctrl invalidate local` | overwrite file in next step |
-| Confirm written | `cache_ctrl_list` | `cache-ctrl list --agent local` | `read` file, check `timestamp` |
-| Read facts (filtered) | `cache_ctrl_inspect` with `filter`, `folder`, or `searchFacts` | `cache-ctrl inspect local context --filter <kw>[,<kw>...]` / `--folder <path>` / `--search-facts <kw>[,<kw>...]` | `read` file, extract `facts`/`global_facts` |
-| Read all facts (rare) | `cache_ctrl_inspect` (no filter) | `cache-ctrl inspect local context` | `read` file directly |
-| Write cache | `cache_ctrl_write_local` | `cache-ctrl write-local --data '<json>'` | ❌ not available |
+> For `inspect` filter targeting options, see `cache-ctrl-caller`.
 
-## New Tooling: `cache_ctrl_map` and `cache_ctrl_graph`
-
-### `cache_ctrl_map`
-
-- **Purpose:** Build a semantic mental map of the codebase (what each file does, plus role/importance metadata).
-- **Params:**
-  - `depth` (optional):
-    - `overview` (default): ~300-token orientation (summaries + roles)
-    - `modules`: adds module/grouping information
-    - `full`: includes per-file `facts[]` arrays
-  - `folder` (optional): restrict output to a path prefix
-- **When to use:** first call when entering a new task, before deeper inspection.
-
-### `cache_ctrl_graph`
-
-- **Purpose:** Return a structural dependency graph with PageRank-ranked files by centrality.
-- **Params:**
-  - `maxTokens` (optional, default `1024`)
-  - `seed` (optional `string[]`): personalize ranking toward specific files (for example changed files)
-- **Requirements:** `cache-ctrl watch` must be running (or must have run recently) to populate `graph.json`.
-- **When to use:** after `cache_ctrl_map`, to identify the most connected/high-leverage files.
-
-## Recommended Brain-Agent Protocol (Progressive Disclosure)
-
-Use this 4-step sequence to control token usage while preserving accuracy:
-
-1. `cache_ctrl_map(depth: "overview")` — orient quickly (~300 tokens)
-2. `cache_ctrl_graph(maxTokens: 1024, seed: [changedFiles])` — structural dependency view
-3. `cache_ctrl_inspect(filter: [...])` — deep facts for specific files
-4. Read only the relevant source files (typically 2–5 files)
-
-> **⚠ Always use at least one filter when reading facts for a specific task.** Three targeting options are available — use the most specific one that fits your task:
->
-> | Flag | What it matches | Best for |
-> |---|---|---|
-> | `--filter <kw>` | File path contains keyword | When you know which files by name/path segment |
-> | `--folder <path>` | File path starts with folder prefix (recursive) | When you need all files in a directory subtree |
-> | `--search-facts <kw>` | Any fact string contains keyword | When you need files related to a concept, pattern, or API |
->
-> The flags are AND-ed when combined. Omit all filters only when you genuinely need facts for the entire repository (rare — e.g. building a full index; only appropriate for ≤ ~20 tracked files). An unfiltered `inspect` on a large repo can return thousands of fact strings.
-
-> **`tracked_files` is never returned by `inspect` for the local agent.** It is internal operational metadata consumed by `check-files`. It will not appear in any inspect response.
-
-## server_time in Responses
-
-Every `cache_ctrl_*` tool call returns a `server_time` field at the outer JSON level:
-
-```json
-{ "ok": true, "value": { ... }, "server_time": "2026-04-05T12:34:56.789Z" }
-```
-
-Use this to assess how stale stored timestamps are — you do not need `bash` or system access to know the current time.
+> All `cache_ctrl_*` tools return `server_time`; see `cache-ctrl-caller` for freshness-decision usage.
 
 ## Cache Location
 
 `.ai/local-context-gatherer_cache/context.json` — single file, no per-subject splitting.
 
 No time-based TTL for Tier 1/2. Freshness determined by `cache_ctrl_check_files`.
-Tier 3 uses a 1-hour `timestamp` TTL as a rough proxy.
