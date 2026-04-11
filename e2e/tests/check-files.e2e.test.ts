@@ -52,7 +52,7 @@ describe("check-files", () => {
     // Write local cache with empty tracked_files — no files to compare
     const writeData = { topic: "t", description: "d", tracked_files: [] };
     const writeResult = await runCli(
-      ["write", "local", "--data", JSON.stringify(writeData)],
+      ["write-local", "--data", JSON.stringify(writeData)],
       { cwd: repo.dir },
     );
     expect(writeResult.exitCode).toBe(0);
@@ -75,7 +75,7 @@ describe("check-files", () => {
     // Write local cache with empty tracked_files
     const writeData = { topic: "t", description: "d", tracked_files: [] };
     const writeResult = await runCli(
-      ["write", "local", "--data", JSON.stringify(writeData)],
+      ["write-local", "--data", JSON.stringify(writeData)],
       { cwd: repo.dir },
     );
     expect(writeResult.exitCode).toBe(0);
@@ -109,7 +109,7 @@ describe("check-files", () => {
       tracked_files: [{ path: "src/file-a.ts" }],
     };
     const writeResult = await runCli(
-      ["write", "local", "--data", JSON.stringify(writeData)],
+      ["write-local", "--data", JSON.stringify(writeData)],
       { cwd: repo.dir },
     );
     expect(writeResult.exitCode).toBe(0);
