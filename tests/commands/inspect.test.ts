@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inspectCommand } from "../../src/commands/inspect.js";
+import type { FileFacts } from "../../src/types/cache.js";
 import { ErrorCode } from "../../src/types/result.js";
 
 const EXTERNAL_DIR = join(".ai", "external-context-gatherer_cache");
@@ -163,7 +164,7 @@ describe("inspectCommand — local agent filter", () => {
         topic: "local",
         description: "test",
         tracked_files: [{ path: "src/index.ts", mtime: 1_700_000_000_000 }],
-        facts: { "src/index.ts": ["entry point"] },
+        facts: { "src/index.ts": { facts: ["entry point"] } },
       }),
     );
 
@@ -184,8 +185,8 @@ describe("inspectCommand — local agent filter", () => {
         description: "test",
         tracked_files: [],
         facts: {
-          "lua/plugins/lsp/config.lua": ["configures LSP servers"],
-          "lua/plugins/ui/bufferline.lua": ["sets up tab bar"],
+          "lua/plugins/lsp/config.lua": { facts: ["configures LSP servers"] },
+          "lua/plugins/ui/bufferline.lua": { facts: ["sets up tab bar"] },
         },
       }),
     );
@@ -194,7 +195,7 @@ describe("inspectCommand — local agent filter", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const value = result.value as Record<string, unknown>;
-    const facts = value.facts as Record<string, string[]>;
+    const facts = value.facts as Record<string, FileFacts>;
     expect(Object.keys(facts)).toHaveLength(2);
   });
 
@@ -208,9 +209,9 @@ describe("inspectCommand — local agent filter", () => {
         description: "test",
         tracked_files: [],
         facts: {
-          "lua/plugins/lsp/config.lua": ["configures LSP servers"],
-          "lua/plugins/ui/bufferline.lua": ["sets up tab bar"],
-          "lua/plugins/lsp/servers.lua": ["server list"],
+          "lua/plugins/lsp/config.lua": { facts: ["configures LSP servers"] },
+          "lua/plugins/ui/bufferline.lua": { facts: ["sets up tab bar"] },
+          "lua/plugins/lsp/servers.lua": { facts: ["server list"] },
         },
       }),
     );
@@ -219,7 +220,7 @@ describe("inspectCommand — local agent filter", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const value = result.value as Record<string, unknown>;
-    const facts = value.facts as Record<string, string[]>;
+    const facts = value.facts as Record<string, FileFacts>;
     expect(Object.keys(facts)).toHaveLength(2);
     expect(facts["lua/plugins/lsp/config.lua"]).toBeDefined();
     expect(facts["lua/plugins/lsp/servers.lua"]).toBeDefined();
@@ -236,9 +237,9 @@ describe("inspectCommand — local agent filter", () => {
         description: "test",
         tracked_files: [],
         facts: {
-          "lua/plugins/lsp/config.lua": ["configures LSP"],
-          "lua/plugins/ui/bufferline.lua": ["tab bar"],
-          ".zshrc": ["shell config"],
+          "lua/plugins/lsp/config.lua": { facts: ["configures LSP"] },
+          "lua/plugins/ui/bufferline.lua": { facts: ["tab bar"] },
+          ".zshrc": { facts: ["shell config"] },
         },
       }),
     );
@@ -251,7 +252,7 @@ describe("inspectCommand — local agent filter", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const value = result.value as Record<string, unknown>;
-    const facts = value.facts as Record<string, string[]>;
+    const facts = value.facts as Record<string, FileFacts>;
     expect(Object.keys(facts)).toHaveLength(2);
     expect(facts["lua/plugins/lsp/config.lua"]).toBeDefined();
     expect(facts[".zshrc"]).toBeDefined();
@@ -268,8 +269,8 @@ describe("inspectCommand — local agent filter", () => {
         description: "test",
         tracked_files: [],
         facts: {
-          "lua/plugins/LSP/config.lua": ["LSP config"],
-          "lua/plugins/ui/bufferline.lua": ["tab bar"],
+          "lua/plugins/LSP/config.lua": { facts: ["LSP config"] },
+          "lua/plugins/ui/bufferline.lua": { facts: ["tab bar"] },
         },
       }),
     );
@@ -278,7 +279,7 @@ describe("inspectCommand — local agent filter", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const value = result.value as Record<string, unknown>;
-    const facts = value.facts as Record<string, string[]>;
+    const facts = value.facts as Record<string, FileFacts>;
     expect(Object.keys(facts)).toHaveLength(1);
     expect(facts["lua/plugins/LSP/config.lua"]).toBeDefined();
   });
@@ -293,7 +294,7 @@ describe("inspectCommand — local agent filter", () => {
         description: "test",
         tracked_files: [],
         facts: {
-          "lua/plugins/lsp/config.lua": ["LSP config"],
+          "lua/plugins/lsp/config.lua": { facts: ["LSP config"] },
         },
       }),
     );
@@ -306,7 +307,7 @@ describe("inspectCommand — local agent filter", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const value = result.value as Record<string, unknown>;
-    const facts = value.facts as Record<string, string[]>;
+    const facts = value.facts as Record<string, FileFacts>;
     expect(Object.keys(facts)).toHaveLength(0);
   });
 
@@ -321,7 +322,7 @@ describe("inspectCommand — local agent filter", () => {
         tracked_files: [],
         global_facts: ["Uses lazy.nvim for plugin management"],
         facts: {
-          "lua/plugins/lsp/config.lua": ["LSP config"],
+          "lua/plugins/lsp/config.lua": { facts: ["LSP config"] },
         },
       }),
     );
@@ -398,8 +399,8 @@ describe("inspectCommand — local agent filter", () => {
       description: "empty filter test",
       tracked_files: [],
       facts: {
-        "lua/plugins/lsp/config.lua": ["LSP config"],
-        "lua/plugins/ui/bufferline.lua": ["tab bar"],
+        "lua/plugins/lsp/config.lua": { facts: ["LSP config"] },
+        "lua/plugins/ui/bufferline.lua": { facts: ["tab bar"] },
       },
     }));
 
@@ -408,8 +409,8 @@ describe("inspectCommand — local agent filter", () => {
     expect(resultNoFilter.ok).toBe(true);
     expect(resultEmptyFilter.ok).toBe(true);
     if (!resultNoFilter.ok || !resultEmptyFilter.ok) return;
-    const noFilterFacts = (resultNoFilter.value as Record<string, unknown>).facts as Record<string, string[]>;
-    const emptyFilterFacts = (resultEmptyFilter.value as Record<string, unknown>).facts as Record<string, string[]>;
+    const noFilterFacts = (resultNoFilter.value as Record<string, unknown>).facts as Record<string, FileFacts>;
+    const emptyFilterFacts = (resultEmptyFilter.value as Record<string, unknown>).facts as Record<string, FileFacts>;
     expect(Object.keys(emptyFilterFacts)).toHaveLength(Object.keys(noFilterFacts).length);
   });
 });
@@ -431,11 +432,11 @@ async function writeFilterFixture(localDir: string): Promise<void> {
         { path: "src/utils/validate.ts", mtime: 1_700_000_000_004, hash: "eee" },
       ],
       facts: {
-        "src/commands/write.ts": ["Exports writeCommand", "uses Result pattern"],
-        "src/commands/inspect.ts": ["Exports inspectCommand", "handles errors gracefully"],
-        "src/commands/nested/util.ts": ["Utility helpers for commands"],
-        "src/cache/cacheManager.ts": ["Exports findRepoRoot", "advisory locking"],
-        "src/utils/validate.ts": ["Exports validateSubject", "uses Result pattern"],
+        "src/commands/write.ts": { facts: ["Exports writeCommand", "uses Result pattern"] },
+        "src/commands/inspect.ts": { facts: ["Exports inspectCommand", "handles errors gracefully"] },
+        "src/commands/nested/util.ts": { facts: ["Utility helpers for commands"] },
+        "src/cache/cacheManager.ts": { facts: ["Exports findRepoRoot", "advisory locking"] },
+        "src/utils/validate.ts": { facts: ["Exports validateSubject", "uses Result pattern"] },
       },
     }),
   );
@@ -448,7 +449,7 @@ describe("folder and search-facts filters", () => {
     const result = await inspectCommand({ agent: "local", subject: "local", folder: "src/commands" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const facts = (result.value as Record<string, unknown>).facts as Record<string, string[]>;
+    const facts = (result.value as Record<string, unknown>).facts as Record<string, FileFacts>;
     expect(facts["src/commands/write.ts"]).toBeDefined();
     expect(facts["src/commands/inspect.ts"]).toBeDefined();
     expect(facts["src/commands/nested/util.ts"]).toBeDefined();
@@ -462,7 +463,7 @@ describe("folder and search-facts filters", () => {
     const result = await inspectCommand({ agent: "local", subject: "local", folder: "src/commands" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const facts = (result.value as Record<string, unknown>).facts as Record<string, string[]>;
+    const facts = (result.value as Record<string, unknown>).facts as Record<string, FileFacts>;
     expect(facts["src/commands/nested/util.ts"]).toBeDefined();
   });
 
@@ -477,7 +478,7 @@ describe("folder and search-facts filters", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const facts = (result.value as Record<string, unknown>).facts as Record<string, string[]>;
+    const facts = (result.value as Record<string, unknown>).facts as Record<string, FileFacts>;
     expect(facts["src/commands/inspect.ts"]).toBeDefined();
     expect(facts["src/commands/write.ts"]).toBeUndefined();
     expect(facts["src/commands/nested/util.ts"]).toBeUndefined();
@@ -497,8 +498,8 @@ describe("folder and search-facts filters", () => {
           { path: "src/commands/inspect.ts", mtime: 1_700_000_000_001, hash: "bbb" },
         ],
         facts: {
-          "src/commands/write.ts": ["Exports writeCommand"],
-          "src/commands/inspect.ts": ["Exports inspectCommand"],
+          "src/commands/write.ts": { facts: ["Exports writeCommand"] },
+          "src/commands/inspect.ts": { facts: ["Exports inspectCommand"] },
         },
       }),
     );
@@ -507,7 +508,7 @@ describe("folder and search-facts filters", () => {
     const result = await inspectCommand({ agent: "local", subject: "local", folder: "src/cache" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const facts = (result.value as Record<string, unknown>).facts as Record<string, string[]>;
+    const facts = (result.value as Record<string, unknown>).facts as Record<string, FileFacts>;
     expect(Object.keys(facts)).toHaveLength(0);
   });
 
@@ -545,7 +546,7 @@ describe("folder and search-facts filters", () => {
     const result = await inspectCommand({ agent: "local", subject: "local", searchFacts: ["Result pattern"] });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const facts = (result.value as Record<string, unknown>).facts as Record<string, string[]>;
+    const facts = (result.value as Record<string, unknown>).facts as Record<string, FileFacts>;
     // Both write.ts and validate.ts have "uses Result pattern" fact
     expect(facts["src/commands/write.ts"]).toBeDefined();
     expect(facts["src/utils/validate.ts"]).toBeDefined();
@@ -559,7 +560,7 @@ describe("folder and search-facts filters", () => {
     const result = await inspectCommand({ agent: "local", subject: "local", searchFacts: ["result pattern"] });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const facts = (result.value as Record<string, unknown>).facts as Record<string, string[]>;
+    const facts = (result.value as Record<string, unknown>).facts as Record<string, FileFacts>;
     expect(facts["src/commands/write.ts"]).toBeDefined();
     expect(facts["src/utils/validate.ts"]).toBeDefined();
     expect(facts["src/cache/cacheManager.ts"]).toBeUndefined();
@@ -576,7 +577,7 @@ describe("folder and search-facts filters", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const facts = (result.value as Record<string, unknown>).facts as Record<string, string[]>;
+    const facts = (result.value as Record<string, unknown>).facts as Record<string, FileFacts>;
     // Only write.ts is under src/commands AND has "Result pattern" in facts
     expect(facts["src/commands/write.ts"]).toBeDefined();
     // validate.ts has "Result pattern" but is NOT under src/commands
@@ -593,7 +594,7 @@ describe("folder and search-facts filters", () => {
     const result = await inspectCommand({ agent: "local", subject: "local", filter: ["write"] });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const facts = (result.value as Record<string, unknown>).facts as Record<string, string[]>;
+    const facts = (result.value as Record<string, unknown>).facts as Record<string, FileFacts>;
     expect(facts["src/commands/write.ts"]).toBeDefined();
     expect(facts["src/utils/validate.ts"]).toBeUndefined();
     expect(facts["src/commands/inspect.ts"]).toBeUndefined();

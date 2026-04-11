@@ -18,6 +18,8 @@ All example files live in `.code-examples-for-ai/` at the repo root. Each file d
 | `command-handler.md` | Command handler structure — async function, typed Args, delegate I/O to services | `src/commands/list.ts`, `src/index.ts` |
 | `change-detector.md` | Async file comparison — `Promise.all` parallelism, mtime/hash fallback, path traversal guard | `src/files/changeDetector.ts` |
 | `subject-validation.md` | Subject string validation — regex + max-length guard that becomes a file path component | `src/utils/validate.ts` |
+| `personalized-pagerank.md` | Personalized PageRank ranking over dependency graphs with dangling-node redistribution | `src/analysis/pageRank.ts` |
+| `watch-daemon-command.md` | Long-running Bun watcher command with debounce, serialized rebuilds, and signal shutdown | `src/commands/watch.ts` |
 
 ---
 

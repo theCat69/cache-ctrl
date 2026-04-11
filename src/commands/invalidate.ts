@@ -1,5 +1,6 @@
 import { findRepoRoot, listCacheFiles, writeCache, readCache } from "../cache/cacheManager.js";
 import { resolveTopExternalMatch } from "../cache/externalCache.js";
+import { resolveGraphCachePath } from "../cache/graphCache.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { InvalidateArgs, InvalidateResult } from "../types/commands.js";
@@ -43,11 +44,20 @@ export async function invalidateCommand(args: InvalidateArgs): Promise<Result<In
       const writeResult = await writeCache(localPath, { timestamp: "" });
       if (!writeResult.ok) return writeResult;
       invalidated.push(localPath);
+
+      const graphPath = resolveGraphCachePath(repoRoot);
+      const graphReadResult = await readCache(graphPath);
+      if (graphReadResult.ok) {
+        const graphWriteResult = await writeCache(graphPath, { computed_at: "" });
+        if (!graphWriteResult.ok) return graphWriteResult;
+      } else if (graphReadResult.code !== ErrorCode.FILE_NOT_FOUND) {
+        return graphReadResult;
+      }
     }
 
     return { ok: true, value: { invalidated } };
   } catch (err) {
-    const error = err as Error;
-    return { ok: false, error: error.message, code: ErrorCode.UNKNOWN };
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg, code: ErrorCode.UNKNOWN };
   }
 }
