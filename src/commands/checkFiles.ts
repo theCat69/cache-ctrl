@@ -30,19 +30,19 @@ export async function checkFilesCommand(): Promise<Result<CheckFilesResult["valu
 
     const changedFiles: Array<{ path: string; reason: "mtime" | "hash" | "missing" }> = [];
     const unchangedFiles: string[] = [];
-    const missingFiles: string[] = [];
 
     for (const trackedFile of trackedFiles) {
       const result = await compareTrackedFile(trackedFile, repoRoot);
       if (result.status === "unchanged") {
         unchangedFiles.push(trackedFile.path);
       } else if (result.status === "missing") {
-        missingFiles.push(trackedFile.path);
         changedFiles.push({ path: trackedFile.path, reason: "missing" });
       } else {
         changedFiles.push({ path: trackedFile.path, reason: result.reason ?? "mtime" });
       }
     }
+
+    const missingFiles = changedFiles.filter((file) => file.reason === "missing").map((file) => file.path);
 
     const [gitTrackedFiles, deletedGitFiles, untrackedNonIgnoredFiles] = await Promise.all([
       getGitTrackedFiles(repoRoot),

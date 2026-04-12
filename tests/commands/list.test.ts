@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { listCommand } from "../../src/commands/list.js";
+import { initGitRepo } from "../../e2e/helpers/repo.js";
 
 const EXTERNAL_DIR = join(".ai", "external-context-gatherer_cache");
 const LOCAL_DIR = join(".ai", "local-context-gatherer_cache");
@@ -323,12 +324,3 @@ describe("listCommand", () => {
     expect(result.value).toHaveLength(0);
   });
 });
-
-function initGitRepo(dir: string): void {
-  execFileSync("git", ["init"], { cwd: dir });
-  execFileSync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
-  execFileSync("git", ["config", "user.name", "Test"], { cwd: dir });
-  writeFileSync(join(dir, ".gitignore"), ".ai/\n");
-  execFileSync("git", ["add", ".gitignore"], { cwd: dir });
-  execFileSync("git", ["commit", "-m", "chore: init gitignore"], { cwd: dir });
-}
