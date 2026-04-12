@@ -6,6 +6,10 @@ import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../utils/errors.js";
 
+/** Maximum UTF-8 byte size of the full unfiltered facts map (~5 000 tokens at ~4 bytes/token). */
+const INSPECT_LOCAL_MAX_FACTS_BYTES = 20_000;
+const KEY_COUNT_LIMIT = 500;
+
 function filterFacts(
   facts: Record<string, FileFacts>,
   keywords: string[],
@@ -44,7 +48,7 @@ function normalizeFolderArg(folder: string): Result<string> {
  *
  * @param args - {@link InspectLocalArgs}.
  * @returns Promise<Result<InspectLocalResult["value"]>>; common failures include INVALID_ARGS,
- * FILE_NOT_FOUND, PARSE_ERROR, and UNKNOWN.
+ * FILE_NOT_FOUND, PARSE_ERROR, PAYLOAD_TOO_LARGE, and UNKNOWN.
  */
 export async function inspectLocalCommand(args: InspectLocalArgs): Promise<Result<InspectLocalResult["value"]>> {
   try {
@@ -89,6 +93,39 @@ export async function inspectLocalCommand(args: InspectLocalArgs): Promise<Resul
           (factEntry.facts ?? []).some((fact) => loweredKeywords.some((keyword) => fact.toLowerCase().includes(keyword))),
         ),
       );
+    }
+
+    // Only enforce the size limit for fully unfiltered requests; filtered results may legitimately be large.
+    if (
+      filteredFacts !== undefined &&
+      args.filter === undefined &&
+      args.folder === undefined &&
+      args.searchFacts === undefined
+    ) {
+      // Fast structural pre-check: avoid serializing obviously oversized payloads.
+      if (Object.keys(filteredFacts).length > KEY_COUNT_LIMIT) {
+        return {
+          ok: false,
+          error:
+            `The unfiltered facts map contains more than ${KEY_COUNT_LIMIT} entries. ` +
+            `Use --filter <keyword>, --folder <path>, or --search-facts <term> to narrow the query, ` +
+            `or use the map or graph tools to navigate the codebase first.`,
+          code: ErrorCode.PAYLOAD_TOO_LARGE,
+        };
+      }
+
+      const json = JSON.stringify(filteredFacts);
+      const serializedBytes = Buffer.byteLength(json, "utf8");
+      if (serializedBytes > INSPECT_LOCAL_MAX_FACTS_BYTES) {
+        return {
+          ok: false,
+          error:
+            `The unfiltered facts map is too large (${serializedBytes} bytes, limit ${INSPECT_LOCAL_MAX_FACTS_BYTES} bytes ≈ 5 000 tokens). ` +
+            `Use --filter <keyword>, --folder <path>, or --search-facts <term> to narrow the query, ` +
+            `or use the map or graph tools to navigate the codebase first.`,
+          code: ErrorCode.PAYLOAD_TOO_LARGE,
+        };
+      }
     }
 
     const resultValue: InspectLocalResult["value"] = {

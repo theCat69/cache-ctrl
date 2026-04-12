@@ -54,6 +54,8 @@ To force a re-fetch for a specific subject: call `cache_ctrl_invalidate` with `a
 ## Inspect Targeting (For `cache_ctrl_inspect_local`)
 
 > For `cache_ctrl_inspect_local`, always use at least one filter to avoid loading the full facts map. Omitting all three filters returns the full facts map and adds a `warning` field to the response — this may exceed token limits for large codebases.
+>
+> **Hard limit**: unfiltered calls that return more than 500 entries or exceed 20 000 UTF-8 bytes will return `ok: false` with `code: PAYLOAD_TOO_LARGE`. Always use at least one of `filter`, `folder`, or `search_facts` for large codebases.
 
 | Option | What it matches | Best for |
 |---|---|---|
