@@ -83,7 +83,7 @@ This is a CLI tool — there is no dev server. For interactive development:
 # Run any command directly
 bun run cache_ctrl.ts list
 bun run cache_ctrl.ts check-files
-bun run cache_ctrl.ts inspect external vitest
+bun run cache_ctrl.ts inspect-external vitest
 
 # Start the watch daemon (long-running; builds and maintains graph.json)
 cache-ctrl watch --verbose

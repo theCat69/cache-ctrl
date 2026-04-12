@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
 import { runCli, parseJsonOutput } from "../helpers/cli.ts";
 import { createTestRepo, type TestRepo } from "../helpers/repo.ts";
 
@@ -12,9 +14,9 @@ afterEach(async () => {
   await repo.cleanup();
 });
 
-describe("inspect", () => {
+describe("inspect-external", () => {
   it("returns ok:true and full entry content for known external subject", async () => {
-    const result = await runCli(["inspect", "external", "sample"], { cwd: repo.dir });
+    const result = await runCli(["inspect-external", "sample"], { cwd: repo.dir });
     expect(result.exitCode).toBe(0);
 
     const output = parseJsonOutput<{
@@ -34,7 +36,7 @@ describe("inspect", () => {
   });
 
   it("returns ok:false with FILE_NOT_FOUND for unknown subject", async () => {
-    const result = await runCli(["inspect", "external", "does-not-exist"], { cwd: repo.dir });
+    const result = await runCli(["inspect-external", "does-not-exist"], { cwd: repo.dir });
     expect(result.exitCode).toBe(1);
 
     const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
@@ -42,17 +44,8 @@ describe("inspect", () => {
     expect(errorOutput.code).toBe("FILE_NOT_FOUND");
   });
 
-  it("returns ok:false with INVALID_ARGS for invalid agent", async () => {
-    const result = await runCli(["inspect", "badagent", "sample"], { cwd: repo.dir });
-    expect(result.exitCode).toBe(2);
-
-    const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
-    expect(errorOutput.ok).toBe(false);
-    expect(errorOutput.code).toBe("INVALID_ARGS");
-  });
-
   it("missing subject arg exits with code 2", async () => {
-    const result = await runCli(["inspect", "external"], { cwd: repo.dir });
+    const result = await runCli(["inspect-external"], { cwd: repo.dir });
     expect(result.exitCode).toBe(2);
 
     const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
@@ -60,8 +53,8 @@ describe("inspect", () => {
     expect(errorOutput.code).toBe("INVALID_ARGS");
   });
 
-  it("missing both agent and subject exits with code 2", async () => {
-    const result = await runCli(["inspect"], { cwd: repo.dir });
+  it("missing both command args exits with code 2", async () => {
+    const result = await runCli(["inspect-external"], { cwd: repo.dir });
     expect(result.exitCode).toBe(2);
 
     const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
@@ -70,7 +63,18 @@ describe("inspect", () => {
   });
 });
 
-describe("inspect local — tracked_files stripping and --filter", () => {
+describe("inspect-local — tracked_files stripping and --filter", () => {
+  it("returns FILE_NOT_FOUND when local context.json is missing", async () => {
+    await rm(join(repo.dir, ".ai", "local-context-gatherer_cache", "context.json"));
+
+    const result = await runCli(["inspect-local"], { cwd: repo.dir });
+    expect(result.exitCode).toBe(1);
+
+    const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
+    expect(errorOutput.ok).toBe(false);
+    expect(errorOutput.code).toBe("FILE_NOT_FOUND");
+  });
+
   it("inspect local context never returns tracked_files", async () => {
     // Write a local entry with tracked_files + facts
     const entry = {
@@ -87,7 +91,7 @@ describe("inspect local — tracked_files stripping and --filter", () => {
     });
     expect(writeResult.exitCode).toBe(0);
 
-    const result = await runCli(["inspect", "local", "context"], { cwd: repo.dir });
+    const result = await runCli(["inspect-local"], { cwd: repo.dir });
     expect(result.exitCode).toBe(0);
 
     const output = parseJsonOutput<{ ok: boolean; value: Record<string, unknown> }>(result.stdout);
@@ -111,7 +115,7 @@ describe("inspect local — tracked_files stripping and --filter", () => {
     });
     expect(writeResult.exitCode).toBe(0);
 
-    const result = await runCli(["inspect", "local", "context", "--filter", "file-a"], {
+    const result = await runCli(["inspect-local", "--filter", "file-a"], {
       cwd: repo.dir,
     });
     expect(result.exitCode).toBe(0);
@@ -138,10 +142,7 @@ describe("inspect local — tracked_files stripping and --filter", () => {
     };
     await runCli(["write-local", "--data", JSON.stringify(entry)], { cwd: repo.dir });
 
-    const result = await runCli(
-      ["inspect", "local", "context", "--filter", "file-a,file-b"],
-      { cwd: repo.dir },
-    );
+    const result = await runCli(["inspect-local", "--filter", "file-a,file-b"], { cwd: repo.dir });
     expect(result.exitCode).toBe(0);
 
     const output = parseJsonOutput<{
@@ -155,7 +156,7 @@ describe("inspect local — tracked_files stripping and --filter", () => {
   });
 });
 
-describe("inspect local — --folder and --search-facts filters", () => {
+describe("inspect-local — --folder and --search-facts filters", () => {
   it("--folder src returns only files under src/ (ok: true, all facts keys start with 'src/')", async () => {
     const entry = {
       topic: "folder filter e2e",
@@ -176,7 +177,7 @@ describe("inspect local — --folder and --search-facts filters", () => {
     });
     expect(writeResult.exitCode).toBe(0);
 
-    const result = await runCli(["inspect", "local", "context", "--folder", "src"], {
+    const result = await runCli(["inspect-local", "--folder", "src"], {
       cwd: repo.dir,
     });
     expect(result.exitCode).toBe(0);
@@ -218,7 +219,7 @@ describe("inspect local — --folder and --search-facts filters", () => {
     expect(writeResult.exitCode).toBe(0);
 
     const result = await runCli(
-      ["inspect", "local", "context", "--search-facts", "someterm"],
+      ["inspect-local", "--search-facts", "someterm"],
       { cwd: repo.dir },
     );
     expect(result.exitCode).toBe(0);
@@ -259,7 +260,7 @@ describe("inspect local — --folder and --search-facts filters", () => {
     // --filter file-a: keeps src/file-a.ts
     // --search-facts advisory: also matches src/file-a.ts
     const result = await runCli(
-      ["inspect", "local", "context", "--folder", "src", "--filter", "file-a", "--search-facts", "advisory"],
+      ["inspect-local", "--folder", "src", "--filter", "file-a", "--search-facts", "advisory"],
       { cwd: repo.dir },
     );
     expect(result.exitCode).toBe(0);

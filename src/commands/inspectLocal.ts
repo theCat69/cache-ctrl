@@ -1,10 +1,7 @@
-import { normalize } from "node:path";
-
 import { findRepoRoot, readCache } from "../cache/cacheManager.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
-import { scoreEntry } from "../search/keywordSearch.js";
-import type { CacheEntry, FileFacts } from "../types/cache.js";
-import type { InspectArgs, InspectResult } from "../types/commands.js";
+import type { FileFacts } from "../types/cache.js";
+import type { InspectLocalArgs, InspectLocalResult } from "../types/commands.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../utils/errors.js";
@@ -31,7 +28,7 @@ function normalizeFolderArg(folder: string): Result<string> {
     };
   }
 
-  if (normalize(normalizedFolder).split("/").includes("..")) {
+  if (normalizedFolder.includes("..")) {
     return {
       ok: false,
       error: "--folder must not contain '..' path segments",
@@ -45,11 +42,11 @@ function normalizeFolderArg(folder: string): Result<string> {
 /**
  * Inspects local context cache content with optional path/fact filters.
  *
- * @param args - {@link InspectArgs} with `agent: "local"`.
- * @returns Promise<Result<InspectResult["value"]>>; common failures include INVALID_ARGS,
+ * @param args - {@link InspectLocalArgs}.
+ * @returns Promise<Result<InspectLocalResult["value"]>>; common failures include INVALID_ARGS,
  * FILE_NOT_FOUND, PARSE_ERROR, and UNKNOWN.
  */
-export async function inspectLocalCommand(args: InspectArgs): Promise<Result<InspectResult["value"]>> {
+export async function inspectLocalCommand(args: InspectLocalArgs): Promise<Result<InspectLocalResult["value"]>> {
   try {
     let normalizedFolder: string | undefined;
     if (args.folder !== undefined) {
@@ -69,30 +66,7 @@ export async function inspectLocalCommand(args: InspectArgs): Promise<Result<Ins
     }
 
     const data = parseResult.data;
-    const entry: CacheEntry = {
-      file: localPath,
-      agent: "local",
-      subject: data.topic ?? "local",
-      description: data.description,
-      fetched_at: data.timestamp ?? "",
-    };
-
-    const scored = [
-      {
-        entry,
-        content: data,
-        file: localPath,
-        score: scoreEntry(entry, [args.subject]),
-      },
-    ];
-    const matched = scored.filter((candidate) => candidate.score > 0);
-
-    if (matched.length === 0) {
-      return { ok: false, error: `No cache entry matched keyword "${args.subject}"`, code: ErrorCode.FILE_NOT_FOUND };
-    }
-
-    const top = matched[0]!;
-    const { tracked_files: _dropped, facts, ...rest } = top.content;
+    const { tracked_files: _dropped, facts, ...rest } = data;
 
     let filteredFacts = facts;
     if (filteredFacts !== undefined && normalizedFolder !== undefined) {
@@ -117,11 +91,17 @@ export async function inspectLocalCommand(args: InspectArgs): Promise<Result<Ins
       );
     }
 
-    const resultValue: InspectResult["value"] = {
+    const resultValue: InspectLocalResult["value"] = {
       ...rest,
       ...(filteredFacts !== undefined ? { facts: filteredFacts } : {}),
-      file: top.file,
-      agent: args.agent,
+      file: localPath,
+      agent: "local",
+      ...(args.filter === undefined && args.folder === undefined && args.searchFacts === undefined
+        ? {
+            warning:
+              "No filters provided: returning full facts map. This may exceed token limits for large codebases.",
+          }
+        : {}),
     };
 
     return {

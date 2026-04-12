@@ -38,8 +38,8 @@ chmod +x "${TOOL_DIR}/src/index.ts"
 
 # ── opencode custom tool symlink ───────────────────────────────────────────
 # .opencode/tools/cache_ctrl.ts → <cache-ctrl-dir>/cache_ctrl.ts
-# Tool names: cache_ctrl_search, cache_ctrl_list, cache_ctrl_inspect,
-#             cache_ctrl_invalidate, cache_ctrl_check_files
+# Tool names: cache_ctrl_search, cache_ctrl_list, cache_ctrl_inspect_external,
+#             cache_ctrl_inspect_local, cache_ctrl_invalidate, cache_ctrl_check_files
 ln -sf "${TOOL_DIR}/cache_ctrl.ts" "${HOME}/.config/opencode/tools/cache_ctrl.ts"
 
 # ── Install dependencies ───────────────────────────────────

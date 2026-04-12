@@ -14,14 +14,23 @@ afterEach(async () => {
 
 const ALL_COMMANDS = [
   "list",
-  "inspect",
+  "inspect-external",
+  "inspect-local",
   "flush",
   "invalidate",
   "touch",
   "prune",
   "check-files",
   "search",
-  "write",
+  "write-local",
+  "write-external",
+  "install",
+  "update",
+  "uninstall",
+  "graph",
+  "map",
+  "watch",
+  "version",
 ] as const;
 
 describe("help", () => {
@@ -32,7 +41,7 @@ describe("help", () => {
     expect(result.stdout).toContain("cache-ctrl");
   });
 
-  it("--help lists all 10 command names in stdout", async () => {
+  it("--help lists all command names in stdout", async () => {
     const result = await runCli(["--help"], { cwd: repo.dir });
     expect(result.exitCode).toBe(0);
 

@@ -127,5 +127,5 @@ Facts for files deleted from disk are evicted automatically on the next write â€
 | Detect file changes | `cache_ctrl_check_files` |
 | Invalidate cache | `cache_ctrl_invalidate` (agent: "local") |
 | Write cache | `cache_ctrl_write_local` |
-| Read facts (filtered) | `cache_ctrl_inspect` (agent: "local", filter / folder / search_facts) |
+| Read facts (filtered) | `cache_ctrl_inspect_local` (filter / folder / search_facts) |
 | Confirm written | `cache_ctrl_list` (agent: "local") |

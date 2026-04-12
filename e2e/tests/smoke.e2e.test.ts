@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 describe("smoke: external cache pipeline", () => {
-  it("write external → list → inspect → search → invalidate → list again", async () => {
+  it("write external → list → inspect-external → search → invalidate → list again", async () => {
     await rm(join(repo.dir, ".ai"), { recursive: true, force: true });
 
     // Step 1: write external entry
@@ -43,8 +43,8 @@ describe("smoke: external cache pipeline", () => {
     expect(listOutput.value.length).toBeGreaterThanOrEqual(1);
     expect(listOutput.value.some((e) => e.subject === "mysmoke")).toBe(true);
 
-    // Step 3: inspect
-    const inspectResult = await runCli(["inspect", "external", "mysmoke"], { cwd: repo.dir });
+    // Step 3: inspect-external
+    const inspectResult = await runCli(["inspect-external", "mysmoke"], { cwd: repo.dir });
     expect(inspectResult.exitCode).toBe(0);
     const inspectOutput = parseJsonOutput<{
       ok: boolean;

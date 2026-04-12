@@ -32,7 +32,7 @@ This project is a **TypeScript CLI tool** (`cache-ctrl`) that runs on **Bun 1.x*
 | Zod schemas | PascalCase + `Schema` suffix | `ExternalCacheFileSchema`, `TrackedFileSchema` |
 | Constants | SCREAMING_SNAKE_CASE | `LOCK_TIMEOUT_MS`, `SUBJECT_MAX_LENGTH` |
 | Boolean vars | `is`, `has`, `can` prefix | `isStale`, `hasPermission` |
-| Command handlers | `<verb>Command` | `listCommand`, `inspectCommand` |
+| Command handlers | `<verb>Command` | `listCommand`, `inspectExternalCommand` |
 
 Avoid generic names: `data`, `value`, `temp`, `result`, `obj`, `info`. When a name is hard to find, the abstraction is wrong — redesign it.
 

@@ -23,7 +23,7 @@ Brain agents (orchestrators, reviewers, architects) currently have two bad optio
 
 What they need is a **middle path**: a lightweight structural view of the codebase that lets them identify which files matter for a given task, then read only those.
 
-The existing `facts + inspect --filter` path is a start, but it has two gaps:
+The existing `facts + inspect-local --filter` path is a start, but it has two gaps:
 
 1. **No topology**: facts describe individual files in isolation. There is no structural signal about how files relate to each other — which file is a central hub, which is a leaf, what depends on what.
 2. **No priority signal**: all files are equal in the cache. A brain agent has no way to know that `cacheManager.ts` is the I/O hub for the entire system without reading facts for every file first.
@@ -35,7 +35,7 @@ The existing `facts + inspect --filter` path is a start, but it has two gaps:
 1. Give brain agents a **semantic mental map** of the codebase — what each file does, its role, its importance — at a glance and within a tight token budget.
 2. Give brain agents a **structural graph** — which files reference which, which are the most connected — computed programmatically, not inferred by an LLM.
 3. Keep the **tool surface for agents minimal and stable**: no new agent-facing concepts beyond two new tools and one schema evolution.
-4. Decouple local and external write/inspect logic **internally** without breaking the unified `agent` parameter interface that agents already use.
+4. Decouple local and external write/inspect logic into dedicated local/external commands and tools.
 
 ---
 
@@ -70,12 +70,13 @@ Brain Agent
     │       │               (structural, programmatically computed, from graph.json)
     │       └── PageRank-ranked symbols + file dependency edges
     │
-    └── cache_ctrl_inspect → "Tell me everything about these specific files"
+    └── cache_ctrl_inspect_local / cache_ctrl_inspect_external
+            → "Tell me everything about these specific files"
             │               (unchanged — file-centric, filtered by path/folder/fact)
             └── full facts for targeted files
 ```
 
-The two new tools complement each other: `map` answers *semantic* questions (purpose, role, importance); `graph` answers *structural* questions (dependencies, centrality). `inspect` remains the deep-dive tool.
+The two new tools complement each other: `map` answers *semantic* questions (purpose, role, importance); `graph` answers *structural* questions (dependencies, centrality). `inspect-local` / `inspect-external` remain the deep-dive tools.
 
 ---
 
@@ -124,9 +125,9 @@ A new command that starts a file watcher on the repo root.
 
 ### 6.5 Internal Command Split
 
-`writeCommand` and `inspectCommand` currently handle both agent types in a single function with branching. This will be split into dedicated handlers per agent type, with thin router functions at the top level.
+`write` and `inspect` logic currently handle both agent types in shared paths with branching. This will be split into dedicated handlers per agent type, with thin router functions at the top level.
 
-The tool surface (`cache_ctrl_write`, `cache_ctrl_inspect`) remains unchanged — the split is an internal implementation concern.
+The tool surface uses split inspect tools (`cache_ctrl_inspect_external`, `cache_ctrl_inspect_local`) alongside write routing.
 
 ---
 
@@ -136,7 +137,7 @@ A brain agent entering a new task follows this sequence:
 
 1. **`cache_ctrl_map(depth: "overview")`** — get the semantic mental map. Identify files by role and importance. Costs ~300 tokens.
 2. **`cache_ctrl_graph(maxTokens: 1024)`** — get the structural graph. Understand which files are most connected. Identify the relevant subgraph for this task.
-3. **`cache_ctrl_inspect(filter: [...])`** — read full facts for the specific files identified in steps 1–2.
+3. **`cache_ctrl_inspect_local(filter: [...])`** — read full facts for the specific files identified in steps 1–2.
 4. **Read files in full** — only the 2–5 files that are actually needed.
 
 This replaces "read everything" or "read blind" with a structured 4-step progressive disclosure.
