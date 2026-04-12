@@ -1,7 +1,8 @@
 import type { ExternalCacheFile } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { loadExternalCacheEntries } from "./cacheManager.js";
+import { listCacheFiles, loadExternalCacheEntries, writeCache } from "./cacheManager.js";
 import { scoreEntry } from "../search/keywordSearch.js";
+import { validateSubject } from "../utils/validate.js";
 
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -81,4 +82,41 @@ export async function resolveTopExternalMatch(repoRoot: string, subject: string)
   }
 
   return { ok: true, value: scored[0]!.entry.file };
+}
+
+/**
+ * Updates `fetched_at` for one external entry (best subject match) or all entries.
+ *
+ * @param repoRoot - Repository root.
+ * @param subject - Optional subject keyword; when provided, only top match is updated.
+ * @param fetchedAt - New ISO timestamp value (or empty string to invalidate).
+ * @returns Updated file paths.
+ */
+export async function updateExternalFetchedAt(
+  repoRoot: string,
+  subject: string | undefined,
+  fetchedAt: string,
+): Promise<Result<string[]>> {
+  let filesToUpdate: string[];
+
+  if (subject) {
+    const subjectCheck = validateSubject(subject);
+    if (!subjectCheck.ok) return subjectCheck;
+    const matchResult = await resolveTopExternalMatch(repoRoot, subject);
+    if (!matchResult.ok) return matchResult;
+    filesToUpdate = [matchResult.value];
+  } else {
+    const filesResult = await listCacheFiles("external", repoRoot);
+    if (!filesResult.ok) return filesResult;
+    filesToUpdate = filesResult.value;
+  }
+
+  const updated: string[] = [];
+  for (const filePath of filesToUpdate) {
+    const writeResult = await writeCache(filePath, { fetched_at: fetchedAt });
+    if (!writeResult.ok) return writeResult;
+    updated.push(filePath);
+  }
+
+  return { ok: true, value: updated };
 }

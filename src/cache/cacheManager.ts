@@ -1,5 +1,4 @@
-import { readFile, writeFile, rename, stat, unlink, readdir, mkdir } from "node:fs/promises";
-import { open } from "node:fs/promises";
+import { readFile, writeFile, rename, stat, unlink, readdir, mkdir, open } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { AgentType, CacheEntry, ExternalCacheFile, LocalCacheFile } from "../types/cache.js";
