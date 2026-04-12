@@ -47,11 +47,11 @@ src/index.ts              cache_ctrl.ts
                │
         Command Layer
    src/commands/{list, inspect, inspectExternal,
-         inspectLocal, flush, invalidate,
-      touch, prune,
-      checkFiles, search, writeLocal,
-     writeExternal, install, graph,
-     map, watch, version}.ts
+          inspectLocal, flush, invalidate,
+       touch, prune,
+       checkFiles, search, writeLocal,
+      writeExternal, install, update, uninstall,
+      graph, map, watch, version}.ts
                  │
            Core Services
     cacheManager  ← read/write + advisory lock
@@ -133,6 +133,90 @@ Both operations are idempotent — re-running `cache-ctrl install` after `npm up
 ```
 
 **Error codes**: `FILE_WRITE_ERROR` if the tool wrapper or a skill file cannot be written.
+
+---
+
+### `update`
+
+```
+cache-ctrl update [--config-dir <path>]
+```
+
+Updates the globally installed npm package to the latest version, then re-runs the OpenCode integration install to refresh the tool wrapper and skill files.
+
+1. Runs `npm install -g @thecat69/cache-ctrl@latest`.
+2. Re-runs `cache-ctrl install` (idempotent — regenerates the wrapper with the new package path).
+
+If the `npm install` step fails, the error is recorded in `warnings[]` and the integration install still proceeds.
+
+**Options:**
+
+| Flag | Description |
+|---|---|
+| `--config-dir <path>` | Override the detected OpenCode config directory |
+
+```jsonc
+// cache-ctrl update --pretty
+{
+  "ok": true,
+  "value": {
+    "packageUpdated": true,
+    "installedPaths": [
+      "/home/user/.config/opencode/tools/cache_ctrl.ts",
+      "/home/user/.config/opencode/skills/cache-ctrl-caller/SKILL.md",
+      "/home/user/.config/opencode/skills/cache-ctrl-local/SKILL.md",
+      "/home/user/.config/opencode/skills/cache-ctrl-external/SKILL.md"
+    ],
+    "warnings": []
+  }
+}
+```
+
+**Error codes**: `INVALID_ARGS` if `--config-dir` is outside the user home directory. `FILE_WRITE_ERROR` if the integration files cannot be written.
+
+---
+
+### `uninstall`
+
+```
+cache-ctrl uninstall [--config-dir <path>]
+```
+
+Removes the cache-ctrl OpenCode integration and uninstalls the global npm package.
+
+Removes, in order:
+1. `<configDir>/tools/cache_ctrl.ts`
+2. All `<configDir>/skills/cache-ctrl-*` directories (recursive)
+3. `~/.local/bin/cache-ctrl`
+4. Runs `npm uninstall -g @thecat69/cache-ctrl`
+
+Missing files are not treated as errors — they produce a `warnings[]` entry instead. If the `npm uninstall` step fails, the error is recorded in `warnings[]`.
+
+**Options:**
+
+| Flag | Description |
+|---|---|
+| `--config-dir <path>` | Override the detected OpenCode config directory |
+
+```jsonc
+// cache-ctrl uninstall --pretty
+{
+  "ok": true,
+  "value": {
+    "removed": [
+      "/home/user/.config/opencode/tools/cache_ctrl.ts",
+      "/home/user/.config/opencode/skills/cache-ctrl-caller",
+      "/home/user/.config/opencode/skills/cache-ctrl-local",
+      "/home/user/.config/opencode/skills/cache-ctrl-external",
+      "/home/user/.local/bin/cache-ctrl"
+    ],
+    "packageUninstalled": true,
+    "warnings": []
+  }
+}
+```
+
+**Error codes**: `INVALID_ARGS` if `--config-dir` is outside the user home directory. `UNKNOWN` for unexpected filesystem errors.
 
 ---
 

@@ -10,6 +10,8 @@ import { searchCommand } from "./commands/search.js";
 import { writeLocalCommand } from "./commands/writeLocal.js";
 import { writeExternalCommand } from "./commands/writeExternal.js";
 import { installCommand } from "./commands/install.js";
+import { updateCommand } from "./commands/update.js";
+import { uninstallCommand } from "./commands/uninstall.js";
 import { graphCommand } from "./commands/graph.js";
 import { mapCommand } from "./commands/map.js";
 import { watchCommand } from "./commands/watch.js";
@@ -29,6 +31,8 @@ type CommandName =
   | "write-local"
   | "write-external"
   | "install"
+  | "update"
+  | "uninstall"
   | "graph"
   | "map"
   | "watch"
@@ -185,6 +189,32 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "    --config-dir <path>  Override the OpenCode config directory (default: platform-specific)",
       "",
       "  Output: JSON object describing installed tool/skill paths.",
+    ].join("\n"),
+  },
+  update: {
+    usage: "update [--config-dir <path>]",
+    description: "Update npm package globally and refresh OpenCode integration",
+    details: [
+      "  Arguments:",
+      "    (none)",
+      "",
+      "  Options:",
+      "    --config-dir <path>  Override the OpenCode config directory (default: platform-specific)",
+      "",
+      "  Output: JSON object with package update status, installed paths, and warnings.",
+    ].join("\n"),
+  },
+  uninstall: {
+    usage: "uninstall [--config-dir <path>]",
+    description: "Remove OpenCode integration files and uninstall global npm package",
+    details: [
+      "  Arguments:",
+      "    (none)",
+      "",
+      "  Options:",
+      "    --config-dir <path>  Override the OpenCode config directory (default: platform-specific)",
+      "",
+      "  Output: JSON object with removed paths, npm uninstall status, and warnings.",
     ].join("\n"),
   },
   graph: {
@@ -407,7 +437,7 @@ async function main(): Promise<void> {
 
   const command = args[0];
   if (!command) {
-    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, graph, map, watch, version");
+    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, update, uninstall, graph, map, watch, version");
   }
 
   switch (command) {
@@ -644,8 +674,41 @@ async function main(): Promise<void> {
     }
 
     case "install": {
+      if (flags["config-dir"] === true) {
+        usageError("--config-dir requires a value: --config-dir <path>");
+      }
       const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
       const result = await installCommand({ ...(configDir !== undefined ? { configDir } : {}) });
+      if (result.ok) {
+        printResult(result, pretty);
+      } else {
+        printError(result, pretty);
+        process.exit(1);
+      }
+      break;
+    }
+
+    case "update": {
+      if (flags["config-dir"] === true) {
+        usageError("--config-dir requires a value: --config-dir <path>");
+      }
+      const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
+      const result = await updateCommand({ ...(configDir !== undefined ? { configDir } : {}) });
+      if (result.ok) {
+        printResult(result, pretty);
+      } else {
+        printError(result, pretty);
+        process.exit(1);
+      }
+      break;
+    }
+
+    case "uninstall": {
+      if (flags["config-dir"] === true) {
+        usageError("--config-dir requires a value: --config-dir <path>");
+      }
+      const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
+      const result = await uninstallCommand({ ...(configDir !== undefined ? { configDir } : {}) });
       if (result.ok) {
         printResult(result, pretty);
       } else {
@@ -738,7 +801,7 @@ async function main(): Promise<void> {
     }
 
     default:
-      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, graph, map, watch, version`);
+      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, update, uninstall, graph, map, watch, version`);
   }
 }
 
