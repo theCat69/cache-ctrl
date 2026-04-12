@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { serializeGraphToCache, isSourceFile, resolveSourceFilePaths } from "../../src/commands/watch.js";
+import { rebuildGraphCache, serializeGraphToCache, isSourceFile, resolveSourceFilePaths } from "../../src/commands/watch.js";
 import type { DependencyGraph } from "../../src/analysis/graphBuilder.js";
+import { ErrorCode } from "../../src/types/result.js";
 
 describe("watch helpers", () => {
   it("serializeGraphToCache converts DependencyGraph to graph cache files format", () => {
@@ -101,5 +102,37 @@ describe("watch helpers", () => {
 
     await rm(repoRoot, { recursive: true, force: true });
     await rm(outsideRoot, { recursive: true, force: true });
+  });
+
+  it("rebuildGraphCache logs and returns when graph cache write fails", async () => {
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+    const dependencies = {
+      resolveSourceFilePaths: vi.fn(async () => ["/repo/src/a.ts"]),
+      buildGraph: vi.fn(async (): Promise<DependencyGraph> =>
+        new Map([
+          [
+            "/repo/src/a.ts",
+            {
+              deps: [],
+              defs: ["A"],
+            },
+          ],
+        ]),
+      ),
+      resolveGraphCachePath: vi.fn(() => "/repo/.cache-ctrl/graph.json"),
+      writeCache: vi.fn(async () => ({
+        ok: false as const,
+        error: "disk full",
+        code: ErrorCode.FILE_WRITE_ERROR,
+      })),
+    };
+
+    await expect(rebuildGraphCache("/repo", "/repo/src/a.ts", false, dependencies)).resolves.toBeUndefined();
+
+    expect(stderrSpy).toHaveBeenCalledWith("[watch] Failed to update graph cache: disk full\n");
+    expect(dependencies.writeCache).toHaveBeenCalledOnce();
+
+    stderrSpy.mockRestore();
   });
 });

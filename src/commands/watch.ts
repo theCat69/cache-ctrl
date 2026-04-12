@@ -104,16 +104,35 @@ export async function resolveSourceFilePaths(
   return [...sourcePaths];
 }
 
-async function rebuildGraphCache(repoRoot: string, changedPath: string | undefined, verbose: boolean): Promise<void> {
+interface RebuildGraphCacheDependencies {
+  resolveSourceFilePaths: typeof resolveSourceFilePaths;
+  buildGraph: typeof buildGraph;
+  resolveGraphCachePath: typeof resolveGraphCachePath;
+  writeCache: typeof writeCache;
+}
+
+const defaultRebuildGraphCacheDependencies: RebuildGraphCacheDependencies = {
+  resolveSourceFilePaths,
+  buildGraph,
+  resolveGraphCachePath,
+  writeCache,
+};
+
+export async function rebuildGraphCache(
+  repoRoot: string,
+  changedPath: string | undefined,
+  verbose: boolean,
+  dependencies: RebuildGraphCacheDependencies = defaultRebuildGraphCacheDependencies,
+): Promise<void> {
   try {
-    const sourceFilePaths = await resolveSourceFilePaths(repoRoot);
-    const graph = await buildGraph(sourceFilePaths, repoRoot);
-    const graphCachePath = resolveGraphCachePath(repoRoot);
+    const sourceFilePaths = await dependencies.resolveSourceFilePaths(repoRoot);
+    const graph = await dependencies.buildGraph(sourceFilePaths, repoRoot);
+    const graphCachePath = dependencies.resolveGraphCachePath(repoRoot);
     const graphPayload: GraphCacheFile = {
       files: serializeGraphToCache(graph),
       computed_at: new Date().toISOString(),
     };
-    const writeResult = await writeCache(graphCachePath, graphPayload, "replace");
+    const writeResult = await dependencies.writeCache(graphCachePath, graphPayload, "replace");
     if (!writeResult.ok) {
       process.stderr.write(`[watch] Failed to update graph cache: ${writeResult.error}\n`);
       return;
