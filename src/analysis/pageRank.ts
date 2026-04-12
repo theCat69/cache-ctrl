@@ -90,11 +90,8 @@ function buildInLinks(graph: DependencyGraph, nodes: string[]): Map<string, stri
 
   for (const [sourceNode, graphNode] of graph.entries()) {
     for (const targetNode of graphNode.deps) {
-      if (!inLinks.has(targetNode)) {
-        continue;
-      }
       const targetInLinks = inLinks.get(targetNode);
-      if (targetInLinks !== undefined) {
+      if (targetInLinks) {
         targetInLinks.push(sourceNode);
       }
     }

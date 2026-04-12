@@ -1,10 +1,9 @@
-import { findRepoRoot, listCacheFiles, writeCache } from "../cache/cacheManager.js";
-import { resolveTopExternalMatch } from "../cache/externalCache.js";
+import { findRepoRoot, writeCache } from "../cache/cacheManager.js";
+import { updateExternalFetchedAt } from "../cache/externalCache.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
-import { ErrorCode, type Result } from "../types/result.js";
+import { type Result } from "../types/result.js";
 import type { TouchArgs, TouchResult } from "../types/commands.js";
 import { toUnknownResult } from "../utils/errors.js";
-import { validateSubject } from "../utils/validate.js";
 
 /**
  * Marks cache entries fresh by setting timestamps to current UTC time.
@@ -20,25 +19,9 @@ export async function touchCommand(args: TouchArgs): Promise<Result<TouchResult[
     const touched: string[] = [];
 
     if (args.agent === "external") {
-      let filesToTouch: string[];
-
-      if (args.subject) {
-        const subjectCheck = validateSubject(args.subject);
-        if (!subjectCheck.ok) return subjectCheck;
-        const matchResult = await resolveTopExternalMatch(repoRoot, args.subject);
-        if (!matchResult.ok) return matchResult;
-        filesToTouch = [matchResult.value];
-      } else {
-        const filesResult = await listCacheFiles("external", repoRoot);
-        if (!filesResult.ok) return filesResult;
-        filesToTouch = filesResult.value;
-      }
-
-      for (const filePath of filesToTouch) {
-        const writeResult = await writeCache(filePath, { fetched_at: newTimestamp });
-        if (!writeResult.ok) return writeResult;
-        touched.push(filePath);
-      }
+      const updateResult = await updateExternalFetchedAt(repoRoot, args.subject, newTimestamp);
+      if (!updateResult.ok) return updateResult;
+      touched.push(...updateResult.value);
     } else {
       // local
       const localPath = resolveLocalCachePath(repoRoot);
