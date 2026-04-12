@@ -30,13 +30,6 @@ function getSubmittedTrackedPaths(rawTrackedFiles: unknown): string[] {
   return rawTrackedFiles.filter(hasStringPath).map((entry) => entry.path);
 }
 
-function toPlainObjectRecord(rawValue: unknown): Record<string, unknown> {
-  if (typeof rawValue === "object" && rawValue !== null && !Array.isArray(rawValue)) {
-    return Object.fromEntries(Object.entries(rawValue));
-  }
-  return {};
-}
-
 /**
  * Validates and writes local context cache content with per-path merge semantics.
  *
@@ -58,7 +51,12 @@ export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteRe
     const resolvedTrackedFiles = await resolveTrackedFileStats(submittedPaths.map((path) => ({ path })), repoRoot);
     const survivingSubmitted = resolvedTrackedFiles.filter((trackedFile) => trackedFile.mtime !== 0);
 
-    const submittedFacts = toPlainObjectRecord(contentWithTimestamp["facts"]);
+    const submittedFacts =
+      typeof contentWithTimestamp["facts"] === "object" &&
+      contentWithTimestamp["facts"] !== null &&
+      !Array.isArray(contentWithTimestamp["facts"])
+        ? (contentWithTimestamp["facts"] as Record<string, unknown>)
+        : {};
     const rawSubmittedFacts = contentWithTimestamp["facts"];
     if (typeof rawSubmittedFacts === "object" && rawSubmittedFacts !== null && !Array.isArray(rawSubmittedFacts)) {
       const violatingPaths = Object.keys(submittedFacts).filter((path) => !guardedPaths.has(path));

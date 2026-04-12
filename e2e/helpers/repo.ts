@@ -1,4 +1,6 @@
 import { mkdtemp, cp, rm } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -45,4 +47,18 @@ export async function createTestRepo(): Promise<TestRepo> {
     dir,
     cleanup: () => rm(dir, { recursive: true, force: true }),
   };
+}
+
+/**
+ * Initializes a git repository with identity and a committed `.gitignore`.
+ *
+ * This helper is shared by unit tests that need deterministic git state.
+ */
+export function initGitRepo(dir: string): void {
+  execFileSync("git", ["init"], { cwd: dir });
+  execFileSync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
+  execFileSync("git", ["config", "user.name", "Test"], { cwd: dir });
+  writeFileSync(join(dir, ".gitignore"), ".ai/\n");
+  execFileSync("git", ["add", ".gitignore"], { cwd: dir });
+  execFileSync("git", ["commit", "-m", "chore: init gitignore"], { cwd: dir });
 }

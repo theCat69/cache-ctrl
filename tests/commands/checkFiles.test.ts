@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, writeFile, mkdir, stat, utimes, rm } from "node:fs/promises";
-import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { checkFilesCommand } from "../../src/commands/checkFiles.js";
 import { ErrorCode } from "../../src/types/result.js";
+import { initGitRepo } from "../../e2e/helpers/repo.js";
 
 const LOCAL_DIR = join(".ai", "local-context-gatherer_cache");
 
@@ -192,15 +192,6 @@ describe("checkFilesCommand", () => {
     expect(result.value.deleted_git_files).toEqual([]);
   });
 });
-
-function initGitRepo(dir: string): void {
-  execFileSync("git", ["init"], { cwd: dir });
-  execFileSync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
-  execFileSync("git", ["config", "user.name", "Test"], { cwd: dir });
-  writeFileSync(join(dir, ".gitignore"), ".ai/\n");
-  execFileSync("git", ["add", ".gitignore"], { cwd: dir });
-  execFileSync("git", ["commit", "-m", "chore: init gitignore"], { cwd: dir });
-}
 
 describe("git file detection", () => {
   it("non-git dir → new_files and deleted_git_files are []", async () => {

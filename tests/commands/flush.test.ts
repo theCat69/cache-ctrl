@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, mkdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { flushCommand } from "../../src/commands/flush.js";
+import { ErrorCode } from "../../src/types/result.js";
 
 const EXTERNAL_DIR = join(".ai", "external-context-gatherer_cache");
 const LOCAL_DIR = join(".ai", "local-context-gatherer_cache");
@@ -27,7 +28,14 @@ describe("flushCommand", () => {
     const result = await flushCommand({ agent: "external", confirm: false });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.code).toBe("CONFIRMATION_REQUIRED");
+    expect(result.code).toBe(ErrorCode.CONFIRMATION_REQUIRED);
+  });
+
+  it("returns CONFIRMATION_REQUIRED when confirm is omitted", async () => {
+    const result = await flushCommand({ agent: "external", confirm: undefined as never });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.CONFIRMATION_REQUIRED);
   });
 
   it("deletes all external files when agent=external", async () => {
