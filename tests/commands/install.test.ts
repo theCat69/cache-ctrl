@@ -20,7 +20,11 @@ vi.mock("node:os", () => ({
 }));
 
 import { installCommand } from "../../src/commands/install.js";
-import { buildToolWrapperContent, resolveOpenCodeConfigDir } from "../../src/files/openCodeInstaller.js";
+import {
+  buildToolWrapperContent,
+  installOpenCodeIntegration,
+  resolveOpenCodeConfigDir,
+} from "../../src/files/openCodeInstaller.js";
 import { ErrorCode } from "../../src/types/result.js";
 
 describe("installCommand", () => {
@@ -144,5 +148,26 @@ describe("installCommand", () => {
     expect(second.ok).toBe(true);
     expect(writeFileMock).toHaveBeenCalledTimes(2);
     expect(copyFileMock).toHaveBeenCalledTimes(6);
+  });
+
+  it("installOpenCodeIntegration writes wrapper and returns all installed paths", async () => {
+    const result = await installOpenCodeIntegration("/cfg/opencode", "/pkg/root");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.toolPath).toBe("/cfg/opencode/tools/cache_ctrl.ts");
+    expect(result.value.configDir).toBe("/cfg/opencode");
+    expect(result.value.skillPaths).toEqual([
+      "/cfg/opencode/skills/cache-ctrl-external/SKILL.md",
+      "/cfg/opencode/skills/cache-ctrl-local/SKILL.md",
+      "/cfg/opencode/skills/cache-ctrl-caller/SKILL.md",
+    ]);
+
+    expect(writeFileMock).toHaveBeenCalledWith(
+      "/cfg/opencode/tools/cache_ctrl.ts",
+      expect.stringContaining('export * from "/pkg/root/cache_ctrl.ts";'),
+      { encoding: "utf-8", mode: 0o644 },
+    );
   });
 });

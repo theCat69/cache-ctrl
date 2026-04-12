@@ -1,10 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   acquireLock,
+  findRepoRoot,
   listCacheFiles,
+  loadExternalCacheEntries,
   readCache,
   releaseLock,
   resolveCacheDir,
@@ -25,6 +27,17 @@ afterEach(async () => {
 });
 
 describe("cacheManager", () => {
+  describe("findRepoRoot", () => {
+    it("returns startDir when no .git is found", async () => {
+      const nestedStartDir = join(tmpDir, "a", "b", "c");
+      await mkdir(nestedStartDir, { recursive: true });
+
+      const result = await findRepoRoot(nestedStartDir);
+
+      expect(result).toBe(nestedStartDir);
+    });
+  });
+
   describe("readCache", () => {
     it("returns parsed object for valid file", async () => {
       const filePath = join(tmpDir, "test.json");
@@ -158,6 +171,41 @@ describe("cacheManager", () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value).toHaveLength(0);
+    });
+  });
+
+  describe("loadExternalCacheEntries", () => {
+    it("warns when subject does not match file stem and still loads entry", async () => {
+      const cacheDir = join(tmpDir, ".ai", "external-context-gatherer_cache");
+      await mkdir(cacheDir, { recursive: true });
+      const filePath = join(cacheDir, "alpha.json");
+      await writeFile(
+        filePath,
+        JSON.stringify({
+          subject: "beta",
+          description: "desc",
+          fetched_at: "2026-04-10T00:00:00Z",
+          sources: [{ type: "doc", url: "https://example.com" }],
+        }),
+      );
+
+      const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+      const result = await loadExternalCacheEntries(tmpDir);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        stderrSpy.mockRestore();
+        return;
+      }
+
+      expect(result.value).toHaveLength(1);
+      expect(result.value[0]?.subject).toBe("beta");
+      expect(stderrSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Warning: subject "beta" does not match file stem "alpha"'),
+      );
+
+      stderrSpy.mockRestore();
     });
   });
 
