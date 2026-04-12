@@ -3,7 +3,13 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { rebuildGraphCache, serializeGraphToCache, isSourceFile, resolveSourceFilePaths } from "../../src/commands/watch.js";
+import {
+  rebuildGraphCache,
+  serializeGraphToCache,
+  isSourceFile,
+  resolveBunWatch,
+  resolveSourceFilePaths,
+} from "../../src/commands/watch.js";
 import type { DependencyGraph } from "../../src/analysis/graphBuilder.js";
 import { ErrorCode } from "../../src/types/result.js";
 
@@ -128,11 +134,30 @@ describe("watch helpers", () => {
       })),
     };
 
-    await expect(rebuildGraphCache("/repo", "/repo/src/a.ts", false, dependencies)).resolves.toBeUndefined();
+    await expect(rebuildGraphCache("/repo", "/repo/src/a.ts", false, dependencies)).resolves.toEqual({
+      ok: false,
+      error: "disk full",
+      code: ErrorCode.FILE_WRITE_ERROR,
+    });
 
     expect(stderrSpy).toHaveBeenCalledWith("[watch] Failed to update graph cache: disk full\n");
     expect(dependencies.writeCache).toHaveBeenCalledOnce();
 
     stderrSpy.mockRestore();
+  });
+
+  it("resolveBunWatch returns UNKNOWN when Bun.watch is unavailable", () => {
+    const globalObject = globalThis as Record<string, unknown>;
+    const originalBun = globalObject.Bun;
+    globalObject.Bun = undefined;
+
+    try {
+      const result = resolveBunWatch();
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe(ErrorCode.UNKNOWN);
+    } finally {
+      globalObject.Bun = originalBun;
+    }
   });
 });
