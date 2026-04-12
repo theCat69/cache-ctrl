@@ -56,5 +56,10 @@ export function parseJsonOutput<T = unknown>(raw: string): T {
   if (!trimmed) {
     throw new Error("parseJsonOutput: stdout was empty");
   }
-  return JSON.parse(trimmed) as T;
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`parseJsonOutput: invalid JSON from CLI — ${message}\n${trimmed.slice(0, 200)}`);
+  }
 }

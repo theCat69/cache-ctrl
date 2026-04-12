@@ -22,6 +22,8 @@ describe("validateSubject", () => {
     const subject = "a".repeat(128);
     const result = validateSubject(subject);
     expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBeUndefined();
   });
 
   it("rejects a subject of 129 characters", () => {

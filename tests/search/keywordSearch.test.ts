@@ -61,6 +61,14 @@ describe("scoreEntry", () => {
     expect(twoKeywords).toBe(140);
     expect(twoKeywords).toBeGreaterThan(singleKeyword);
   });
+
+  it("returns 0 when no keyword matches subject or description", () => {
+    const entry = makeEntry("/tmp/entry.json", "framework guide", "typed cache metadata");
+
+    const score = scoreEntry(entry, ["angular"]);
+
+    expect(score).toBe(0);
+  });
 });
 
 describe("rankResults", () => {

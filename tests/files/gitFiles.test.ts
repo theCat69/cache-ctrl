@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { getGitTrackedFiles, getGitDeletedFiles, getUntrackedNonIgnoredFiles } from "../../src/files/gitFiles.js";
+import { initGitRepo } from "../../e2e/helpers/repo.js";
 
 let tmpDir: string;
 
@@ -15,15 +16,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await rm(tmpDir, { recursive: true, force: true });
 });
-
-function initGitRepo(dir: string): void {
-  execFileSync("git", ["init"], { cwd: dir });
-  execFileSync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
-  execFileSync("git", ["config", "user.name", "Test"], { cwd: dir });
-  writeFileSync(join(dir, ".gitignore"), ".ai/\n");
-  execFileSync("git", ["add", ".gitignore"], { cwd: dir });
-  execFileSync("git", ["commit", "-m", "chore: init gitignore"], { cwd: dir });
-}
 
 describe("getGitTrackedFiles", () => {
   it("returns [] for a non-git directory", async () => {
