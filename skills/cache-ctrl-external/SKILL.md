@@ -11,7 +11,7 @@ This skill covers managing `.ai/external-context-gatherer_cache/` to avoid redun
 
 1. **Optional — survey what's cached**: Call `cache_ctrl_list` (agent: "external") for a full list of existing subjects.
 2. **Check if subject is already cached**: Call `cache_ctrl_search` with relevant keywords.
-   - Fresh entry found → call `cache_ctrl_inspect` to read it and return cached content — **do not fetch**.
+   - Fresh entry found → call `cache_ctrl_inspect_external` to read it and return cached content — **do not fetch**.
    - Entry stale or absent → proceed to fetch.
 
 ## Write After Fetching
@@ -65,6 +65,6 @@ Staleness threshold: `fetched_at` is empty **or** older than 24 hours.
 |---|---|
 | List all entries | `cache_ctrl_list` (agent: "external") |
 | Search entries | `cache_ctrl_search` |
-| Read full entry | `cache_ctrl_inspect` (agent: "external") |
+| Read full entry | `cache_ctrl_inspect_external` |
 | Write entry | `cache_ctrl_write_external` |
 | Invalidate entry | `cache_ctrl_invalidate` (agent: "external", subject) |

@@ -127,7 +127,8 @@ describe("printHelp", () => {
     const output = capturedOutput();
     const commands = [
       "list",
-      "inspect",
+      "inspect-external",
+      "inspect-local",
       "flush",
       "invalidate",
       "touch",
@@ -155,12 +156,20 @@ describe("printHelp", () => {
     expect(output).toContain("--agent");
   });
 
-  it("inspect command help contains 'inspect' and 'subject-keyword'", () => {
-    const result = printHelp("inspect");
+  it("inspect-external command help contains command and subject-keyword", () => {
+    const result = printHelp("inspect-external");
     const output = capturedOutput();
     expect(result).toBe(true);
-    expect(output).toContain("inspect");
+    expect(output).toContain("inspect-external");
     expect(output).toContain("subject-keyword");
+  });
+
+  it("inspect-local command help contains inspect-local and --search-facts", () => {
+    const result = printHelp("inspect-local");
+    const output = capturedOutput();
+    expect(result).toBe(true);
+    expect(output).toContain("inspect-local");
+    expect(output).toContain("--search-facts");
   });
 
   it("unknown command writes to stderr (not stdout) and returns false", () => {
@@ -181,7 +190,7 @@ describe("printHelp", () => {
     expect(output).toContain("Usage");
   });
 
-  it.each(["list", "inspect", "flush", "invalidate", "touch", "prune", "check-files", "search", "write-local", "write-external", "install", "graph", "map", "watch", "version"])(
+  it.each(["list", "inspect-external", "inspect-local", "flush", "invalidate", "touch", "prune", "check-files", "search", "write-local", "write-external", "install", "graph", "map", "watch", "version"])(
     "per-command help for '%s' writes to stdout",
     (cmd) => {
       const ok = printHelp(cmd);

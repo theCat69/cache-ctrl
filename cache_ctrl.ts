@@ -1,6 +1,7 @@
 import { tool } from "@opencode-ai/plugin";
 import { listCommand } from "./src/commands/list.js";
-import { inspectCommand } from "./src/commands/inspect.js";
+import { inspectExternalCommand } from "./src/commands/inspectExternal.js";
+import { inspectLocalCommand } from "./src/commands/inspectLocal.js";
 import { invalidateCommand } from "./src/commands/invalidate.js";
 import { checkFilesCommand } from "./src/commands/checkFiles.js";
 import { searchCommand } from "./src/commands/search.js";
@@ -54,21 +55,33 @@ export const list = tool({
   },
 });
 
-export const inspect = tool({
+export const inspect_external = tool({
   description:
-    "Return the full content of a specific cache entry identified by agent type and subject keyword. For local cache: prefer filter (path keyword), folder (recursive prefix), or search_facts (content keyword) for targeted results. Omitting all three returns the entire facts map — only appropriate for codebases with ≤ ~20 tracked files.",
+    "Return the full content of a specific external cache entry identified by subject keyword. Returns FILE_NOT_FOUND when no entry matches, AMBIGUOUS_MATCH when multiple entries score equally.",
   args: {
-    agent: AgentRequiredSchema,
     subject: z.string().min(1),
-    filter: z.array(z.string()).optional(),
-    folder: z.string().min(1).max(256).optional(), // maps directly to InspectArgs.folder
-    search_facts: z.array(z.string().min(1)).min(1).optional(), // maps to InspectArgs.searchFacts (camelCase in TypeScript layer)
   },
   async execute(args) {
     try {
-      const result = await inspectCommand({
-        agent: args.agent,
-        subject: args.subject,
+      const result = await inspectExternalCommand({ subject: args.subject });
+      return withServerTime(result);
+    } catch (err) {
+      return handleUnknownError(err);
+    }
+  },
+});
+
+export const inspect_local = tool({
+  description:
+    "Return the local context cache content (context.json) with optional path/fact filters. Use filter (file path keyword), folder (recursive path prefix), or search_facts (fact text keyword) to narrow results. Omitting all three returns the entire facts map — only appropriate for codebases with ≤ ~20 tracked files. tracked_files is never returned.",
+  args: {
+    filter: z.array(z.string().min(1).max(256)).optional(),
+    folder: z.string().min(1).max(256).optional(),
+    search_facts: z.array(z.string().min(1).max(256)).optional(),
+  },
+  async execute(args) {
+    try {
+      const result = await inspectLocalCommand({
         ...(args.filter !== undefined ? { filter: args.filter } : {}),
         ...(args.folder !== undefined ? { folder: args.folder } : {}),
         ...(args.search_facts !== undefined ? { searchFacts: args.search_facts } : {}),
@@ -159,7 +172,14 @@ export const write_external = tool({
   description:
     "Write a validated external cache entry to disk. Uses atomic write-with-merge so unknown fields are preserved.",
   args: {
-    subject: z.string(),
+    subject: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(
+        /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/,
+        "subject must start with alphanumeric and contain only letters, digits, dots, underscores, hyphens",
+      ),
     description: z.string(),
     fetched_at: z.string().datetime(),
     sources: z.array(

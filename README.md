@@ -46,8 +46,8 @@ src/index.ts              cache_ctrl.ts
      └──────────┬──────────────┘
                │
         Command Layer
-   src/commands/{list, inspect, inspectExternal,
-          inspectLocal, flush, invalidate,
+   src/commands/{list, inspectExternal,
+           inspectLocal, flush, invalidate,
        touch, prune,
        checkFiles, search, writeLocal,
       writeExternal, install, update, uninstall,
@@ -79,7 +79,7 @@ src/index.ts              cache_ctrl.ts
 - The CLI and plugin share the same command functions — no duplicated business logic.
 - All operations return `Result<T, CacheError>` — nothing throws into the caller.
 - `writeCache` defaults to merging updates onto the existing object (preserving unknown agent fields). Local writes use per-path merge — submitted `tracked_files` entries replace existing entries for those paths; entries for other paths are preserved; entries for files no longer present on disk are evicted automatically.
-- `write.ts` and `inspect.ts` are thin routers; all business logic lives in `writeLocal.ts`, `writeExternal.ts`, `inspectLocal.ts`, `inspectExternal.ts`.
+- `write.ts` is a thin router; all business logic lives in `writeLocal.ts`, `writeExternal.ts`, `inspectLocal.ts`, `inspectExternal.ts`.
 
 ---
 
@@ -271,33 +271,56 @@ Lists all cache entries. Shows age, human-readable age string, and staleness fla
 
 ---
 
-### `inspect`
+### `inspect-external`
 
 ```
-cache-ctrl inspect <agent> <subject-keyword> [--filter <kw>[,<kw>...]] [--folder <path>] [--search-facts <kw>[,<kw>...]] [--pretty]
+cache-ctrl inspect-external <subject-keyword> [--pretty]
 ```
 
-Prints the full JSON content of the best-matching cache entry. Uses the same keyword scoring as `search`. Returns `AMBIGUOUS_MATCH` if two results score identically.
+Prints the full JSON content of the best-matching **external** cache entry. Uses the same keyword scoring as `search`. Returns `AMBIGUOUS_MATCH` if two results score identically. The `<subject-keyword>` is validated with `validateSubject()` before use.
 
-Three complementary filters are available for `agent: "local"` — they are AND-ed when combined:
+```
+cache-ctrl inspect-external opencode-skills --pretty
+```
 
-**`--filter <kw>[,<kw>...]`** (local agent only): restricts `facts` to entries whose **file path** contains at least one keyword (case-insensitive substring). Ignored for the external agent.
+---
 
-**`--folder <path>`** (local agent only): restricts `facts` to entries whose **file path** equals the given folder prefix or starts with `<folder>/` (recursive subtree match). Returns `INVALID_ARGS` if used with the external agent.
+### `inspect-local`
 
-**`--search-facts <kw>[,<kw>...]`** (local agent only): restricts `facts` to entries where **at least one fact string** contains any keyword (case-insensitive substring). Silently ignored for the external agent.
+```
+cache-ctrl inspect-local [--filter <kw>[,<kw>...]] [--folder <path>] [--search-facts <kw>[,<kw>...]] [--pretty]
+```
+
+Prints the full JSON content of the local context cache (`context.json`). No subject argument is required.
+
+Three complementary filters restrict which `facts` entries are returned — they are AND-ed when combined:
+
+**`--filter <kw>[,<kw>...]`**: restricts `facts` to entries whose **file path** contains at least one keyword (case-insensitive substring). Each keyword must be 1–256 characters.
+
+**`--folder <path>`**: restricts `facts` to entries whose **file path** equals the given folder prefix or starts with `<folder>/` (recursive subtree match).
+
+**`--search-facts <kw>[,<kw>...]`**: restricts `facts` to entries where **at least one fact string** contains any keyword (case-insensitive substring). Each keyword must be 1–256 characters.
 
 `global_facts` and all other metadata fields are always included regardless of which filters are set.
 
-**`tracked_files` is never returned** for `agent: "local"` — it is internal operational metadata consumed by `check-files` and is always stripped from inspect responses.
+**`tracked_files` is never returned** — it is internal operational metadata consumed by `check-files` and is always stripped from inspect responses.
+
+When **no filters are provided** the full `facts` map is returned and the response includes a `warning` field:
+
+```json
+{ "warning": "No filters provided: returning full facts map. This may exceed token limits for large codebases." }
+```
+
+Prefer using at least one filter for large codebases.
+
+> `--search-facts ""` (empty string) and `--filter` with no value return exit code `2` with `INVALID_ARGS`.
 
 ```
-cache-ctrl inspect external opencode-skills --pretty
-cache-ctrl inspect local context --pretty
-cache-ctrl inspect local context --filter lsp,nvim --pretty
-cache-ctrl inspect local context --folder src/commands --pretty
-cache-ctrl inspect local context --search-facts "Result<" --pretty
-cache-ctrl inspect local context --folder src --filter commands --search-facts async --pretty
+cache-ctrl inspect-local --pretty
+cache-ctrl inspect-local --filter lsp,nvim --pretty
+cache-ctrl inspect-local --folder src/commands --pretty
+cache-ctrl inspect-local --search-facts "Result<" --pretty
+cache-ctrl inspect-local --folder src --filter commands --search-facts async --pretty
 ```
 
 ---
@@ -601,13 +624,14 @@ No flags or arguments.
 
 ## opencode Plugin Tools
 
-The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/cache_ctrl.ts` and registers 9 tools that call the same command functions as the CLI:
+The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/cache_ctrl.ts` and registers 10 tools that call the same command functions as the CLI:
 
 | Tool | Description |
 |---|---|
 | `cache_ctrl_search` | Search all cache entries by keyword |
 | `cache_ctrl_list` | List entries with age and staleness flags |
-| `cache_ctrl_inspect` | Return full content of a specific entry |
+| `cache_ctrl_inspect_external` | Return full content of a specific external cache entry |
+| `cache_ctrl_inspect_local` | Return local context cache with optional path/fact filters |
 | `cache_ctrl_invalidate` | Zero out a cache entry's timestamp |
 | `cache_ctrl_check_files` | Compare tracked files against stored mtime/hash |
 | `cache_ctrl_write_local` | Write a validated local cache entry |
@@ -617,7 +641,7 @@ The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/ca
 
 No bash permission is required for agents that use the plugin tools directly.
 
-All 9 plugin tool responses include a `server_time` field at the outer JSON level:
+All 10 plugin tool responses include a `server_time` field at the outer JSON level:
 
 ```json
 { "ok": true, "value": { ... }, "server_time": "2026-04-05T12:34:56.789Z" }

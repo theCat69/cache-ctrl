@@ -1,29 +1,27 @@
 import { findRepoRoot, loadExternalCacheEntries, readCache } from "../cache/cacheManager.js";
 import { scoreEntry } from "../search/keywordSearch.js";
 import type { CacheEntry, ExternalCacheFile } from "../types/cache.js";
-import type { InspectArgs, InspectResult } from "../types/commands.js";
+import type { InspectExternalArgs, InspectExternalResult } from "../types/commands.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../utils/errors.js";
+import { validateSubject } from "../utils/validate.js";
 
 /**
  * Inspects the best-matching external cache entry by subject keyword.
  *
- * @param args - {@link InspectArgs} with `agent: "external"`.
- * @returns Promise<Result<InspectResult["value"]>>; common failures include INVALID_ARGS,
+ * @param args - {@link InspectExternalArgs}.
+ * @returns Promise<Result<InspectExternalResult["value"]>>; common failures include
  * FILE_NOT_FOUND, AMBIGUOUS_MATCH, PARSE_ERROR, and UNKNOWN.
  */
-export async function inspectExternalCommand(args: InspectArgs): Promise<Result<InspectResult["value"]>> {
+export async function inspectExternalCommand(
+  args: InspectExternalArgs,
+): Promise<Result<InspectExternalResult["value"]>> {
   try {
-    if (args.folder !== undefined) {
-      return {
-        ok: false,
-        error: "--folder is only supported for local cache",
-        code: ErrorCode.INVALID_ARGS,
-      };
-    }
-
+    const subjectValidation = validateSubject(args.subject);
+    if (!subjectValidation.ok) return subjectValidation;
     const repoRoot = await findRepoRoot(process.cwd());
+
     const entriesResult = await loadExternalCacheEntries(repoRoot);
     if (!entriesResult.ok) return entriesResult;
 
@@ -38,7 +36,7 @@ export async function inspectExternalCommand(args: InspectArgs): Promise<Result<
     }
 
     if (candidates.length === 0) {
-      return { ok: false, error: `No cache entries found for agent "${args.agent}"`, code: ErrorCode.FILE_NOT_FOUND };
+      return { ok: false, error: "No cache entries found for agent \"external\"", code: ErrorCode.FILE_NOT_FOUND };
     }
 
     const keywords = [args.subject];
@@ -70,7 +68,7 @@ export async function inspectExternalCommand(args: InspectArgs): Promise<Result<
       value: {
         ...top.content,
         file: top.file,
-        agent: args.agent,
+        agent: "external",
       },
     };
   } catch (err) {

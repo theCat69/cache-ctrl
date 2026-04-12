@@ -21,38 +21,40 @@ export interface ListEntry {
 /** Success payload shape returned by the `list` command. */
 export type ListResult = { ok: true; value: ListEntry[] };
 
-// ── inspect ───────────────────────────────────────────────────────────────────
+// ── inspect-external / inspect-local ─────────────────────────────────────────
 
-/**
- * Arguments accepted by the `inspect` command.
- * @remarks `agent` controls result shape: `external` returns an external entry, while
- * `local` returns local cache content with `tracked_files` removed and optional facts filters.
- */
-export interface InspectArgs {
-  agent: AgentType;
+/** Arguments accepted by the `inspect-external` command. */
+export interface InspectExternalArgs {
+  /** Subject keyword used to rank and select a single external cache entry. */
   subject: string;
-  /** Path-keyword filter for local agent. Only facts entries whose file path contains
-   *  at least one keyword (case-insensitive substring) are included. global_facts is
-   *  always included. Ignored for external agent. */
+}
+
+/** Arguments accepted by the `inspect-local` command. */
+export interface InspectLocalArgs {
+  /** Path-keyword filter; case-insensitive substring OR match against fact file paths. */
   filter?: string[];
-  /** Recursive folder prefix filter for local agent. Only facts entries whose file path
-   *  equals the normalized folder or starts with `<normalizedFolder>/` are included.
-   *  global_facts is always included. INVALID_ARGS if used with external agent. */
+  /** Recursive folder prefix filter for fact file paths. */
   folder?: string;
-  /** Fact-content keyword filter for local agent. Only facts entries where at least one
-   *  fact string contains at least one keyword (case-insensitive OR) are included.
-   *  Silently ignored for external agent by design — external cache entries have no facts
-   *  map. Use `folder` if you need to guard against passing search-facts to external; note
-   *  that `folder` is an error on external while this is not. */
+  /** Fact-content filter; case-insensitive substring OR match within fact strings. */
   searchFacts?: string[];
 }
 
-/** Success payload shape returned by the `inspect` command. */
-export type InspectResult = {
+/** Success payload shape returned by the `inspect-external` command. */
+export type InspectExternalResult = {
   ok: true;
-  value: (ExternalCacheFile | Omit<LocalCacheFile, "tracked_files">) & {
+  value: ExternalCacheFile & {
     file: string;
-    agent: AgentType;
+    agent: "external";
+  };
+};
+
+/** Success payload shape returned by the `inspect-local` command. */
+export type InspectLocalResult = {
+  ok: true;
+  value: Omit<LocalCacheFile, "tracked_files"> & {
+    file: string;
+    agent: "local";
+    warning?: string;
   };
 };
 

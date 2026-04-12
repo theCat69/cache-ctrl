@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { listCommand } from "./commands/list.js";
-import { inspectCommand } from "./commands/inspect.js";
+import { inspectExternalCommand } from "./commands/inspectExternal.js";
+import { inspectLocalCommand } from "./commands/inspectLocal.js";
 import { flushCommand } from "./commands/flush.js";
 import { invalidateCommand } from "./commands/invalidate.js";
 import { touchCommand } from "./commands/touch.js";
@@ -21,7 +22,8 @@ import { toUnknownResult } from "./utils/errors.js";
 
 type CommandName =
   | "list"
-  | "inspect"
+  | "inspect-external"
+  | "inspect-local"
   | "flush"
   | "invalidate"
   | "touch"
@@ -62,25 +64,36 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "  Output: JSON array of cache entries with timestamps and staleness flags.",
     ].join("\n"),
   },
-  inspect: {
-    usage: "inspect <agent> <subject-keyword> [--filter <kw>] [--folder <path>] [--search-facts <kw>]",
-    description: "Show full content of a cache entry",
+  "inspect-external": {
+    usage: "inspect-external <subject-keyword>",
+    description: "Show full content of an external cache entry by subject keyword",
     details: [
       "  Arguments:",
-      "    <agent>            Agent type: external or local",
-      "    <subject-keyword>  Keyword used to locate the cache entry",
+      "    <subject-keyword>  Keyword used to locate the external cache entry",
+      "",
+      "  Options:",
+      "    (none)",
+      "",
+      "  Output: Full JSON content of the matched external cache entry.",
+    ].join("\n"),
+  },
+  "inspect-local": {
+    usage: "inspect-local [--filter <kw>] [--folder <path>] [--search-facts <kw>]",
+    description: "Show local context cache content with optional path/fact filters",
+    details: [
+      "  Arguments:",
+      "    (none)",
       "",
       "  Options:",
       "    --filter <kw>[,<kw>...]      Return only facts whose file path contains any keyword",
-      "                                 (local agent only; comma-separated; case-insensitive OR match)",
+      "                                 (comma-separated; case-insensitive OR match)",
       "    --folder <path>              Return only facts whose file path starts with the given folder prefix",
-      "                                 (local agent only; recursive; INVALID_ARGS if used with external agent)",
+      "                                 (recursive)",
       "    --search-facts <kw>[,<kw>...]  Return only facts where any fact string contains any keyword",
-      "                                   (local agent only; comma-separated; case-insensitive OR match)",
+      "                                   (comma-separated; case-insensitive OR match)",
       "",
-      "  Output: Full JSON content of the matched cache entry.",
-      "  Note: tracked_files is never returned for local agent inspect.",
-      "  Note: --filter, --folder, and --search-facts are AND-ed when combined.",
+      "  Output: Full JSON content of context.json with tracked_files removed.",
+      "  Note: --filter, --folder, and --search-facts are all optional and AND-ed when combined.",
     ].join("\n"),
   },
   flush: {
@@ -437,7 +450,7 @@ async function main(): Promise<void> {
 
   const command = args[0];
   if (!command) {
-    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, update, uninstall, graph, map, watch, version");
+    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect-external, inspect-local, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, update, uninstall, graph, map, watch, version");
   }
 
   switch (command) {
@@ -464,21 +477,36 @@ async function main(): Promise<void> {
       break;
     }
 
-    case "inspect": {
-      const agent = args[1];
-      const subject = args[2];
-      if (!agent || !subject) {
-        usageError("Usage: cache-ctrl inspect <agent> <subject-keyword>");
+    case "inspect-external": {
+      const subject = args[1];
+      if (!subject) {
+        usageError("Usage: cache-ctrl inspect-external <subject-keyword>");
       }
-      if (agent !== "external" && agent !== "local") {
-        usageError(`Invalid agent: "${agent}". Must be external or local`);
+
+      const result = await inspectExternalCommand({ subject });
+      if (result.ok) {
+        printResult(result, pretty);
+      } else {
+        printError(result, pretty);
+        process.exit(1);
       }
+      break;
+    }
+
+    case "inspect-local": {
       if (flags.filter === true) {
         usageError("--filter requires a value: --filter <kw>[,<kw>...]");
+      }
+      if (flags["search-facts"] === true) {
+        usageError("--search-facts requires a value: --search-facts <kw>[,<kw>...]");
+      }
+      if (typeof flags["search-facts"] === "string" && flags["search-facts"].trim() === "") {
+        usageError("--search-facts requires a non-empty value");
       }
       if (typeof flags.folder === "string" && flags.folder.trim() === "") {
         usageError("--folder requires a non-empty value");
       }
+
       const filterRaw = typeof flags.filter === "string" ? flags.filter : undefined;
       const filter = filterRaw
         ? filterRaw
@@ -494,9 +522,8 @@ async function main(): Promise<void> {
             .map((f) => f.trim())
             .filter(Boolean)
         : undefined;
-      const result = await inspectCommand({
-        agent,
-        subject,
+
+      const result = await inspectLocalCommand({
         ...(filter !== undefined ? { filter } : {}),
         ...(folder !== undefined ? { folder } : {}),
         ...(searchFacts !== undefined ? { searchFacts } : {}),
@@ -801,7 +828,7 @@ async function main(): Promise<void> {
     }
 
     default:
-      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, update, uninstall, graph, map, watch, version`);
+      usageError(`Unknown command: "${command}". Commands: list, inspect-external, inspect-local, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, update, uninstall, graph, map, watch, version`);
   }
 }
 

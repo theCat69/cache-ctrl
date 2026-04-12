@@ -171,7 +171,7 @@ describe("write local — facts", () => {
     expect(firstResult.exitCode).toBe(0);
 
     // Verify both fact entries after first write
-    const inspectResult1 = await runCli(["inspect", "local", "context"], { cwd: repo.dir });
+    const inspectResult1 = await runCli(["inspect-local"], { cwd: repo.dir });
     expect(inspectResult1.exitCode).toBe(0);
     const inspected1 = parseJsonOutput<{
       value: { facts: Record<string, { facts?: string[] }> };
@@ -195,7 +195,7 @@ describe("write local — facts", () => {
     expect(secondResult.exitCode).toBe(0);
 
     // Verify fileA updated, fileB preserved
-    const inspectResult2 = await runCli(["inspect", "local", "context"], { cwd: repo.dir });
+    const inspectResult2 = await runCli(["inspect-local"], { cwd: repo.dir });
     expect(inspectResult2.exitCode).toBe(0);
     const inspected2 = parseJsonOutput<{
       value: { facts: Record<string, { facts?: string[] }> };

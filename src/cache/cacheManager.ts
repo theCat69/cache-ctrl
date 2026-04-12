@@ -1,4 +1,3 @@
-import { readFile, writeFile, rename, stat, unlink, readdir, mkdir, open } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { AgentType, CacheEntry, ExternalCacheFile, LocalCacheFile } from "../types/cache.js";
@@ -19,6 +18,7 @@ const LOCK_STALE_AGE_MS = 30_000;
  * returns `startDir` so CLI behavior remains deterministic outside git repositories.
  */
 export async function findRepoRoot(startDir: string): Promise<string> {
+  const { stat } = await import("node:fs/promises");
   let current = startDir;
   while (true) {
     try {
@@ -52,6 +52,7 @@ export function resolveCacheDir(agent: AgentType, repoRoot: string): string {
  * file exists but contains invalid JSON. Low-level I/O failures return `FILE_READ_ERROR`.
  */
 export async function readCache(filePath: string): Promise<Result<Record<string, unknown>>> {
+  const { readFile } = await import("node:fs/promises");
   try {
     const content = await readFile(filePath, "utf-8");
     try {
@@ -85,6 +86,7 @@ export async function writeCache(
   updates: Partial<ExternalCacheFile> | Partial<LocalCacheFile> | Record<string, unknown>,
   mode: "merge" | "replace" = "merge",
 ): Promise<Result<void>> {
+  const { mkdir, rename, unlink, writeFile } = await import("node:fs/promises");
   // Ensure parent directory exists before acquiring the lock
   await mkdir(dirname(filePath), { recursive: true });
 
@@ -136,6 +138,7 @@ export async function writeCache(
  * @returns Absolute `.json` file paths; returns an empty array when directory is absent.
  */
 export async function listCacheFiles(agent: AgentType, repoRoot: string): Promise<Result<string[]>> {
+  const { readdir } = await import("node:fs/promises");
   const cacheDir = resolveCacheDir(agent, repoRoot);
   try {
     const entries = await readdir(cacheDir);
@@ -201,6 +204,7 @@ export async function loadExternalCacheEntries(repoRoot: string): Promise<Result
  * Retries every 50ms and fails with `LOCK_TIMEOUT` after 5 seconds.
  */
 export async function acquireLock(filePath: string): Promise<Result<void>> {
+  const { open, unlink } = await import("node:fs/promises");
   const lockPath = `${filePath}.lock`;
   const start = Date.now();
 
@@ -247,6 +251,7 @@ export async function acquireLock(filePath: string): Promise<Result<void>> {
  * @remarks `ENOENT` is intentionally ignored to keep release fire-and-forget safe.
  */
 export async function releaseLock(filePath: string): Promise<void> {
+  const { unlink } = await import("node:fs/promises");
   const lockPath = `${filePath}.lock`;
   try {
     await unlink(lockPath);
@@ -259,6 +264,7 @@ export async function releaseLock(filePath: string): Promise<void> {
 }
 
 async function isLockStale(lockPath: string): Promise<boolean> {
+  const { readFile, stat } = await import("node:fs/promises");
   try {
     const lockStat = await stat(lockPath);
     const ageMs = Date.now() - lockStat.mtimeMs;
