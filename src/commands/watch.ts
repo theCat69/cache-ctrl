@@ -28,8 +28,16 @@ type BunWatchFunction = (
   callback: BunWatchCallback,
 ) => WatcherHandle;
 
-function resolveBunWatch(): Result<BunWatchFunction> {
-  const watchFn = Reflect.get(Object(Bun), "watch");
+export function resolveBunWatch(): Result<BunWatchFunction> {
+  const bunRuntime = Reflect.get(globalThis, "Bun");
+  if (typeof bunRuntime !== "object" || bunRuntime === null) {
+    return {
+      ok: false,
+      error: "Bun.watch is not available in this runtime",
+      code: ErrorCode.UNKNOWN,
+    };
+  }
+  const watchFn = Reflect.get(bunRuntime, "watch");
   if (typeof watchFn !== "function") {
     return {
       ok: false,
@@ -123,7 +131,7 @@ export async function rebuildGraphCache(
   changedPath: string | undefined,
   verbose: boolean,
   dependencies: RebuildGraphCacheDependencies = defaultRebuildGraphCacheDependencies,
-): Promise<void> {
+): Promise<Result<void>> {
   try {
     const sourceFilePaths = await dependencies.resolveSourceFilePaths(repoRoot);
     const graph = await dependencies.buildGraph(sourceFilePaths, repoRoot);
@@ -135,7 +143,7 @@ export async function rebuildGraphCache(
     const writeResult = await dependencies.writeCache(graphCachePath, graphPayload, "replace");
     if (!writeResult.ok) {
       process.stderr.write(`[watch] Failed to update graph cache: ${writeResult.error}\n`);
-      return;
+      return writeResult;
     }
     if (verbose) {
       if (changedPath !== undefined) {
@@ -144,9 +152,11 @@ export async function rebuildGraphCache(
         process.stdout.write(`[watch] Initial graph computed: ${graph.size} files\n`);
       }
     }
+    return { ok: true, value: undefined };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`[watch] Failed to rebuild graph: ${message}\n`);
+    const unknownError = toUnknownResult(err);
+    process.stderr.write(`[watch] Failed to rebuild graph: ${unknownError.error}\n`);
+    return unknownError;
   }
 }
 
@@ -161,25 +171,9 @@ export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());
 
-    const initialSourceFiles = await resolveSourceFilePaths(repoRoot);
-    const initialGraph = await buildGraph(initialSourceFiles, repoRoot);
-    const graphCachePath = resolveGraphCachePath(repoRoot);
-    const initialPayload: GraphCacheFile = {
-      files: serializeGraphToCache(initialGraph),
-      computed_at: new Date().toISOString(),
-    };
-    const initialWriteResult = await writeCache(graphCachePath, initialPayload, "replace");
-    if (!initialWriteResult.ok) {
-      const errorMessage = `[watch] Failed to write initial graph cache: ${initialWriteResult.error}`;
-      process.stderr.write(`${errorMessage}\n`);
-      return {
-        ok: false,
-        error: errorMessage,
-        code: ErrorCode.UNKNOWN,
-      };
-    }
-    if (args.verbose) {
-      process.stdout.write(`[watch] Initial graph computed: ${initialGraph.size} files\n`);
+    const initialRebuildResult = await rebuildGraphCache(repoRoot, undefined, args.verbose === true);
+    if (!initialRebuildResult.ok) {
+      return initialRebuildResult;
     }
 
     let pendingChangedPath: string | undefined;
@@ -199,7 +193,11 @@ export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
           rebuildQueued = false;
           const changedPath = pendingChangedPath;
           pendingChangedPath = undefined;
-          await rebuildGraphCache(repoRoot, changedPath, args.verbose === true);
+          const rebuildResult = await rebuildGraphCache(repoRoot, changedPath, args.verbose === true);
+          if (!rebuildResult.ok) {
+            // Error already logged in rebuildGraphCache; continue watching for future changes.
+            continue;
+          }
         } while (rebuildQueued);
       } finally {
         rebuildInProgress = false;
