@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, mkdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { compareTrackedFile, computeFileHash, resolveTrackedFileStats, filterExistingFiles } from "../../src/files/changeDetector.js";
@@ -22,7 +22,6 @@ describe("changeDetector", () => {
     const filePath = join(tmpDir, "stable.ts");
     await writeFile(filePath, "export const x = 1;");
 
-    const { stat } = await import("node:fs/promises");
     const fileStat = await stat(filePath);
 
     const result = await compareTrackedFile(
@@ -90,7 +89,6 @@ describe("changeDetector", () => {
     const filePath = join(tmpDir, fileName);
     await writeFile(filePath, "export const y = 2;");
 
-    const { stat } = await import("node:fs/promises");
     const fileStat = await stat(filePath);
 
     const result = await compareTrackedFile(
@@ -116,7 +114,6 @@ describe("resolveTrackedFileStats", () => {
     const filePath = join(tmpDir, "tracked.ts");
     await writeFile(filePath, "export const y = 2;");
 
-    const { stat } = await import("node:fs/promises");
     const realStat = await stat(filePath);
     const realMtime = realStat.mtimeMs;
 
@@ -221,7 +218,6 @@ describe("filterExistingFiles", () => {
     const filePath = join(tmpDir, "filterNoRecompute.ts");
     await writeFile(filePath, "export const w = 42;");
 
-    const { stat } = await import("node:fs/promises");
     const realStat = await stat(filePath);
     const realMtime = realStat.mtimeMs;
 
