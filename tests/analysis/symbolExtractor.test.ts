@@ -73,4 +73,28 @@ describe("extractSymbols", () => {
     const symbols = await extractSymbols(filePath, tempDir);
     expect(symbols.deps).toEqual([]);
   });
+
+  it("collects exported type alias names", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-symbols-"));
+    tempDirs.push(tempDir);
+
+    const filePath = join(tempDir, "types.ts");
+    await writeFile(filePath, "export type UserId = string;\n");
+
+    const symbols = await extractSymbols(filePath, tempDir);
+
+    expect(symbols.defs).toContain("UserId");
+  });
+
+  it("collects exported interface declaration names", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-symbols-"));
+    tempDirs.push(tempDir);
+
+    const filePath = join(tempDir, "interfaces.ts");
+    await writeFile(filePath, "export interface CacheEntry { subject: string }\n");
+
+    const symbols = await extractSymbols(filePath, tempDir);
+
+    expect(symbols.defs).toContain("CacheEntry");
+  });
 });

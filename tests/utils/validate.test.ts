@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { validateSubject } from "../../src/utils/validate.js";
 import { ErrorCode } from "../../src/types/result.js";
+import { rejectTraversalKeys } from "../../src/utils/traversal.js";
 
 describe("validateSubject", () => {
   it("accepts a single-character subject", () => {
@@ -36,5 +37,22 @@ describe("validateSubject", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe(ErrorCode.INVALID_ARGS);
+  });
+});
+
+describe("rejectTraversalKeys", () => {
+  it("rejects keys containing backslash", () => {
+    const issues: Array<{ code: string; message: string; path: string[] }> = [];
+    const context = {
+      addIssue: (issue: { code: "custom"; message: string; path: string[] }) => {
+        issues.push(issue);
+      },
+    };
+
+    rejectTraversalKeys({ "folder\\name": "value" }, context);
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.path).toEqual(["folder\\name"]);
+    expect(issues[0]?.message).toContain("path traversal or invalid character");
   });
 });
