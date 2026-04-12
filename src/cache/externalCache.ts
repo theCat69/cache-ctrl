@@ -1,4 +1,4 @@
-import type { ExternalCacheFile, HeaderMeta } from "../types/cache.js";
+import type { ExternalCacheFile } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { loadExternalCacheEntries } from "./cacheManager.js";
 import { scoreEntry } from "../search/keywordSearch.js";
@@ -28,26 +28,6 @@ export function isFetchedAtStale(fetchedAt: string, maxAgeMs?: number): boolean 
  */
 export function isExternalStale(entry: ExternalCacheFile, maxAgeMs?: number): boolean {
   return isFetchedAtStale(entry.fetched_at ?? "", maxAgeMs);
-}
-
-/**
- * Merges newly fetched header metadata into an external cache entry.
- *
- * @param existing - Existing external cache entry.
- * @param updates - Per-URL header metadata updates.
- * @returns New entry with merged `header_metadata`.
- */
-export function mergeHeaderMetadata(
-  existing: ExternalCacheFile,
-  updates: Record<string, HeaderMeta>,
-): ExternalCacheFile {
-  return {
-    ...existing,
-    header_metadata: {
-      ...existing.header_metadata,
-      ...updates,
-    },
-  };
 }
 
 /**

@@ -32,7 +32,6 @@ describe("touchCommand", () => {
         description: "My library docs",
         fetched_at: "2020-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -80,7 +79,6 @@ describe("touchCommand", () => {
       description: "My library docs",
       fetched_at: "2020-01-01T00:00:00Z",
       sources: [{ type: "docs", url: "https://example.com" }],
-      header_metadata: {},
       custom_field: "preserved",
     };
     await writeFile(filePath, JSON.stringify(originalData));
@@ -107,11 +105,11 @@ describe("touchCommand", () => {
     const file2 = join(tmpDir, EXTERNAL_DIR, "beta.json");
     await writeFile(
       file1,
-      JSON.stringify({ subject: "alpha", description: "A", fetched_at: "2020-01-01T00:00:00Z", sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "alpha", description: "A", fetched_at: "2020-01-01T00:00:00Z", sources: [] }),
     );
     await writeFile(
       file2,
-      JSON.stringify({ subject: "beta", description: "B", fetched_at: "2020-01-01T00:00:00Z", sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "beta", description: "B", fetched_at: "2020-01-01T00:00:00Z", sources: [] }),
     );
 
     const result = await touchCommand({ agent: "external" });
@@ -130,11 +128,11 @@ describe("touchCommand", () => {
     const file2 = join(tmpDir, EXTERNAL_DIR, "y.json");
     await writeFile(
       file1,
-      JSON.stringify({ subject: "x", description: "X", fetched_at: "2020-01-01T00:00:00Z", sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "x", description: "X", fetched_at: "2020-01-01T00:00:00Z", sources: [] }),
     );
     await writeFile(
       file2,
-      JSON.stringify({ subject: "y", description: "Y", fetched_at: "2020-01-01T00:00:00Z", sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "y", description: "Y", fetched_at: "2020-01-01T00:00:00Z", sources: [] }),
     );
 
     const result = await touchCommand({ agent: "external" });

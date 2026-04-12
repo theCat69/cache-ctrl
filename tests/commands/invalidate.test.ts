@@ -32,7 +32,6 @@ describe("invalidateCommand", () => {
         description: "Project documentation",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -129,7 +128,6 @@ describe("invalidateCommand", () => {
       description: "My library docs",
       fetched_at: "2026-01-01T00:00:00Z",
       sources: [{ type: "docs", url: "https://example.com" }],
-      header_metadata: {},
       custom_field: "preserved",
     };
     await writeFile(filePath, JSON.stringify(originalData));
@@ -156,11 +154,11 @@ describe("invalidateCommand", () => {
     const file2 = join(tmpDir, EXTERNAL_DIR, "beta.json");
     await writeFile(
       file1,
-      JSON.stringify({ subject: "alpha", description: "A", fetched_at: "2026-01-01T00:00:00Z", sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "alpha", description: "A", fetched_at: "2026-01-01T00:00:00Z", sources: [] }),
     );
     await writeFile(
       file2,
-      JSON.stringify({ subject: "beta", description: "B", fetched_at: "2026-01-01T00:00:00Z", sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "beta", description: "B", fetched_at: "2026-01-01T00:00:00Z", sources: [] }),
     );
 
     const result = await invalidateCommand({ agent: "external" });

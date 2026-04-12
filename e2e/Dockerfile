@@ -1,7 +1,7 @@
 FROM oven/bun:latest
 
-# Install git (for check-files git integration) and ca-certificates (for HTTPS in check-freshness)
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install git for check-files git integration in E2E fixtures
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 # Set git identity via ENV so all subprocess git calls in tests pick them up automatically.
 # These vars are active at container runtime (CMD execution).

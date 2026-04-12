@@ -125,29 +125,6 @@ export type PruneResult = {
   };
 };
 
-// ── check-freshness ───────────────────────────────────────────────────────────
-
-/** Arguments accepted by the `check-freshness` command. */
-export interface CheckFreshnessArgs {
-  subject: string;
-  url?: string;
-}
-
-/** Success payload shape returned by the `check-freshness` command. */
-export type CheckFreshnessResult = {
-  ok: true;
-  value: {
-    subject: string;
-    sources: Array<{
-      url: string;
-      status: "fresh" | "stale" | "error";
-      http_status?: number;
-      error?: string;
-    }>;
-    overall: "fresh" | "stale" | "error";
-  };
-};
-
 // ── check-files ───────────────────────────────────────────────────────────────
 
 /** Success payload shape returned by the `check-files` command. */

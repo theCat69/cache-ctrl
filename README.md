@@ -2,7 +2,7 @@
 
 A CLI tool and native opencode plugin that manages the two AI agent caches (`.ai/external-context-gatherer_cache/` and `.ai/local-context-gatherer_cache/`) with a uniform interface.
 
-It handles advisory locking for safe concurrent writes, keyword search across all entries, HTTP freshness checking for external URLs, and file-change detection for local scans.
+It handles advisory locking for safe concurrent writes, keyword search across all entries, and file-change detection for local scans.
 
 ---
 
@@ -47,19 +47,18 @@ src/index.ts              cache_ctrl.ts
                │
         Command Layer
    src/commands/{list, inspect, inspectExternal,
-     inspectLocal, flush, invalidate,
-     touch, prune, checkFreshness,
-     checkFiles, search, writeLocal,
+         inspectLocal, flush, invalidate,
+      touch, prune,
+      checkFiles, search, writeLocal,
      writeExternal, install, graph,
      map, watch, version}.ts
                  │
            Core Services
-   cacheManager  ← read/write + advisory lock
-   externalCache ← external staleness logic
-   localCache    ← local scan path logic
-   graphCache    ← graph.json read/write path
-   freshnessChecker ← HTTP HEAD requests
-   changeDetector   ← mtime/hash comparison
+    cacheManager  ← read/write + advisory lock
+    externalCache ← external staleness logic
+    localCache    ← local scan path logic
+    graphCache    ← graph.json read/write path
+    changeDetector   ← mtime/hash comparison
    keywordSearch    ← scoring engine
    analysis/symbolExtractor ← import/export AST pass
    analysis/graphBuilder    ← dependency graph construction
@@ -300,38 +299,6 @@ cache-ctrl prune --agent external --max-age 1d --delete
 
 ---
 
-### `check-freshness`
-
-```
-cache-ctrl check-freshness <subject-keyword> [--url <url>] [--pretty]
-```
-
-Sends HTTP HEAD requests to each URL in the matched external entry's `sources[]`. Uses conditional headers (`If-None-Match`, `If-Modified-Since`) from stored `header_metadata`. Updates `header_metadata` in-place after checking.
-
-- HTTP 304 → `fresh`
-- HTTP 200 → `stale` (resource changed)
-- Network / 4xx / 5xx → `error` (does not update metadata for that URL)
-
-With `--url`: checks only that specific URL (must exist in `sources[]`).
-
-Security: before any request, the URL is validated. Non-HTTP(S) schemes and local-network targets (RFC1918/private, loopback, link-local, and IPv4-mapped IPv6 addresses) are blocked and reported with `blocked` status.
-
-```jsonc
-// cache-ctrl check-freshness opencode-skills --pretty
-{
-  "ok": true,
-  "value": {
-    "subject": "opencode-skills",
-    "sources": [
-      { "url": "https://example.com/docs", "status": "fresh", "http_status": 304 }
-    ],
-    "overall": "fresh"
-  }
-}
-```
-
----
-
 ### `check-files`
 
 ```
@@ -412,7 +379,7 @@ Writes a validated cache entry to disk. The `--data` argument must be a valid JS
 **Always use these commands (or `cache_ctrl_write_local` / `cache_ctrl_write_external`) instead of writing cache files directly.** Direct writes skip schema validation and risk corrupting the cache.
 
 ```json
-// cache-ctrl write-external mysubject --data '{"subject":"mysubject","description":"...","fetched_at":"2026-04-05T10:00:00Z","sources":[],"header_metadata":{}}' --pretty
+// cache-ctrl write-external mysubject --data '{"subject":"mysubject","description":"...","fetched_at":"2026-04-05T10:00:00Z","sources":[]}' --pretty
 { "ok": true, "value": { "file": "/path/to/.ai/external-context-gatherer_cache/mysubject.json" } }
 ```
 
@@ -550,7 +517,7 @@ No flags or arguments.
 
 ## opencode Plugin Tools
 
-The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/cache_ctrl.ts` and registers 10 tools that call the same command functions as the CLI:
+The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/cache_ctrl.ts` and registers 9 tools that call the same command functions as the CLI:
 
 | Tool | Description |
 |---|---|
@@ -558,7 +525,6 @@ The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/ca
 | `cache_ctrl_list` | List entries with age and staleness flags |
 | `cache_ctrl_inspect` | Return full content of a specific entry |
 | `cache_ctrl_invalidate` | Zero out a cache entry's timestamp |
-| `cache_ctrl_check_freshness` | HTTP HEAD check for external source URLs |
 | `cache_ctrl_check_files` | Compare tracked files against stored mtime/hash |
 | `cache_ctrl_write_local` | Write a validated local cache entry |
 | `cache_ctrl_write_external` | Write a validated external cache entry |
@@ -567,7 +533,7 @@ The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/ca
 
 No bash permission is required for agents that use the plugin tools directly.
 
-All 10 plugin tool responses include a `server_time` field at the outer JSON level:
+All 9 plugin tool responses include a `server_time` field at the outer JSON level:
 
 ```json
 { "ok": true, "value": { ... }, "server_time": "2026-04-05T12:34:56.789Z" }
@@ -585,10 +551,6 @@ Use `server_time` to assess how stale stored timestamps are without requiring ba
 # Before fetching — check if cache is still fresh
 cache-ctrl list --agent external --pretty
 # If is_stale: false → skip fetch
-
-# For a precise HTTP freshness check on a borderline entry
-cache-ctrl check-freshness <subject>
-# If overall: "fresh" → skip re-fetch
 
 # After writing new cache content — mark entry fresh
 cache-ctrl touch external <subject>
@@ -623,14 +585,6 @@ cache-ctrl invalidate local
   "sources": [
     { "type": "github_api", "url": "https://..." }
   ],
-  "header_metadata": {
-    "https://...": {
-      "etag": "\"abc123\"",
-      "last_modified": "Fri, 04 Apr 2026 10:00:00 GMT",
-      "checked_at": "2026-04-04T12:00:00Z",
-      "status": "fresh"
-    }
-  }
   // Any additional agent fields are preserved unchanged
 }
 ```
@@ -706,7 +660,6 @@ Written and maintained by the `watch` daemon. Read by `cache-ctrl graph` and `ca
 | `VALIDATION_ERROR` | Schema validation failed (e.g., missing required field or type mismatch in `write`) |
 | `NO_MATCH` | No cache file matched the keyword |
 | `AMBIGUOUS_MATCH` | Multiple files with identical top score |
-| `URL_NOT_FOUND` | `--url` value not found in `sources[]` |
 | `UNKNOWN` | Unexpected internal/runtime error (including unexpected HTTP client failures) |
 
 ---

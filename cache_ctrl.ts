@@ -2,7 +2,6 @@ import { tool } from "@opencode-ai/plugin";
 import { listCommand } from "./src/commands/list.js";
 import { inspectCommand } from "./src/commands/inspect.js";
 import { invalidateCommand } from "./src/commands/invalidate.js";
-import { checkFreshnessCommand } from "./src/commands/checkFreshness.js";
 import { checkFilesCommand } from "./src/commands/checkFiles.js";
 import { searchCommand } from "./src/commands/search.js";
 import { writeLocalCommand } from "./src/commands/writeLocal.js";
@@ -100,25 +99,6 @@ export const invalidate = tool({
   },
 });
 
-export const check_freshness = tool({
-  description: "For external cache: send HTTP HEAD requests to all source URLs and return freshness status per URL.",
-  args: {
-    subject: z.string().min(1),
-    url: z.string().url().optional(),
-  },
-  async execute(args) {
-    try {
-      const result = await checkFreshnessCommand({
-        subject: args.subject,
-        ...(args.url !== undefined ? { url: args.url } : {}),
-      });
-      return withServerTime(result);
-    } catch (err) {
-      return handleUnknownError(err);
-    }
-  },
-});
-
 export const check_files = tool({
   description:
     "For local cache: compare tracked files against stored mtime/hash values and return which files changed. Also reports new_files (files not excluded by .gitignore that are absent from cache — includes both git-tracked and untracked-non-ignored files) and deleted_git_files (git-tracked files deleted from working tree).",
@@ -189,15 +169,6 @@ export const write_external = tool({
         version: z.string().optional(),
       }),
     ),
-    header_metadata: z.record(
-      z.string(),
-      z.object({
-        etag: z.string().optional(),
-        last_modified: z.string().optional(),
-        checked_at: z.string(),
-        status: z.enum(["fresh", "stale", "unchecked"]),
-      }),
-    ),
   },
   async execute(args) {
     try {
@@ -208,7 +179,6 @@ export const write_external = tool({
           description: args.description,
           fetched_at: args.fetched_at,
           sources: args.sources,
-          header_metadata: args.header_metadata,
         },
       });
       return withServerTime(result);

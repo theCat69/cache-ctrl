@@ -78,7 +78,7 @@ afterEach(async () => {
 describe("writeCommand", () => {
   it("writes a valid external entry", async () => {
     // Arrange
-    const content = { subject: "mysubject", description: "...", fetched_at: "...", sources: [], header_metadata: {} };
+    const content = { subject: "mysubject", description: "...", fetched_at: "...", sources: [] };
 
     // Act
     const result = await writeCommand({ agent: "external", subject: "mysubject", content });

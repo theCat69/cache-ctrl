@@ -19,7 +19,6 @@ const ALL_COMMANDS = [
   "invalidate",
   "touch",
   "prune",
-  "check-freshness",
   "check-files",
   "search",
   "write",

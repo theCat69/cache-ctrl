@@ -147,7 +147,7 @@ This replaces "read everything" or "read blind" with a structured 4-step progres
 
 - **External cache**: no changes. It is well-designed and stable.
 - **Shared operations** (`list`, `prune`, `invalidate`, `search`, `touch`): no changes. The `agent` parameter routing is already clean.
-- **`check-files` and `check-freshness`**: no changes. They serve distinct agent-type semantics and don't need unification.
+- **`check-files`**: no changes. It doesn't need unification.
 - **Polyglot support**: the graph engine targets TypeScript/JavaScript only. The architecture accommodates future language support via parser abstraction, but it is not in scope.
 - **Function-level or symbol-level graph display**: the graph is file-level. Symbols are used internally for ranking but the output is file-centric.
 - **Cold-start recovery**: if `graph.json` or `context.json` are deleted, a rescan is required. This plan improves delta durability, not cold-start recovery.

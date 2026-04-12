@@ -22,7 +22,6 @@ describe("write external", () => {
       description: "test",
       fetched_at: "2026-04-01T00:00:00Z",
       sources: [],
-      header_metadata: {},
     };
     const result = await runCli(
       ["write-external", "mywrite", "--data", JSON.stringify(entryData)],
@@ -51,7 +50,6 @@ describe("write external", () => {
     const incompleteData = {
       fetched_at: "2026-04-01T00:00:00Z",
       sources: [],
-      header_metadata: {},
     };
     const result = await runCli(
       ["write-external", "bad", "--data", JSON.stringify(incompleteData)],
@@ -69,7 +67,6 @@ describe("write external", () => {
       description: "test",
       fetched_at: "2026-04-01T00:00:00Z",
       sources: [],
-      header_metadata: {},
     };
     const result = await runCli(
       ["write-external", "--data", JSON.stringify(entryData)],

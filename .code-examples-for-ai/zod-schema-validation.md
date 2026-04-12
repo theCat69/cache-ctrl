@@ -16,7 +16,6 @@ export const ExternalCacheFileSchema = z.looseObject({
   description: z.string(),
   fetched_at: z.string(),
   sources: z.array(SourceSchema),
-  header_metadata: z.record(z.string(), HeaderMetaSchema),
 });
 
 const FileFactsSchema = z.object({
