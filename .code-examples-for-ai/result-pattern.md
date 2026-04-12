@@ -29,8 +29,6 @@ export enum ErrorCode {
   AMBIGUOUS_MATCH = "AMBIGUOUS_MATCH",
 
   // HTTP errors
-  URL_NOT_FOUND = "URL_NOT_FOUND",
-
   // Internal
   UNKNOWN = "UNKNOWN",
 }

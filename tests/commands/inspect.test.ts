@@ -32,7 +32,6 @@ describe("inspectCommand — external agent", () => {
       description: "My library docs",
       fetched_at: "2026-01-01T00:00:00Z",
       sources: [{ type: "docs", url: "https://example.com" }],
-      header_metadata: { "https://example.com": { checked_at: "2026-01-01T00:00:00Z", status: "fresh" } },
       extra_field: "custom value",
     };
     await writeFile(filePath, JSON.stringify(originalData));
@@ -57,7 +56,6 @@ describe("inspectCommand — external agent", () => {
         description: "My library",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -80,11 +78,11 @@ describe("inspectCommand — external agent", () => {
     // Both entries get identical scores → AMBIGUOUS_MATCH
     await writeFile(
       join(tmpDir, EXTERNAL_DIR, "mylib-a.json"),
-      JSON.stringify({ subject: "mylib", description: "library docs", fetched_at: "2026-01-01T00:00:00Z", sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "mylib", description: "library docs", fetched_at: "2026-01-01T00:00:00Z", sources: [] }),
     );
     await writeFile(
       join(tmpDir, EXTERNAL_DIR, "mylib-b.json"),
-      JSON.stringify({ subject: "mylib", description: "library docs", fetched_at: "2026-01-01T00:00:00Z", sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "mylib", description: "library docs", fetched_at: "2026-01-01T00:00:00Z", sources: [] }),
     );
 
     const result = await inspectCommand({ agent: "external", subject: "mylib" });
@@ -102,7 +100,6 @@ describe("inspectCommand — external agent", () => {
         description: "React documentation",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
     // "unrelated" only in subject
@@ -113,7 +110,6 @@ describe("inspectCommand — external agent", () => {
         description: "Something else",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -345,7 +341,6 @@ describe("inspectCommand — local agent filter", () => {
         description: "My library docs",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -530,7 +525,6 @@ describe("folder and search-facts filters", () => {
         description: "external entry",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 

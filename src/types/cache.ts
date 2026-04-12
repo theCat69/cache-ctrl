@@ -21,17 +21,6 @@ const SourceSchema = z.object({
   version: z.string().optional(),
 });
 
-const HeaderMetaSchema = z.object({
-  etag: z.string().optional(),
-  last_modified: z.string().optional(),
-  checked_at: z.string(),
-  // "unchecked" = entry written without HTTP check
-  status: z.enum(["fresh", "stale", "unchecked"]),
-});
-
-/** Stored HTTP validator metadata for one source URL in an external cache entry. */
-export type HeaderMeta = z.infer<typeof HeaderMetaSchema>;
-
 /**
  * Validates external context cache JSON files stored under `.ai/external-context-gatherer_cache/`.
  */
@@ -40,7 +29,6 @@ export const ExternalCacheFileSchema = z.looseObject({
   description: z.string(),
   fetched_at: z.string(),
   sources: z.array(SourceSchema),
-  header_metadata: z.record(z.string(), HeaderMetaSchema),
 });
 
 /** Validates one tracked file baseline used by local file-change detection. */

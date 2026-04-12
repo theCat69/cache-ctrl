@@ -72,7 +72,6 @@ describe("pruneCommand — external entries", () => {
         description: "Old library",
         fetched_at: makeTimestamp(30), // 30h old
         sources: [],
-        header_metadata: {},
       }),
     );
     await writeFile(
@@ -82,7 +81,6 @@ describe("pruneCommand — external entries", () => {
         description: "Fresh library",
         fetched_at: makeTimestamp(1), // 1h old
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -111,7 +109,6 @@ describe("pruneCommand — external entries", () => {
         description: "Old",
         fetched_at: makeTimestamp(50),
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -129,11 +126,11 @@ describe("pruneCommand — external entries", () => {
 
     await writeFile(
       file2h,
-      JSON.stringify({ subject: "two-hours", description: "2h old", fetched_at: makeTimestamp(2), sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "two-hours", description: "2h old", fetched_at: makeTimestamp(2), sources: [] }),
     );
     await writeFile(
       file5h,
-      JSON.stringify({ subject: "five-hours", description: "5h old", fetched_at: makeTimestamp(5), sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "five-hours", description: "5h old", fetched_at: makeTimestamp(5), sources: [] }),
     );
 
     // maxAge=3h — only 5h entry should be pruned
@@ -154,7 +151,7 @@ describe("pruneCommand — external entries", () => {
   it("returns zero matched when all entries are fresh", async () => {
     await writeFile(
       join(tmpDir, EXTERNAL_DIR, "fresh.json"),
-      JSON.stringify({ subject: "fresh", description: "Fresh", fetched_at: makeTimestamp(1), sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "fresh", description: "Fresh", fetched_at: makeTimestamp(1), sources: [] }),
     );
 
     const result = await pruneCommand({ agent: "external" });
@@ -227,7 +224,7 @@ describe("pruneCommand — all agents", () => {
 
     await writeFile(
       staleFile,
-      JSON.stringify({ subject: "old", description: "Old", fetched_at: makeTimestamp(30), sources: [], header_metadata: {} }),
+      JSON.stringify({ subject: "old", description: "Old", fetched_at: makeTimestamp(30), sources: [] }),
     );
     await writeFile(
       localPath,

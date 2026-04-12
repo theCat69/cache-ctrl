@@ -23,7 +23,6 @@ describe("smoke: external cache pipeline", () => {
       description: "smoke test external entry",
       fetched_at: "2026-04-01T00:00:00Z",
       sources: [],
-      header_metadata: {},
     };
     const writeResult = await runCli(
       ["write-external", "mysmoke", "--data", JSON.stringify(writeData)],

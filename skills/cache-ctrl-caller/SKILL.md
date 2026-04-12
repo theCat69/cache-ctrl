@@ -32,7 +32,6 @@ Note: To force a full re-scan (after major restructure): call `cache_ctrl_invali
 | Fresh entry found AND content is sufficient | Call `cache_ctrl_inspect` to read it. Do NOT call gatherer. |
 | Fresh entry found BUT content is insufficient | Call `external-context-gatherer` to supplement. |
 | Entry stale or absent | Call `external-context-gatherer` with the subject. |
-| Borderline freshness | Call `cache_ctrl_check_freshness` to verify. Fresh → skip; stale → call gatherer. |
 | Any cache tool fails | Treat as absent. Call `external-context-gatherer`. |
 
 To force a re-fetch for a specific subject: call `cache_ctrl_invalidate` with `agent: "external"` and the subject keyword.
@@ -88,7 +87,6 @@ Every `cache_ctrl_*` call returns a `server_time` field. Use it when comparing a
 | Search cache entries | `cache_ctrl_search` |
 | Read facts (local, filtered) | `cache_ctrl_inspect` (agent: "local", filter/folder/search_facts) |
 | Read external entry | `cache_ctrl_inspect` (agent: "external") |
-| HTTP freshness check | `cache_ctrl_check_freshness` |
 | Codebase map | `cache_ctrl_map` |
 | Dependency graph | `cache_ctrl_graph` |
 | Invalidate local | `cache_ctrl_invalidate` (agent: "local") |

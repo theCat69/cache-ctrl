@@ -13,7 +13,6 @@ This skill covers managing `.ai/external-context-gatherer_cache/` to avoid redun
 2. **Check if subject is already cached**: Call `cache_ctrl_search` with relevant keywords.
    - Fresh entry found → call `cache_ctrl_inspect` to read it and return cached content — **do not fetch**.
    - Entry stale or absent → proceed to fetch.
-   - Borderline: call `cache_ctrl_check_freshness`. `overall: "fresh"` → skip; `overall: "stale"` → fetch.
 
 ## Write After Fetching
 
@@ -26,8 +25,7 @@ Call `cache_ctrl_write_external` with:
   "subject": "<subject>",
   "description": "<one-line summary>",
   "fetched_at": "<ISO 8601 now>",
-  "sources": [{ "type": "<type>", "url": "<canonical-url>" }],
-  "header_metadata": {}
+  "sources": [{ "type": "<type>", "url": "<canonical-url>" }]
 }
 ```
 
@@ -39,7 +37,6 @@ Call `cache_ctrl_write_external` with:
 | `description` | `string` | ✅ | One-liner for keyword search |
 | `fetched_at` | `string` | ✅ | ISO 8601. Use `""` when invalidating |
 | `sources` | `Array<{ type: string; url: string; version?: string }>` | ✅ | `[]` is valid |
-| `header_metadata` | `Record<url, { etag?: string; last_modified?: string; checked_at: string; status: "fresh"\|"stale"\|"unchecked" }>` | ✅ | Use `{}` on first write |
 | *(any extra fields)* | `unknown` | optional | Preserved on write |
 
 Minimal valid example:
@@ -49,8 +46,7 @@ Minimal valid example:
   "subject": "opencode-skills",
   "description": "Index of opencode skill files in the dotfiles repo",
   "fetched_at": "2026-04-05T10:00:00Z",
-  "sources": [{ "type": "github_api", "url": "https://api.github.com/repos/owner/repo/contents/.opencode/skills" }],
-  "header_metadata": {}
+  "sources": [{ "type": "github_api", "url": "https://api.github.com/repos/owner/repo/contents/.opencode/skills" }]
 }
 ```
 
@@ -69,7 +65,6 @@ Staleness threshold: `fetched_at` is empty **or** older than 24 hours.
 |---|---|
 | List all entries | `cache_ctrl_list` (agent: "external") |
 | Search entries | `cache_ctrl_search` |
-| HTTP freshness check | `cache_ctrl_check_freshness` |
 | Read full entry | `cache_ctrl_inspect` (agent: "external") |
 | Write entry | `cache_ctrl_write_external` |
 | Invalidate entry | `cache_ctrl_invalidate` (agent: "external", subject) |

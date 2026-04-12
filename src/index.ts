@@ -5,7 +5,6 @@ import { flushCommand } from "./commands/flush.js";
 import { invalidateCommand } from "./commands/invalidate.js";
 import { touchCommand } from "./commands/touch.js";
 import { pruneCommand } from "./commands/prune.js";
-import { checkFreshnessCommand } from "./commands/checkFreshness.js";
 import { checkFilesCommand } from "./commands/checkFiles.js";
 import { searchCommand } from "./commands/search.js";
 import { writeLocalCommand } from "./commands/writeLocal.js";
@@ -25,7 +24,6 @@ type CommandName =
   | "invalidate"
   | "touch"
   | "prune"
-  | "check-freshness"
   | "check-files"
   | "search"
   | "write-local"
@@ -127,19 +125,6 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "    --agent external|local|all   Filter by agent type (default: all)",
       "    --max-age <duration>         Maximum age threshold (e.g. 24h, 7d)",
       "    --delete                     Actually delete the stale entries (dry-run if omitted)",
-    ].join("\n"),
-  },
-  "check-freshness": {
-    usage: "check-freshness <subject-keyword> [--url <url>]",
-    description: "Send HTTP HEAD requests to verify source freshness",
-    details: [
-      "  Arguments:",
-      "    <subject-keyword>   Keyword identifying the cache entry to check",
-      "",
-      "  Options:",
-      "    --url <url>   Override the URL used for the HEAD request",
-      "",
-      "  Output: HTTP response metadata and freshness verdict.",
     ].join("\n"),
   },
   "check-files": {
@@ -349,7 +334,6 @@ export { usageError };
 const VALUE_FLAGS = new Set([
   "data",
   "agent",
-  "url",
   "max-age",
   "filter",
   "folder",
@@ -423,7 +407,7 @@ async function main(): Promise<void> {
 
   const command = args[0];
   if (!command) {
-    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write-local, write-external, install, graph, map, watch, version");
+    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, graph, map, watch, version");
   }
 
   switch (command) {
@@ -565,22 +549,6 @@ async function main(): Promise<void> {
         ...(maxAge !== undefined ? { maxAge } : {}),
         delete: doDelete,
       });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
-      break;
-    }
-
-    case "check-freshness": {
-      const subject = args[1];
-      if (!subject) {
-        usageError("Usage: cache-ctrl check-freshness <subject-keyword> [--url <url>]");
-      }
-      const url = typeof flags.url === "string" ? flags.url : undefined;
-      const result = await checkFreshnessCommand({ subject, ...(url !== undefined ? { url } : {}) });
       if (result.ok) {
         printResult(result, pretty);
       } else {
@@ -770,7 +738,7 @@ async function main(): Promise<void> {
     }
 
     default:
-      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-freshness, check-files, search, write-local, write-external, install, graph, map, watch, version`);
+      usageError(`Unknown command: "${command}". Commands: list, inspect, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, graph, map, watch, version`);
   }
 }
 

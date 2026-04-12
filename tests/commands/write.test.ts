@@ -14,7 +14,6 @@ const validExternalContent = {
   description: "A test external cache entry",
   fetched_at: "2026-04-05T10:00:00Z",
   sources: [{ type: "docs", url: "https://example.com/docs" }],
-  header_metadata: {},
 } as const;
 
 const validLocalContent = {
@@ -211,7 +210,6 @@ describe("writeCommand", () => {
       subject: "mysubject",
       fetched_at: "2026-04-05T10:00:00Z",
       sources: [],
-      header_metadata: {},
     };
 
     const result = await writeExternalCommand({
@@ -232,7 +230,6 @@ describe("writeCommand", () => {
       description: "A test entry",
       fetched_at: 123,
       sources: [],
-      header_metadata: {},
     };
 
     const result = await writeExternalCommand({
@@ -252,7 +249,6 @@ describe("writeCommand", () => {
       description: "A test external cache entry",
       fetched_at: "2026-04-05T10:00:00Z",
       sources: [{ type: "docs", url: "https://example.com/docs" }],
-      header_metadata: {},
     };
 
     const result = await writeExternalCommand({
@@ -275,7 +271,6 @@ describe("writeCommand", () => {
       description: "A test entry",
       fetched_at: "2026-04-05T10:00:00Z",
       sources: [],
-      header_metadata: {},
     };
 
     const result = await writeExternalCommand({
@@ -337,7 +332,6 @@ describe("writeCommand", () => {
       description: "Updated description",
       fetched_at: "2026-04-06T10:00:00Z",
       sources: [],
-      header_metadata: {},
     };
 
     const result = await writeExternalCommand({

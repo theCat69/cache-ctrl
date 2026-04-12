@@ -42,7 +42,6 @@ describe("listCommand", () => {
         description: "Alpha project docs",
         fetched_at: makeFetchedAt(1),
         sources: [],
-        header_metadata: {},
       }),
     );
     await writeFile(
@@ -73,7 +72,6 @@ describe("listCommand", () => {
         description: "desc",
         fetched_at: makeFetchedAt(1),
         sources: [],
-        header_metadata: {},
       }),
     );
     await writeFile(
@@ -101,7 +99,6 @@ describe("listCommand", () => {
         description: "desc",
         fetched_at: makeFetchedAt(1),
         sources: [],
-        header_metadata: {},
       }),
     );
     await writeFile(
@@ -129,7 +126,6 @@ describe("listCommand", () => {
         description: "desc",
         fetched_at: makeFetchedAt(2),
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -149,7 +145,6 @@ describe("listCommand", () => {
         description: "desc",
         fetched_at: "",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -170,7 +165,6 @@ describe("listCommand", () => {
         description: "desc",
         fetched_at: makeFetchedAt(25),
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -189,7 +183,6 @@ describe("listCommand", () => {
         description: "desc",
         fetched_at: makeFetchedAt(1),
         sources: [],
-        header_metadata: {},
       }),
     );
 

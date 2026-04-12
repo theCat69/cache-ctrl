@@ -31,7 +31,6 @@ describe("searchCommand - scoring", () => {
         description: "Some unrelated description",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -51,7 +50,6 @@ describe("searchCommand - scoring", () => {
         description: "Skills description",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -72,7 +70,6 @@ describe("searchCommand - scoring", () => {
         description: "Some description",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -94,7 +91,6 @@ describe("searchCommand - scoring", () => {
         description: "Some description",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -115,7 +111,6 @@ describe("searchCommand - scoring", () => {
         description: "This covers zod validation schemas",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -135,7 +130,6 @@ describe("searchCommand - scoring", () => {
         description: "TypeScript configuration docs",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -156,7 +150,6 @@ describe("searchCommand - scoring", () => {
         description: "alpha description",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
     await writeFile(
@@ -166,7 +159,6 @@ describe("searchCommand - scoring", () => {
         description: "tooling",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -187,7 +179,6 @@ describe("searchCommand - scoring", () => {
         description: "TypeScript docs",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -205,7 +196,6 @@ describe("searchCommand - scoring", () => {
         description: "Nothing to see here",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 
@@ -224,7 +214,6 @@ describe("searchCommand - scoring", () => {
         description: "Good entry",
         fetched_at: "2026-01-01T00:00:00Z",
         sources: [],
-        header_metadata: {},
       }),
     );
 

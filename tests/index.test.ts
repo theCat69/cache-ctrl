@@ -132,7 +132,6 @@ describe("printHelp", () => {
       "invalidate",
       "touch",
       "prune",
-      "check-freshness",
       "check-files",
       "search",
       "write-local",
@@ -182,7 +181,7 @@ describe("printHelp", () => {
     expect(output).toContain("Usage");
   });
 
-  it.each(["list", "inspect", "flush", "invalidate", "touch", "prune", "check-freshness", "check-files", "search", "write-local", "write-external", "install", "graph", "map", "watch", "version"])(
+  it.each(["list", "inspect", "flush", "invalidate", "touch", "prune", "check-files", "search", "write-local", "write-external", "install", "graph", "map", "watch", "version"])(
     "per-command help for '%s' writes to stdout",
     (cmd) => {
       const ok = printHelp(cmd);

@@ -28,9 +28,6 @@ export enum ErrorCode {
   /** Returned when keyword matching yields multiple top-scoring candidates. */
   AMBIGUOUS_MATCH = "AMBIGUOUS_MATCH",
 
-  /** Returned when a user-specified URL is not present in the matched entry's sources list. */
-  URL_NOT_FOUND = "URL_NOT_FOUND",
-
   /** Returned for unexpected internal exceptions converted at command boundaries. */
   UNKNOWN = "UNKNOWN",
 }
