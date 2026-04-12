@@ -55,6 +55,20 @@ function localPath(): string {
   return join(process.cwd(), ".ai", "local-context-gatherer_cache", "context.json");
 }
 
+function buildLargeFacts(): Record<string, { facts: string[] }> {
+  return Object.fromEntries(
+    Array.from({ length: 100 }, (_, index) => {
+      const entryIndex = (index + 1).toString().padStart(3, "0");
+      return [
+        `src/generated/file-${entryIndex}.ts`,
+        {
+          facts: Array.from({ length: 10 }, (__, factIndex) => `fact-${factIndex + 1}-${"x".repeat(60)}`),
+        },
+      ];
+    }),
+  );
+}
+
 describe("inspectExternalCommand", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -241,6 +255,62 @@ describe("inspectLocalCommand", () => {
     if (!result.ok) return;
 
     expect(result.value.facts).toEqual({});
+  });
+
+  it("returns ok:true for unfiltered facts under the byte limit", async () => {
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        ...localFixtureBase,
+        facts: {
+          "src/a.ts": { facts: ["exports foo", "uses zod"] },
+          "src/b.ts": { facts: ["exports bar"] },
+        },
+      }),
+    );
+
+    const result = await inspectLocalCommand({});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.facts).toEqual({
+      "src/a.ts": { facts: ["exports foo", "uses zod"] },
+      "src/b.ts": { facts: ["exports bar"] },
+    });
+  });
+
+  it("returns PAYLOAD_TOO_LARGE when unfiltered facts exceed the byte limit", async () => {
+    const largeFacts = buildLargeFacts();
+
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        ...localFixtureBase,
+        facts: largeFacts,
+      }),
+    );
+
+    const result = await inspectLocalCommand({});
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
+    expect(result.error).toMatch(/filter/i);
+  });
+
+  it("returns large filtered result without PAYLOAD_TOO_LARGE", async () => {
+    const largeFacts = buildLargeFacts();
+
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        ...localFixtureBase,
+        facts: largeFacts,
+      }),
+    );
+
+    const result = await inspectLocalCommand({ filter: ["src/generated/file-"] });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.facts).toBeDefined();
   });
 
   it("returns FILE_NOT_FOUND when context.json is missing", async () => {

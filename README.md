@@ -311,6 +311,8 @@ When **no filters are provided** the full `facts` map is returned and the respon
 { "warning": "No filters provided: returning full facts map. This may exceed token limits for large codebases." }
 ```
 
+Unfiltered calls that produce a response larger than **20,000 UTF-8 bytes** or more than **500 `facts` entries** are rejected with `ok: false` and `code: PAYLOAD_TOO_LARGE`. For unfiltered responses under those limits, the `warning` field above is still included.
+
 Prefer using at least one filter for large codebases.
 
 > `--search-facts ""` (empty string) and `--filter` with no value return exit code `2` with `INVALID_ARGS`.
@@ -768,6 +770,7 @@ Written and maintained by the `watch` daemon. Read by `cache-ctrl graph` and `ca
 | `VALIDATION_ERROR` | Schema validation failed (e.g., missing required field or type mismatch in `write`) |
 | `NO_MATCH` | No cache file matched the keyword |
 | `AMBIGUOUS_MATCH` | Multiple files with identical top score |
+| `PAYLOAD_TOO_LARGE` | `inspect-local` unfiltered response exceeds 20 000 bytes or 500 entries. Use `--filter`, `--folder`, or `--search-facts`, or navigate with `map`/`graph` first. |
 | `UNKNOWN` | Unexpected internal/runtime error (including unexpected HTTP client failures) |
 
 ---

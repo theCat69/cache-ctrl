@@ -28,6 +28,12 @@ export enum ErrorCode {
   /** Returned when keyword matching yields multiple top-scoring candidates. */
   AMBIGUOUS_MATCH = "AMBIGUOUS_MATCH",
 
+  /**
+   * Returned when the unfiltered facts payload exceeds the maximum allowed byte size.
+   * Use --filter, map, or graph to narrow the query.
+   */
+  PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE",
+
   /** Returned for unexpected internal exceptions converted at command boundaries. */
   UNKNOWN = "UNKNOWN",
 }
