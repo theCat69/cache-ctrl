@@ -105,10 +105,9 @@ Configures OpenCode integration after `npm install -g @thecat69/cache-ctrl`. Doe
 Both operations are idempotent — re-running `cache-ctrl install` after `npm update -g @thecat69/cache-ctrl` regenerates the wrapper with the new package path.
 
 **OpenCode config directory resolution** (in priority order):
-1. `--config-dir <path>` flag (explicit override)
-2. `$XDG_CONFIG_HOME/opencode` (Linux/macOS, if `XDG_CONFIG_HOME` is set)
-3. `~/.config/opencode` (Linux/macOS default)
-4. `%APPDATA%\opencode` (Windows)
+1. `--config-dir <path>` flag (explicit override; relative paths are resolved to absolute paths)
+2. `~/.config/opencode` (Linux/macOS)
+3. `%APPDATA%\opencode` (Windows)
 
 **Options:**
 

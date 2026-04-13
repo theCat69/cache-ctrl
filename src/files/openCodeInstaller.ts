@@ -14,11 +14,11 @@ const SKILL_NAMES = ["cache-ctrl-external", "cache-ctrl-local", "cache-ctrl-call
  * @param overrideDir - Explicit CLI override path.
  * @returns Absolute config directory path used for tool and skill installation.
  * @remarks Resolution order: explicit override → `%APPDATA%/opencode` on Windows →
- * `$XDG_CONFIG_HOME/opencode` on Unix-like systems → `~/.config/opencode` fallback.
+ * `~/.config/opencode` on Unix-like systems.
  */
 export function resolveOpenCodeConfigDir(overrideDir?: string): string {
   if (overrideDir !== undefined) {
-    return overrideDir;
+    return path.resolve(overrideDir);
   }
 
   if (process.platform === "win32") {
@@ -26,8 +26,7 @@ export function resolveOpenCodeConfigDir(overrideDir?: string): string {
     return path.join(appData, "opencode");
   }
 
-  const xdgConfigHome = process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config");
-  return path.join(xdgConfigHome, "opencode");
+  return path.join(os.homedir(), ".config", "opencode");
 }
 
 /** Builds the generated OpenCode tool wrapper file content. */
