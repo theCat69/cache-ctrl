@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { touchCommand } from "../../src/commands/touch.js";
+import { ErrorCode } from "../../src/types/result.js";
 
 const EXTERNAL_DIR = join(".ai", "external-context-gatherer_cache");
 const LOCAL_DIR = join(".ai", "local-context-gatherer_cache");
@@ -143,5 +144,13 @@ describe("touchCommand", () => {
     const c2 = JSON.parse(await readFile(file2, "utf-8")) as Record<string, unknown>;
     expect(c1.fetched_at).toBe(result.value.new_timestamp);
     expect(c2.fetched_at).toBe(result.value.new_timestamp);
+  });
+
+  it("returns NO_MATCH when local context.json is missing", async () => {
+    const result = await touchCommand({ agent: "local" });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.NO_MATCH);
+    expect(result.error).toContain("No local cache entry matched agent \"local\"");
   });
 });

@@ -118,23 +118,23 @@ describe("inspectExternalCommand", () => {
     expect(result.code).toBe(ErrorCode.AMBIGUOUS_MATCH);
   });
 
-  it("returns FILE_NOT_FOUND when no keyword matches", async () => {
+  it("returns NO_MATCH when no keyword matches", async () => {
     readdirMock.mockResolvedValue(["sample.json"]);
     readFileMock.mockResolvedValue(JSON.stringify({ subject: "sample", ...externalFixtureBase }));
 
     const result = await inspectExternalCommand({ subject: "missing-keyword" });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.code).toBe(ErrorCode.FILE_NOT_FOUND);
+    expect(result.code).toBe(ErrorCode.NO_MATCH);
   });
 
-  it("returns FILE_NOT_FOUND when there are no external entries", async () => {
+  it("returns NO_MATCH when there are no external entries", async () => {
     readdirMock.mockResolvedValue([]);
 
     const result = await inspectExternalCommand({ subject: "anything" });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.code).toBe(ErrorCode.FILE_NOT_FOUND);
+    expect(result.code).toBe(ErrorCode.NO_MATCH);
   });
 });
 
