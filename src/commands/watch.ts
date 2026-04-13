@@ -70,7 +70,6 @@ export function serializeGraphToCache(graph: DependencyGraph): GraphCacheFile["f
 
   for (const [filePath, node] of graph.entries()) {
     files[filePath] = {
-      rank: 0.0,
       deps: node.deps,
       defs: node.defs,
     };

@@ -1,10 +1,9 @@
 import type { UpdateArgs, UpdateResult } from "../types/commands.js";
-import { ErrorCode, type Result } from "../types/result.js";
+import type { Result } from "../types/result.js";
 import { validateConfigDir } from "../utils/configDir.js";
+import { toUnknownResult } from "../utils/errors.js";
 
 import { installCommand } from "./install.js";
-
-const textDecoder = new TextDecoder();
 
 /**
  * Updates the globally installed npm package and refreshes OpenCode integration files.
@@ -20,7 +19,7 @@ export async function updateCommand(args: UpdateArgs): Promise<Result<UpdateResu
     const installProcess = Bun.spawnSync(["npm", "install", "-g", "@thecat69/cache-ctrl@latest"]);
     if (installProcess.exitCode !== 0) {
       packageUpdated = false;
-      const npmError = textDecoder.decode(installProcess.stderr);
+      const npmError = new TextDecoder().decode(installProcess.stderr);
       warnings.push(npmError.length > 0 ? npmError : "npm install -g @thecat69/cache-ctrl@latest failed");
     }
 
@@ -42,11 +41,6 @@ export async function updateCommand(args: UpdateArgs): Promise<Result<UpdateResu
       },
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      ok: false,
-      error: message,
-      code: ErrorCode.UNKNOWN,
-    };
+    return toUnknownResult(err);
   }
 }

@@ -4,10 +4,10 @@ import path from "node:path";
 
 import { resolveOpenCodeConfigDir } from "../files/openCodeInstaller.js";
 import type { UninstallArgs, UninstallResult } from "../types/commands.js";
-import { ErrorCode, type Result } from "../types/result.js";
+import type { Result } from "../types/result.js";
 import { validateConfigDir } from "../utils/configDir.js";
+import { toUnknownResult } from "../utils/errors.js";
 
-const textDecoder = new TextDecoder();
 const CACHE_CTRL_SKILL_DIR_PATTERN = /^cache-ctrl-/;
 
 /**
@@ -70,7 +70,7 @@ export async function uninstallCommand(args: UninstallArgs): Promise<Result<Unin
     const uninstallProcess = Bun.spawnSync(["npm", "uninstall", "-g", "@thecat69/cache-ctrl"]);
     if (uninstallProcess.exitCode !== 0) {
       packageUninstalled = false;
-      const npmError = textDecoder.decode(uninstallProcess.stderr);
+      const npmError = new TextDecoder().decode(uninstallProcess.stderr);
       warnings.push(npmError.length > 0 ? npmError : "npm uninstall -g @thecat69/cache-ctrl failed");
     }
 
@@ -83,11 +83,6 @@ export async function uninstallCommand(args: UninstallArgs): Promise<Result<Unin
       },
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      ok: false,
-      error: message,
-      code: ErrorCode.UNKNOWN,
-    };
+    return toUnknownResult(err);
   }
 }

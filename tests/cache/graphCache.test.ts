@@ -31,7 +31,6 @@ describe("graphCache", () => {
     const graphData: GraphCacheFile = {
       files: {
         "src/index.ts": {
-          rank: 1,
           deps: ["src/commands/invalidate.ts"],
           defs: ["main"],
         },
