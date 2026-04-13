@@ -1,8 +1,31 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, writeFile, mkdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { compareTrackedFile, computeFileHash, resolveTrackedFileStats, filterExistingFiles } from "../../src/files/changeDetector.js";
+
+const {
+  getGitTrackedFilesMock,
+  getGitDeletedFilesMock,
+  getUntrackedNonIgnoredFilesMock,
+} = vi.hoisted(() => ({
+  getGitTrackedFilesMock: vi.fn(),
+  getGitDeletedFilesMock: vi.fn(),
+  getUntrackedNonIgnoredFilesMock: vi.fn(),
+}));
+
+vi.mock("../../src/files/gitFiles.js", () => ({
+  getGitTrackedFiles: getGitTrackedFilesMock,
+  getGitDeletedFiles: getGitDeletedFilesMock,
+  getUntrackedNonIgnoredFiles: getUntrackedNonIgnoredFilesMock,
+}));
+
+import {
+  compareTrackedFile,
+  computeFileHash,
+  detectTrackedFilesStatus,
+  resolveTrackedFileStats,
+  filterExistingFiles,
+} from "../../src/files/changeDetector.js";
 
 let origCwd: string;
 let tmpDir: string;
@@ -11,6 +34,10 @@ beforeEach(async () => {
   origCwd = process.cwd();
   tmpDir = await mkdtemp(join(tmpdir(), "cache-ctrl-detector-"));
   process.chdir(tmpDir);
+
+  getGitTrackedFilesMock.mockResolvedValue([]);
+  getGitDeletedFilesMock.mockResolvedValue([]);
+  getUntrackedNonIgnoredFilesMock.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -231,5 +258,79 @@ describe("filterExistingFiles", () => {
     // Must match input values, not the real file stats
     expect(result[0]?.mtime).toBe(inputMtime);
     expect(result[0]?.hash).toBe(inputHash);
+  });
+});
+
+describe("detectTrackedFilesStatus", () => {
+  it("returns unchanged when tracked files are unchanged and git deltas are empty", async () => {
+    const fileName = "unchanged.ts";
+    const filePath = join(tmpDir, fileName);
+    await writeFile(filePath, "export const unchanged = true;");
+
+    const hash = await computeFileHash(filePath);
+    const trackedFiles = [{ path: fileName, mtime: 1, hash }];
+
+    getGitTrackedFilesMock.mockResolvedValue([fileName]);
+
+    const result = await detectTrackedFilesStatus(trackedFiles, tmpDir);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBe("unchanged");
+  });
+
+  it("returns changed when one tracked file has content hash drift", async () => {
+    const fileName = "tracked-diff.ts";
+    const filePath = join(tmpDir, fileName);
+    await writeFile(filePath, "export const version = 2;");
+
+    const trackedFiles = [{
+      path: fileName,
+      mtime: 1,
+      hash: "0000000000000000000000000000000000000000000000000000000000000000",
+    }];
+
+    getGitTrackedFilesMock.mockResolvedValue([fileName]);
+
+    const result = await detectTrackedFilesStatus(trackedFiles, tmpDir);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBe("changed");
+  });
+
+  it("returns changed when git reports new files outside tracked baseline", async () => {
+    const fileName = "baseline.ts";
+    const filePath = join(tmpDir, fileName);
+    await writeFile(filePath, "export const baseline = true;");
+
+    const fileStat = await stat(filePath);
+    const trackedFiles = [{ path: fileName, mtime: fileStat.mtimeMs }];
+
+    getGitTrackedFilesMock.mockResolvedValue([fileName, "newly-added.ts"]);
+
+    const result = await detectTrackedFilesStatus(trackedFiles, tmpDir);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBe("changed");
+  });
+
+  it("returns changed when git reports deleted tracked files", async () => {
+    const fileName = "alive.ts";
+    const filePath = join(tmpDir, fileName);
+    await writeFile(filePath, "export const alive = true;");
+
+    const fileStat = await stat(filePath);
+    const trackedFiles = [{ path: fileName, mtime: fileStat.mtimeMs }];
+
+    getGitTrackedFilesMock.mockResolvedValue([fileName]);
+    getGitDeletedFilesMock.mockResolvedValue(["removed.ts"]);
+
+    const result = await detectTrackedFilesStatus(trackedFiles, tmpDir);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBe("changed");
   });
 });
