@@ -137,7 +137,7 @@ function computeDanglingRank(graph: DependencyGraph, ranks: Map<string, number>)
   return danglingRank;
 }
 
-function normalizeRanks(ranks: Map<string, number>): Map<string, number> {
+export function normalizeRanks(ranks: Map<string, number>): Map<string, number> {
   let totalRank = 0;
   for (const value of ranks.values()) {
     totalRank += value;

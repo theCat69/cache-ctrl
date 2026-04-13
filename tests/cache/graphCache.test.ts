@@ -4,9 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { readCache, writeCache } from "../../src/cache/cacheManager.js";
-import { resolveGraphCachePath } from "../../src/cache/graphCache.js";
-import { GraphCacheFileSchema } from "../../src/types/cache.js";
-import type { GraphCacheFile } from "../../src/cache/graphCache.js";
+import { resolveGraphCachePath } from "../../src/cache/localCache.js";
+import { GraphCacheFileSchema, type GraphCacheFile } from "../../src/types/cache.js";
 
 let origCwd: string;
 let tmpDir: string;

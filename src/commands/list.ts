@@ -1,7 +1,7 @@
 import { findRepoRoot, loadExternalCacheEntries, readCache } from "../cache/cacheManager.js";
 import { getAgeHuman, isFetchedAtStale } from "../cache/externalCache.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
-import { checkFilesCommand } from "./checkFiles.js";
+import { detectTrackedFilesStatus } from "../files/changeDetector.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../utils/errors.js";
@@ -48,16 +48,16 @@ export async function listCommand(args: ListArgs): Promise<Result<ListResult["va
           const timestamp = data.timestamp ?? "";
           const description = data.description;
 
-          const checkResult = await checkFilesCommand();
-          if (!checkResult.ok) {
+          const localStatusResult = await detectTrackedFilesStatus(data.tracked_files, repoRoot);
+          if (!localStatusResult.ok) {
             process.stderr.write(
-              `[cache-ctrl] Warning: could not compute local cache staleness: ${checkResult.error}\n`,
+              `[cache-ctrl] Warning: could not compute local cache staleness: ${localStatusResult.error}\n`,
             );
           }
           // Local entry is stale if:
           //   1. The timestamp has been zeroed (entry was invalidated), OR
           //   2. check-files reports changed files
-          const isStale = !timestamp || !checkResult.ok || checkResult.value.status === "changed";
+          const isStale = !timestamp || !localStatusResult.ok || localStatusResult.value === "changed";
 
           entries.push({
             file: localPath,

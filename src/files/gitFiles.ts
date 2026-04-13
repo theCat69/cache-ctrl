@@ -10,18 +10,22 @@ function parseGitOutput(stdout: string): string[] {
     .filter((l) => l.length > 0);
 }
 
+async function runGitCommand(args: string[], repoRoot: string): Promise<string[]> {
+  try {
+    const result = await execFileAsync("git", args, { cwd: repoRoot, maxBuffer: 10 * 1024 * 1024 });
+    return parseGitOutput(result.stdout);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Returns git-tracked file paths for a repository.
  *
  * Falls back to `[]` when git is unavailable, command execution fails, or directory is not a git repo.
  */
 export async function getGitTrackedFiles(repoRoot: string): Promise<string[]> {
-  try {
-    const result = await execFileAsync("git", ["ls-files"], { cwd: repoRoot, maxBuffer: 10 * 1024 * 1024 });
-    return parseGitOutput(result.stdout);
-  } catch {
-    return [];
-  }
+  return runGitCommand(["ls-files"], repoRoot);
 }
 
 /**
@@ -30,12 +34,7 @@ export async function getGitTrackedFiles(repoRoot: string): Promise<string[]> {
  * Falls back to `[]` when git is unavailable, command execution fails, or directory is not a git repo.
  */
 export async function getGitDeletedFiles(repoRoot: string): Promise<string[]> {
-  try {
-    const result = await execFileAsync("git", ["ls-files", "--deleted"], { cwd: repoRoot, maxBuffer: 10 * 1024 * 1024 });
-    return parseGitOutput(result.stdout);
-  } catch {
-    return [];
-  }
+  return runGitCommand(["ls-files", "--deleted"], repoRoot);
 }
 
 /**
@@ -44,13 +43,6 @@ export async function getGitDeletedFiles(repoRoot: string): Promise<string[]> {
  * Falls back to `[]` when git is unavailable, command execution fails, or directory is not a git repo.
  */
 export async function getUntrackedNonIgnoredFiles(repoRoot: string): Promise<string[]> {
-  try {
-    const result = await execFileAsync("git", ["ls-files", "--others", "--exclude-standard"], {
-      cwd: repoRoot,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    return parseGitOutput(result.stdout).filter((p) => !p.endsWith("/"));
-  } catch {
-    return [];
-  }
+  const files = await runGitCommand(["ls-files", "--others", "--exclude-standard"], repoRoot);
+  return files.filter((p) => !p.endsWith("/"));
 }

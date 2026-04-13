@@ -1,8 +1,6 @@
-import os from "node:os";
-import path from "node:path";
-
 import type { UpdateArgs, UpdateResult } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
+import { validateConfigDir } from "../utils/configDir.js";
 
 import { installCommand } from "./install.js";
 
@@ -13,19 +11,8 @@ const textDecoder = new TextDecoder();
  */
 export async function updateCommand(args: UpdateArgs): Promise<Result<UpdateResult>> {
   try {
-    if (args.configDir !== undefined) {
-      const absConfigDir = path.isAbsolute(args.configDir)
-        ? path.resolve(args.configDir)
-        : path.resolve(process.cwd(), args.configDir);
-      const home = os.homedir();
-      if (!absConfigDir.startsWith(home + path.sep) && absConfigDir !== home) {
-        return {
-          ok: false,
-          error: `--config-dir must be within the user home directory, got: ${args.configDir}`,
-          code: ErrorCode.INVALID_ARGS,
-        };
-      }
-    }
+    const configDirValidation = validateConfigDir(args.configDir);
+    if (!configDirValidation.ok) return configDirValidation;
 
     const warnings: string[] = [];
     let packageUpdated = true;
