@@ -61,7 +61,8 @@ export async function readCache(filePath: string): Promise<Result<Record<string,
     } catch {
       return { ok: false, error: `Failed to parse JSON: ${filePath}`, code: ErrorCode.PARSE_ERROR };
     }
-  } catch (err) {
+    } catch (err) {
+    // intentional: err is ErrnoException at this catch site — structuredError is set only on filesystem failures
     const error = err as NodeJS.ErrnoException;
     if (error.code === "ENOENT") {
       return { ok: false, error: `Cache file not found: ${filePath}`, code: ErrorCode.FILE_NOT_FOUND };
@@ -116,6 +117,7 @@ export async function writeCache(
       await rename(tmpPath, filePath);
       return { ok: true, value: undefined };
     } catch (err) {
+      // intentional: err is ErrnoException at this catch site — structuredError is set only on filesystem failures
       const error = err as NodeJS.ErrnoException;
       // Clean up tmp file on failure
       try {
@@ -147,6 +149,7 @@ export async function listCacheFiles(agent: AgentType, repoRoot: string): Promis
       .map((name) => join(cacheDir, name));
     return { ok: true, value: jsonFiles };
   } catch (err) {
+    // intentional: err is ErrnoException at this catch site — structuredError is set only on filesystem failures
     const error = err as NodeJS.ErrnoException;
     if (error.code === "ENOENT") {
       return { ok: true, value: [] };
@@ -187,7 +190,7 @@ export async function loadExternalCacheEntries(repoRoot: string): Promise<Result
       agent: "external",
       subject,
       description: data.description,
-      fetched_at: data.fetched_at ?? "",
+      fetched_at: data.fetched_at,
     });
   }
 
@@ -215,7 +218,8 @@ export async function acquireLock(filePath: string): Promise<Result<void>> {
       await fh.write(`${process.pid}\n`);
       await fh.close();
       return { ok: true, value: undefined };
-    } catch (err) {
+  } catch (err) {
+      // intentional: err is ErrnoException at this catch site — structuredError is set only on filesystem failures
       const error = err as NodeJS.ErrnoException;
       if (error.code !== "EEXIST") {
         return { ok: false, error: `Lock error: ${error.message}`, code: ErrorCode.LOCK_ERROR };
@@ -256,6 +260,7 @@ export async function releaseLock(filePath: string): Promise<void> {
   try {
     await unlink(lockPath);
   } catch (err) {
+    // intentional: err is ErrnoException at this catch site — structuredError is set only on filesystem failures
     const error = err as NodeJS.ErrnoException;
     if (error.code !== "ENOENT") {
       process.stderr.write(`[cache-ctrl] Warning: failed to release lock ${lockPath}: ${error.message}\n`);

@@ -194,6 +194,12 @@ export interface GraphArgs {
   seed?: string[];
 }
 
+/**
+ * Result shapes follow command compatibility tiers: canonical `{ ok: true; value }`,
+ * legacy `{ value }` payloads, and install/update/uninstall payload-only results.
+ * Keep existing shapes stable to avoid breaking CLI/tool consumers.
+ */
+
 // ── watch ─────────────────────────────────────────────────────────────────────
 
 /** Arguments accepted by the `watch` command. */

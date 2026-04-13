@@ -45,7 +45,7 @@ export async function listCommand(args: ListArgs): Promise<Result<ListResult["va
         const parseResult = LocalCacheFileSchema.safeParse(readResult.value);
         if (parseResult.success) {
           const data = parseResult.data;
-          const timestamp = data.timestamp ?? "";
+          const timestamp = data.timestamp;
           const description = data.description;
 
           const localStatusResult = await detectTrackedFilesStatus(data.tracked_files, repoRoot);
@@ -62,7 +62,7 @@ export async function listCommand(args: ListArgs): Promise<Result<ListResult["va
           entries.push({
             file: localPath,
             agent: "local",
-            subject: data.topic ?? "local",
+            subject: data.topic,
             ...(description !== undefined ? { description } : {}),
             fetched_at: timestamp,
             age_human: getAgeHuman(timestamp),
