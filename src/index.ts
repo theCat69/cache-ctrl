@@ -364,6 +364,25 @@ function printError(error: { ok: false; error: string; code: string }, pretty: b
   printJson(error, process.stderr, pretty);
 }
 
+async function runConfigDirCommand<T>(
+  flags: Record<string, string | boolean>,
+  commandFn: (args: { configDir?: string }) => Promise<{ ok: true; value: T } | { ok: false; error: string; code: string }>,
+  pretty: boolean,
+): Promise<void> {
+  if (flags["config-dir"] === true) {
+    usageError("--config-dir requires a value: --config-dir <path>");
+  }
+
+  const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
+  const result = await commandFn(configDir !== undefined ? { configDir } : {});
+  if (result.ok) {
+    printResult(result, pretty);
+  } else {
+    printError(result, pretty);
+    process.exit(1);
+  }
+}
+
 /**
  * Prints a structured usage error and terminates the process.
  *
@@ -704,47 +723,17 @@ async function main(): Promise<void> {
     }
 
     case "install": {
-      if (flags["config-dir"] === true) {
-        usageError("--config-dir requires a value: --config-dir <path>");
-      }
-      const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
-      const result = await installCommand({ ...(configDir !== undefined ? { configDir } : {}) });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      await runConfigDirCommand(flags, installCommand, pretty);
       break;
     }
 
     case "update": {
-      if (flags["config-dir"] === true) {
-        usageError("--config-dir requires a value: --config-dir <path>");
-      }
-      const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
-      const result = await updateCommand({ ...(configDir !== undefined ? { configDir } : {}) });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      await runConfigDirCommand(flags, updateCommand, pretty);
       break;
     }
 
     case "uninstall": {
-      if (flags["config-dir"] === true) {
-        usageError("--config-dir requires a value: --config-dir <path>");
-      }
-      const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
-      const result = await uninstallCommand({ ...(configDir !== undefined ? { configDir } : {}) });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      await runConfigDirCommand(flags, uninstallCommand, pretty);
       break;
     }
 

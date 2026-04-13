@@ -25,6 +25,21 @@ function handleUnknownError(err: unknown): string {
   return withServerTime(toUnknownResult(err));
 }
 
+type PickDefined<T extends object, K extends keyof T> = {
+  [P in K]?: Exclude<T[P], undefined>;
+};
+
+function pickDefined<T extends object, K extends keyof T>(src: T, keys: readonly K[]): PickDefined<T, K> {
+  const picked: Record<string, unknown> = {};
+  for (const key of keys) {
+    const value = src[key];
+    if (value !== undefined) {
+      picked[String(key)] = value;
+    }
+  }
+  return picked as PickDefined<T, K>; // Narrowed by runtime undefined filter above.
+}
+
 export const search = tool({
   description: "Search all cache entries by keyword. Returns ranked list with agent type, subject, description, and staleness info.",
   args: {
@@ -81,11 +96,14 @@ export const inspect_local = tool({
   },
   async execute(args) {
     try {
-      const result = await inspectLocalCommand({
-        ...(args.filter !== undefined ? { filter: args.filter } : {}),
-        ...(args.folder !== undefined ? { folder: args.folder } : {}),
-        ...(args.search_facts !== undefined ? { searchFacts: args.search_facts } : {}),
-      });
+      const inspectLocalArgs = {
+        filter: args.filter,
+        folder: args.folder,
+        searchFacts: args.search_facts,
+      };
+      const result = await inspectLocalCommand(
+        pickDefined(inspectLocalArgs, ["filter", "folder", "searchFacts"] as const),
+      );
       return withServerTime(result);
     } catch (err) {
       return handleUnknownError(err);
@@ -103,7 +121,7 @@ export const invalidate = tool({
     try {
       const result = await invalidateCommand({
         agent: args.agent,
-        ...(args.subject !== undefined ? { subject: args.subject } : {}),
+        ...pickDefined(args, ["subject"] as const),
       });
       return withServerTime(result);
     } catch (err) {
@@ -156,9 +174,7 @@ export const write_local = tool({
           topic: args.topic,
           description: args.description,
           tracked_files: args.tracked_files,
-          ...(args.global_facts !== undefined ? { global_facts: args.global_facts } : {}),
-          ...(args.facts !== undefined ? { facts: args.facts } : {}),
-          ...(args.cache_miss_reason !== undefined ? { cache_miss_reason: args.cache_miss_reason } : {}),
+          ...pickDefined(args, ["global_facts", "facts", "cache_miss_reason"] as const),
         },
       });
       return withServerTime(result);
@@ -220,10 +236,7 @@ export const graph = tool({
   },
   async execute(args) {
     try {
-      const result = await graphCommand({
-        ...(args.maxTokens !== undefined ? { maxTokens: args.maxTokens } : {}),
-        ...(args.seed !== undefined ? { seed: args.seed } : {}),
-      });
+      const result = await graphCommand(pickDefined(args, ["maxTokens", "seed"] as const));
       return withServerTime(result);
     } catch (err) {
       return handleUnknownError(err);
@@ -243,10 +256,7 @@ export const map = tool({
   },
   async execute(args) {
     try {
-      const result = await mapCommand({
-        ...(args.depth !== undefined ? { depth: args.depth } : {}),
-        ...(args.folder !== undefined ? { folder: args.folder } : {}),
-      });
+      const result = await mapCommand(pickDefined(args, ["depth", "folder"] as const));
       return withServerTime(result);
     } catch (err) {
       return handleUnknownError(err);

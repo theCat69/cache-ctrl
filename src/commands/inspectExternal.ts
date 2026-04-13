@@ -1,10 +1,11 @@
-import { findRepoRoot, loadExternalCacheEntries, readCache } from "../cache/cacheManager.js";
+import { findRepoRoot, listCacheFiles, readCache } from "../cache/cacheManager.js";
 import { scoreEntry } from "../search/keywordSearch.js";
 import type { CacheEntry, ExternalCacheFile } from "../types/cache.js";
 import type { InspectExternalArgs, InspectExternalResult } from "../types/commands.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../utils/errors.js";
+import { getFileStem } from "../utils/fileStem.js";
 import { validateSubject } from "../utils/validate.js";
 
 /**
@@ -22,17 +23,39 @@ export async function inspectExternalCommand(
     if (!subjectValidation.ok) return subjectValidation;
     const repoRoot = await findRepoRoot(process.cwd());
 
-    const entriesResult = await loadExternalCacheEntries(repoRoot);
-    if (!entriesResult.ok) return entriesResult;
+    const filesResult = await listCacheFiles("external", repoRoot);
+    if (!filesResult.ok) return filesResult;
 
     const candidates: Array<{ entry: CacheEntry; content: ExternalCacheFile; file: string }> = [];
 
-    for (const entry of entriesResult.value) {
-      const readResult = await readCache(entry.file);
-      if (!readResult.ok) continue;
+    for (const filePath of filesResult.value) {
+      const readResult = await readCache(filePath);
+      if (!readResult.ok) {
+        process.stderr.write(`[cache-ctrl] Warning: skipping invalid JSON file: ${filePath}\n`);
+        continue;
+      }
       const parseResult = ExternalCacheFileSchema.safeParse(readResult.value);
-      if (!parseResult.success) continue;
-      candidates.push({ entry, content: parseResult.data, file: entry.file });
+      if (!parseResult.success) {
+        process.stderr.write(`[cache-ctrl] Warning: skipping malformed external cache file: ${filePath}\n`);
+        continue;
+      }
+      const content = parseResult.data;
+      const stem = getFileStem(filePath);
+      const subject = content.subject ?? stem;
+      if (subject !== stem) {
+        process.stderr.write(`[cache-ctrl] Warning: subject "${subject}" does not match file stem "${stem}" in ${filePath}\n`);
+      }
+      candidates.push({
+        entry: {
+          file: filePath,
+          agent: "external",
+          subject,
+          description: content.description,
+          fetched_at: content.fetched_at,
+        },
+        content,
+        file: filePath,
+      });
     }
 
     if (candidates.length === 0) {
