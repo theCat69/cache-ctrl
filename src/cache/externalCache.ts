@@ -1,4 +1,3 @@
-import type { ExternalCacheFile } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { listCacheFiles, loadExternalCacheEntries, writeCache } from "./cacheManager.js";
 import { scoreEntry } from "../search/keywordSearch.js";
@@ -18,17 +17,6 @@ export function isFetchedAtStale(fetchedAt: string, maxAgeMs?: number): boolean 
   const threshold = maxAgeMs ?? DEFAULT_MAX_AGE_MS;
   const age = Date.now() - new Date(fetchedAt).getTime();
   return age > threshold;
-}
-
-/**
- * Evaluates staleness for a full external cache entry.
- *
- * @param entry - External cache entry.
- * @param maxAgeMs - Optional max age override in milliseconds.
- * @returns `true` when entry should be considered stale.
- */
-export function isExternalStale(entry: ExternalCacheFile, maxAgeMs?: number): boolean {
-  return isFetchedAtStale(entry.fetched_at ?? "", maxAgeMs);
 }
 
 /**

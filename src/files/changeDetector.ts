@@ -6,6 +6,11 @@ import { getGitDeletedFiles, getGitTrackedFiles, getUntrackedNonIgnoredFiles } f
 import type { TrackedFile } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 
+interface GitFileSetDelta {
+  newFiles: string[];
+  deletedGitFiles: string[];
+}
+
 /**
  * Comparison outcome for one tracked file baseline.
  *
@@ -29,23 +34,7 @@ export async function detectTrackedFilesStatus(
   try {
     const comparisons = await Promise.all(trackedFiles.map((file) => compareTrackedFile(file, repoRoot)));
     const hasTrackedDiff = comparisons.some((comparison) => comparison.status !== "unchanged");
-
-    const [gitTrackedFiles, deletedGitFiles, untrackedNonIgnoredFiles] = await Promise.all([
-      getGitTrackedFiles(repoRoot),
-      getGitDeletedFiles(repoRoot),
-      getUntrackedNonIgnoredFiles(repoRoot),
-    ]);
-
-    const toRepoRelativePosix = (filePath: string): string => {
-      const relPath = isAbsolute(filePath) ? relative(repoRoot, filePath) : filePath;
-      return relPath.split(sep).join(posix.sep);
-    };
-
-    const cachedPaths = new Set(trackedFiles.map((file) => toRepoRelativePosix(file.path)));
-    const baseFiles = trackedFiles.length > 0 ? gitTrackedFiles : [];
-    const newFiles = [...new Set([...baseFiles, ...untrackedNonIgnoredFiles])].filter(
-      (filePath) => !cachedPaths.has(toRepoRelativePosix(filePath)),
-    );
+    const { newFiles, deletedGitFiles } = await computeGitFileSetDelta(trackedFiles, repoRoot);
 
     const status = hasTrackedDiff || newFiles.length > 0 || deletedGitFiles.length > 0 ? "changed" : "unchanged";
     return { ok: true, value: status };
@@ -118,6 +107,27 @@ export function resolveTrackedFilePath(inputPath: string, repoRoot: string): str
     return null; // path traversal rejected
   }
   return resolved;
+}
+
+export function toRepoRelativePosixPath(filePath: string, repoRoot: string): string {
+  const relPath = isAbsolute(filePath) ? relative(repoRoot, filePath) : filePath;
+  return relPath.split(sep).join(posix.sep);
+}
+
+export async function computeGitFileSetDelta(trackedFiles: TrackedFile[], repoRoot: string): Promise<GitFileSetDelta> {
+  const [gitTrackedFiles, deletedGitFiles, untrackedNonIgnoredFiles] = await Promise.all([
+    getGitTrackedFiles(repoRoot),
+    getGitDeletedFiles(repoRoot),
+    getUntrackedNonIgnoredFiles(repoRoot),
+  ]);
+
+  const cachedPaths = new Set(trackedFiles.map((file) => toRepoRelativePosixPath(file.path, repoRoot)));
+  const baseFiles = trackedFiles.length > 0 ? gitTrackedFiles : [];
+  const newFiles = [...new Set([...baseFiles, ...untrackedNonIgnoredFiles])].filter(
+    (filePath) => !cachedPaths.has(toRepoRelativePosixPath(filePath, repoRoot)),
+  );
+
+  return { newFiles, deletedGitFiles };
 }
 
 /**

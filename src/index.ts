@@ -364,6 +364,19 @@ function printError(error: { ok: false; error: string; code: string }, pretty: b
   printJson(error, process.stderr, pretty);
 }
 
+function dispatchResult(
+  result: { ok: true; value: unknown } | { ok: false; error: string; code: string },
+  pretty: boolean,
+): void {
+  if (result.ok) {
+    printResult(result, pretty);
+    return;
+  }
+
+  printError(result, pretty);
+  process.exit(1);
+}
+
 async function runConfigDirCommand<T>(
   flags: Record<string, string | boolean>,
   commandFn: (args: { configDir?: string }) => Promise<{ ok: true; value: T } | { ok: false; error: string; code: string }>,
@@ -375,12 +388,7 @@ async function runConfigDirCommand<T>(
 
   const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
   const result = await commandFn(configDir !== undefined ? { configDir } : {});
-  if (result.ok) {
-    printResult(result, pretty);
-  } else {
-    printError(result, pretty);
-    process.exit(1);
-  }
+  dispatchResult(result, pretty);
 }
 
 /**
@@ -490,12 +498,7 @@ async function main(): Promise<void> {
       const result = await listCommand({
         ...(agentArg !== undefined ? { agent: agentArg } : {}),
       });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -506,12 +509,7 @@ async function main(): Promise<void> {
       }
 
       const result = await inspectExternalCommand({ subject });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -550,12 +548,7 @@ async function main(): Promise<void> {
         ...(folder !== undefined ? { folder } : {}),
         ...(searchFacts !== undefined ? { searchFacts } : {}),
       });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -569,12 +562,7 @@ async function main(): Promise<void> {
       }
       const confirm = flags.confirm === true;
       const result = await flushCommand({ agent, confirm });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -588,12 +576,7 @@ async function main(): Promise<void> {
       }
       const subject = args[2];
       const result = await invalidateCommand({ agent, ...(subject !== undefined ? { subject } : {}) });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -607,12 +590,7 @@ async function main(): Promise<void> {
       }
       const subject = args[2];
       const result = await touchCommand({ agent, ...(subject !== undefined ? { subject } : {}) });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -628,23 +606,13 @@ async function main(): Promise<void> {
         ...(maxAge !== undefined ? { maxAge } : {}),
         delete: doDelete,
       });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
     case "check-files": {
       const result = await checkFilesCommand();
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -654,12 +622,7 @@ async function main(): Promise<void> {
         usageError("Usage: cache-ctrl search <keyword> [<keyword>...]");
       }
       const result = await searchCommand({ keywords });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -681,12 +644,7 @@ async function main(): Promise<void> {
         agent: "local",
         content,
       });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -713,12 +671,7 @@ async function main(): Promise<void> {
         subject,
         content,
       });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -763,12 +716,7 @@ async function main(): Promise<void> {
         ...(maxTokensParsed !== undefined ? { maxTokens: maxTokensParsed } : {}),
         ...(seed.length > 0 ? { seed } : {}),
       });
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -789,13 +737,7 @@ async function main(): Promise<void> {
         ...(depthRaw !== undefined ? { depth: depthRaw } : {}),
         ...(folder !== undefined ? { folder } : {}),
       });
-
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -810,12 +752,7 @@ async function main(): Promise<void> {
 
     case "version": {
       const result = versionCommand({});
-      if (result.ok) {
-        printResult(result, pretty);
-      } else {
-        printError(result, pretty);
-        process.exit(1);
-      }
+      dispatchResult(result, pretty);
       break;
     }
 
