@@ -92,7 +92,7 @@ describe("invalidateCommand", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.invalidated).toContain(localPath);
-    expect(result.value.invalidated).not.toContain(graphPath);
+    expect(result.value.invalidated).toContain(graphPath);
 
     const localContent = JSON.parse(await readFile(localPath, "utf-8")) as Record<string, unknown>;
     const graphContent = JSON.parse(await readFile(graphPath, "utf-8")) as Record<string, unknown>;

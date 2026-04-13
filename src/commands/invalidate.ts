@@ -40,6 +40,7 @@ export async function invalidateCommand(args: InvalidateArgs): Promise<Result<In
       if (graphReadResult.ok) {
         const graphWriteResult = await writeCache(graphPath, { computed_at: "" });
         if (!graphWriteResult.ok) return graphWriteResult;
+        invalidated.push(graphPath);
       } else if (graphReadResult.code !== ErrorCode.FILE_NOT_FOUND) {
         return graphReadResult;
       }

@@ -232,7 +232,7 @@ export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
         return;
       }
 
-      if (args.verbose) {
+      if (args.verbose === true) {
         process.stdout.write(`[watch] File changed: ${absolutePath}, recomputing...\n`);
       }
 

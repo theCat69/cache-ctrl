@@ -17,6 +17,7 @@ import { graphCommand } from "./commands/graph.js";
 import { mapCommand } from "./commands/map.js";
 import { watchCommand } from "./commands/watch.js";
 import { versionCommand } from "./commands/version.js";
+import type { AgentType } from "./types/cache.js";
 import { ErrorCode } from "./types/result.js";
 import { toUnknownResult } from "./utils/errors.js";
 
@@ -40,8 +41,14 @@ type CommandName =
   | "watch"
   | "version";
 
+type ListAgent = AgentType | "all";
+
 function isKnownCommand(cmd: string): cmd is CommandName {
   return Object.hasOwn(COMMAND_HELP as Record<string, unknown>, cmd);
+}
+
+function isListAgent(value: string | undefined): value is ListAgent {
+  return value === "external" || value === "local" || value === "all";
 }
 
 interface CommandHelp {
@@ -458,12 +465,11 @@ async function main(): Promise<void> {
     }
     case "list": {
       const agentArg = typeof flags.agent === "string" ? flags.agent : undefined;
-      const validAgents: (string | undefined)[] = ["external", "local", "all", undefined];
-      if (!validAgents.includes(agentArg)) {
+      if (agentArg !== undefined && !isListAgent(agentArg)) {
         usageError(`Invalid --agent value: "${agentArg}". Must be external, local, or all`);
       }
       const result = await listCommand({
-        ...(agentArg !== undefined ? { agent: agentArg as "external" | "local" | "all" } : {}),
+        ...(agentArg !== undefined ? { agent: agentArg } : {}),
       });
       if (result.ok) {
         printResult(result, pretty);
