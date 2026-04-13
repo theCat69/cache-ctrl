@@ -138,4 +138,19 @@ describe("uninstallCommand", () => {
     expect(result.code).toBe(ErrorCode.INVALID_ARGS);
     expect(result.error).toContain("--config-dir must be within the user home directory");
   });
+
+  it("accepts configDir exactly equal to home directory", async () => {
+    resolveOpenCodeConfigDirMock.mockReturnValue("/home/tester");
+    readdirMock.mockResolvedValue([]);
+
+    const result = await uninstallCommand({ configDir: "/home/tester" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(resolveOpenCodeConfigDirMock).toHaveBeenCalledWith("/home/tester");
+    expect(result.value.packageUninstalled).toBe(true);
+    expect(result.value.warnings).toEqual([]);
+    expect(result.value.removed).toContain("/home/tester/tools/cache_ctrl.ts");
+  });
 });
