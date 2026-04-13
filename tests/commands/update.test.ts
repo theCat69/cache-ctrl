@@ -1,15 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { installCommandMock } = vi.hoisted(() => ({
-  installCommandMock: vi.fn(),
-}));
-
 const { homedirMock } = vi.hoisted(() => ({
   homedirMock: vi.fn(() => "/home/tester"),
-}));
-
-vi.mock("../../src/commands/install.js", () => ({
-  installCommand: installCommandMock,
 }));
 
 vi.mock("node:os", () => ({
@@ -21,49 +13,50 @@ vi.mock("node:os", () => ({
 import { updateCommand } from "../../src/commands/update.js";
 import { ErrorCode } from "../../src/types/result.js";
 
-function createSpawnResult(exitCode: number, stderrText: string): { exitCode: number; stdout: Uint8Array; stderr: Uint8Array } {
+function createSpawnResult(exitCode: number, stderrText: string, stdoutText = ""): { exitCode: number; stdout: Uint8Array; stderr: Uint8Array } {
   const encoder = new TextEncoder();
   return {
     exitCode,
-    stdout: encoder.encode(""),
+    stdout: encoder.encode(stdoutText),
     stderr: encoder.encode(stderrText),
   };
 }
 
 describe("updateCommand", () => {
-  const globalObject = globalThis as Record<string, unknown>;
-  let originalBun: unknown;
   let spawnSyncMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    spawnSyncMock = vi.fn(() => createSpawnResult(0, ""));
-    originalBun = globalObject.Bun;
-    globalObject.Bun = { spawnSync: spawnSyncMock };
-
-    installCommandMock.mockResolvedValue({
-      ok: true,
-      value: {
-        toolPath: "/cfg/opencode/tools/cache_ctrl.ts",
-        skillPaths: [
-          "/cfg/opencode/skills/cache-ctrl-external/SKILL.md",
-          "/cfg/opencode/skills/cache-ctrl-local/SKILL.md",
-        ],
-        configDir: "/cfg/opencode",
-      },
-    });
+    spawnSyncMock = vi.fn();
+    vi.stubGlobal("Bun", { spawnSync: spawnSyncMock });
   });
 
   afterEach(() => {
-    globalObject.Bun = originalBun;
+    vi.unstubAllGlobals();
   });
 
   it("returns packageUpdated=true and empty warnings when npm and install succeed", async () => {
-    const result = await updateCommand({ configDir: "/home/tester/.config/opencode" });
+    const installStdout = JSON.stringify({
+      toolPath: "/cfg/opencode/tools/cache_ctrl.ts",
+      skillPaths: [
+        "/cfg/opencode/skills/cache-ctrl-external/SKILL.md",
+        "/cfg/opencode/skills/cache-ctrl-local/SKILL.md",
+      ],
+      configDir: "/home/tester/.config/opencode",
+    });
+    spawnSyncMock
+      .mockReturnValueOnce(createSpawnResult(0, ""))
+      .mockReturnValueOnce(createSpawnResult(0, "", installStdout));
+
+    const result = await updateCommand({});
 
     expect(spawnSyncMock).toHaveBeenCalledWith(["npm", "install", "-g", "@thecat69/cache-ctrl@latest"]);
-    expect(installCommandMock).toHaveBeenCalledWith({ configDir: "/home/tester/.config/opencode" });
+    expect(spawnSyncMock).toHaveBeenNthCalledWith(
+      2,
+      [process.execPath, expect.stringMatching(/src\/index\.ts$/), "install", "--config-dir", "/home/tester/.config/opencode"],
+      { stdout: "pipe", stderr: "pipe" },
+    );
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -78,9 +71,18 @@ describe("updateCommand", () => {
   });
 
   it("continues when npm fails and returns warning text", async () => {
-    spawnSyncMock.mockReturnValueOnce(createSpawnResult(1, "npm network error"));
+    const installStdout = JSON.stringify({
+      toolPath: "/cfg/opencode/tools/cache_ctrl.ts",
+      skillPaths: ["/cfg/opencode/skills/cache-ctrl-caller/SKILL.md"],
+      configDir: "/home/tester/.config/opencode",
+    });
+    spawnSyncMock
+      .mockReturnValueOnce(createSpawnResult(1, "npm network error"))
+      .mockReturnValueOnce(createSpawnResult(0, "", installStdout));
 
     const result = await updateCommand({});
+
+    expect(spawnSyncMock).toHaveBeenCalledTimes(2);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -90,12 +92,10 @@ describe("updateCommand", () => {
     expect(result.value.installedPaths).toContain("/cfg/opencode/tools/cache_ctrl.ts");
   });
 
-  it("propagates installCommand error code when installCommand fails", async () => {
-    installCommandMock.mockResolvedValueOnce({
-      ok: false,
-      error: "cannot write tool file",
-      code: ErrorCode.FILE_WRITE_ERROR,
-    });
+  it("returns FILE_WRITE_ERROR when install subprocess fails", async () => {
+    spawnSyncMock
+      .mockReturnValueOnce(createSpawnResult(0, ""))
+      .mockReturnValueOnce(createSpawnResult(1, "cannot write tool file"));
 
     const result = await updateCommand({});
 
@@ -103,11 +103,30 @@ describe("updateCommand", () => {
     if (result.ok) return;
 
     expect(result.code).toBe(ErrorCode.FILE_WRITE_ERROR);
-    expect(result.error).toBe("cannot write tool file");
+    expect(result.error).toContain("cannot write tool file");
+  });
+
+  it("returns warning when install subprocess output is not valid JSON", async () => {
+    spawnSyncMock
+      .mockReturnValueOnce(createSpawnResult(0, ""))
+      .mockReturnValueOnce(createSpawnResult(0, "", "not json"));
+
+    const result = await updateCommand({});
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.installedPaths).toEqual([]);
+    expect(result.value.warnings).toEqual([
+      "cache-ctrl install succeeded but returned unreadable output; installed paths unavailable",
+    ]);
+    expect(result.value.warnings[0]).toContain("unreadable output");
   });
 
   it("returns INVALID_ARGS when configDir resolves outside home directory", async () => {
     const result = await updateCommand({ configDir: "../../etc" });
+
+    expect(spawnSyncMock).not.toHaveBeenCalled();
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
