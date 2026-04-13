@@ -44,13 +44,7 @@ describe("installCommand", () => {
     platformSpy.mockRestore();
   });
 
-  it("resolves linux config dir from XDG_CONFIG_HOME", () => {
-    vi.stubEnv("XDG_CONFIG_HOME", "/xdg/config");
-    expect(resolveOpenCodeConfigDir()).toBe("/xdg/config/opencode");
-  });
-
-  it("resolves linux config dir from ~/.config when XDG_CONFIG_HOME is unset", () => {
-    vi.stubEnv("XDG_CONFIG_HOME", undefined);
+  it("resolves linux config dir to ~/.config/opencode via homedir", () => {
     expect(resolveOpenCodeConfigDir()).toBe("/home/tester/.config/opencode");
   });
 
