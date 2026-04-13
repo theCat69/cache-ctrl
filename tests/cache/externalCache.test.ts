@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   resolveTopExternalMatch,
   getAgeHuman,
+  isFetchedAtStale,
   updateExternalFetchedAt,
 } from "../../src/cache/externalCache.js";
 import { ErrorCode } from "../../src/types/result.js";
@@ -77,6 +78,38 @@ describe("getAgeHuman", () => {
     expect(getAgeHuman(new Date(Date.now() - 3_600_000).toISOString())).toBe("1 hour ago");
     expect(getAgeHuman(new Date(Date.now() - 86_399_999).toISOString())).toBe("23 hours ago");
     expect(getAgeHuman(new Date(Date.now() - 86_400_000).toISOString())).toBe("1 day ago");
+  });
+});
+
+describe("isFetchedAtStale", () => {
+  const maxAgeMs = 24 * 60 * 60 * 1000;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-13T12:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns true for empty fetched_at", () => {
+    expect(isFetchedAtStale("", maxAgeMs)).toBe(true);
+  });
+
+  it("returns false for fresh timestamp below threshold", () => {
+    const fetchedAt = new Date(Date.now() - (maxAgeMs - 1)).toISOString();
+    expect(isFetchedAtStale(fetchedAt, maxAgeMs)).toBe(false);
+  });
+
+  it("returns false exactly at threshold boundary", () => {
+    const fetchedAt = new Date(Date.now() - maxAgeMs).toISOString();
+    expect(isFetchedAtStale(fetchedAt, maxAgeMs)).toBe(false);
+  });
+
+  it("returns true when age exceeds threshold", () => {
+    const fetchedAt = new Date(Date.now() - (maxAgeMs + 1)).toISOString();
+    expect(isFetchedAtStale(fetchedAt, maxAgeMs)).toBe(true);
   });
 });
 
