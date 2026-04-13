@@ -53,4 +53,21 @@ describe("buildGraph", () => {
     expect(nodeA).toBeDefined();
     expect(nodeA?.deps).toEqual([fileB]);
   });
+
+  it("resolves .jsx imports to known .tsx files", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-graph-"));
+    tempDirs.push(tempDir);
+
+    const entryFile = join(tempDir, "entry.ts");
+    const componentFile = join(tempDir, "component.tsx");
+
+    await writeFile(entryFile, "import { Component } from './component.jsx';\nexport const use = Component;");
+    await writeFile(componentFile, "export const Component = () => null;");
+
+    const graph = await buildGraph([entryFile, componentFile], tempDir);
+    const entryNode = graph.get(entryFile);
+
+    expect(entryNode).toBeDefined();
+    expect(entryNode?.deps).toEqual([componentFile]);
+  });
 });

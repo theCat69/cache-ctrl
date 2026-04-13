@@ -120,6 +120,27 @@ const defaultRebuildGraphCacheDependencies = {
 
 type RebuildGraphCacheDependencies = typeof defaultRebuildGraphCacheDependencies;
 
+interface WatchCommandDependencies {
+  findRepoRoot: typeof findRepoRoot;
+  rebuildGraphCache: typeof rebuildGraphCache;
+  resolveBunWatch: typeof resolveBunWatch;
+  setDebounceTimer: typeof setTimeout;
+  clearDebounceTimer: typeof clearTimeout;
+  createKeepAlivePromise: () => Promise<Result<never>>;
+}
+
+const defaultWatchCommandDependencies: WatchCommandDependencies = {
+  findRepoRoot,
+  rebuildGraphCache,
+  resolveBunWatch,
+  setDebounceTimer: setTimeout,
+  clearDebounceTimer: clearTimeout,
+  createKeepAlivePromise: () =>
+    new Promise<Result<never>>(() => {
+      // Keep command alive until signal-based shutdown.
+    }),
+};
+
 export async function rebuildGraphCache(
   repoRoot: string,
   changedPath: string | undefined,
@@ -161,11 +182,18 @@ export async function rebuildGraphCache(
  * @returns Promise<Result<never>>; common failures include FILE_WRITE_ERROR via wrapped
  * UNKNOWN, runtime unavailability errors, and UNKNOWN.
  */
-export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
+export async function watchCommand(
+  args: WatchArgs,
+  dependencies: WatchCommandDependencies = defaultWatchCommandDependencies,
+): Promise<Result<never>> {
   try {
-    const repoRoot = await findRepoRoot(process.cwd());
+    const repoRoot = await dependencies.findRepoRoot(process.cwd());
 
-    const initialRebuildResult = await rebuildGraphCache(repoRoot, undefined, args.verbose === true);
+    const initialRebuildResult = await dependencies.rebuildGraphCache(
+      repoRoot,
+      undefined,
+      args.verbose === true,
+    );
     if (!initialRebuildResult.ok) {
       return initialRebuildResult;
     }
@@ -187,7 +215,11 @@ export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
           rebuildQueued = false;
           const changedPath = pendingChangedPath;
           pendingChangedPath = undefined;
-          const rebuildResult = await rebuildGraphCache(repoRoot, changedPath, args.verbose === true);
+          const rebuildResult = await dependencies.rebuildGraphCache(
+            repoRoot,
+            changedPath,
+            args.verbose === true,
+          );
           if (!rebuildResult.ok) {
             // Error already logged in rebuildGraphCache; continue watching for future changes.
             continue;
@@ -202,16 +234,16 @@ export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
       pendingChangedPath = changedPath;
 
       if (debounceTimer !== undefined) {
-        clearTimeout(debounceTimer);
+        dependencies.clearDebounceTimer(debounceTimer);
       }
 
-      debounceTimer = setTimeout(() => {
+      debounceTimer = dependencies.setDebounceTimer(() => {
         debounceTimer = undefined;
         void triggerRebuild();
       }, WATCH_DEBOUNCE_MS);
     };
 
-    const watchResult = resolveBunWatch();
+    const watchResult = dependencies.resolveBunWatch();
     if (!watchResult.ok) {
       process.stderr.write(`[watch] ${watchResult.error}\n`);
       return watchResult;
@@ -236,7 +268,7 @@ export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
 
     const shutdown = (): void => {
       if (debounceTimer !== undefined) {
-        clearTimeout(debounceTimer);
+        dependencies.clearDebounceTimer(debounceTimer);
       }
       if (args.verbose) {
         process.stdout.write("[watch] Shutting down\n");
@@ -252,9 +284,7 @@ export async function watchCommand(args: WatchArgs): Promise<Result<never>> {
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
 
-    return new Promise<never>(() => {
-      // Keep command alive until signal-based shutdown.
-    });
+    return dependencies.createKeepAlivePromise();
   } catch (err) {
     const unknownError = toUnknownResult(err);
     const message = unknownError.error;

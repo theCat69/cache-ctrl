@@ -9,6 +9,7 @@ import {
   isSourceFile,
   resolveBunWatch,
   resolveSourceFilePaths,
+  watchCommand,
 } from "../../src/commands/watch.js";
 import type { DependencyGraph } from "../../src/analysis/graphBuilder.js";
 import { ErrorCode } from "../../src/types/result.js";
@@ -196,6 +197,107 @@ describe("watch helpers", () => {
       expect(result.code).toBe(ErrorCode.UNKNOWN);
     } finally {
       globalObject.Bun = originalBun;
+    }
+  });
+
+  it("watchCommand returns initial rebuild error and does not start watcher", async () => {
+    const rebuildError = {
+      ok: false as const,
+      error: "initial rebuild failed",
+      code: ErrorCode.FILE_WRITE_ERROR,
+    };
+
+    const dependencies = {
+      findRepoRoot: vi.fn(async () => "/repo"),
+      rebuildGraphCache: vi.fn(async () => rebuildError),
+      resolveBunWatch: vi.fn(() => ({
+        ok: true as const,
+        value: vi.fn(() => ({})),
+      })),
+      setDebounceTimer: setTimeout,
+      clearDebounceTimer: clearTimeout,
+      createKeepAlivePromise: vi.fn(async () => ({
+        ok: false as const,
+        error: "should not be called",
+        code: ErrorCode.UNKNOWN,
+      })),
+    };
+
+    const result = await watchCommand({ verbose: false }, dependencies);
+
+    expect(result).toEqual(rebuildError);
+    expect(dependencies.rebuildGraphCache).toHaveBeenCalledTimes(1);
+    expect(dependencies.resolveBunWatch).not.toHaveBeenCalled();
+    expect(dependencies.createKeepAlivePromise).not.toHaveBeenCalled();
+  });
+
+  it("watchCommand returns Bun.watch resolution error after successful initial rebuild", async () => {
+    const watchUnavailable = {
+      ok: false as const,
+      error: "Bun.watch is not available in this runtime",
+      code: ErrorCode.UNKNOWN,
+    };
+
+    const dependencies = {
+      findRepoRoot: vi.fn(async () => "/repo"),
+      rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      resolveBunWatch: vi.fn(() => watchUnavailable),
+      setDebounceTimer: setTimeout,
+      clearDebounceTimer: clearTimeout,
+      createKeepAlivePromise: vi.fn(async () => ({
+        ok: false as const,
+        error: "should not be called",
+        code: ErrorCode.UNKNOWN,
+      })),
+    };
+
+    const result = await watchCommand({ verbose: false }, dependencies);
+
+    expect(result).toEqual(watchUnavailable);
+    expect(dependencies.rebuildGraphCache).toHaveBeenCalledTimes(1);
+    expect(dependencies.createKeepAlivePromise).not.toHaveBeenCalled();
+  });
+
+  it("watchCommand debounces source changes and rebuilds with changed path", async () => {
+    vi.useFakeTimers();
+    try {
+      let watchCallback: ((event: "rename" | "change", filename: string | null) => void) | undefined;
+      const watchFn = vi.fn((_watchPath: string, _options: { recursive: boolean }, callback) => {
+        watchCallback = callback;
+        return {};
+      });
+
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        resolveBunWatch: vi.fn(() => ({ ok: true as const, value: watchFn })),
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(async () => ({
+          ok: false as const,
+          error: "stop test keep-alive",
+          code: ErrorCode.UNKNOWN,
+        })),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(watchCallback).toBeTypeOf("function");
+      watchCallback?.("change", "src/a.ts");
+      watchCallback?.("change", "README.md");
+
+      await vi.advanceTimersByTimeAsync(200);
+      const result = await commandPromise;
+
+      expect(result.ok).toBe(false);
+      expect(dependencies.rebuildGraphCache).toHaveBeenCalledTimes(2);
+      expect(dependencies.rebuildGraphCache).toHaveBeenNthCalledWith(1, "/repo", undefined, false);
+      expect(dependencies.rebuildGraphCache).toHaveBeenNthCalledWith(2, "/repo", "/repo/src/a.ts", false);
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

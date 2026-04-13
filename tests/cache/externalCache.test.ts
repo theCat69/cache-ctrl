@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveTopExternalMatch, getAgeHuman } from "../../src/cache/externalCache.js";
+import {
+  resolveTopExternalMatch,
+  getAgeHuman,
+  updateExternalFetchedAt,
+} from "../../src/cache/externalCache.js";
 import { ErrorCode } from "../../src/types/result.js";
 
 const EXTERNAL_DIR = join(".ai", "external-context-gatherer_cache");
@@ -124,5 +128,25 @@ describe("resolveTopExternalMatch", () => {
     if (!result.ok) return;
     // Both are valid — just assert one is returned deterministically
     expect(result.value).toMatch(/\/(alpha|beta)\.json$/);
+  });
+});
+
+describe("updateExternalFetchedAt", () => {
+  it("updates fetched_at for matched subject and leaves other entries unchanged", async () => {
+    const alphaPath = await writeEntry("alpha", makeEntry("alpha", "Alpha docs"));
+    const betaPath = await writeEntry("beta", makeEntry("beta", "Beta docs"));
+
+    const nextFetchedAt = "2026-04-13T10:15:30.000Z";
+    const result = await updateExternalFetchedAt(tmpDir, "alpha", nextFetchedAt);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toEqual([alphaPath]);
+
+    const alphaContent = JSON.parse(await readFile(alphaPath, "utf-8")) as { fetched_at?: string };
+    const betaContent = JSON.parse(await readFile(betaPath, "utf-8")) as { fetched_at?: string };
+
+    expect(alphaContent.fetched_at).toBe(nextFetchedAt);
+    expect(betaContent.fetched_at).toBe("2026-04-01T00:00:00Z");
   });
 });
