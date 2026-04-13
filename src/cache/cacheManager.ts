@@ -61,7 +61,7 @@ export async function readCache(filePath: string): Promise<Result<Record<string,
     } catch {
       return { ok: false, error: `Failed to parse JSON: ${filePath}`, code: ErrorCode.PARSE_ERROR };
     }
-    } catch (err) {
+  } catch (err) {
     // intentional: err is ErrnoException at this catch site — structuredError is set only on filesystem failures
     const error = err as NodeJS.ErrnoException;
     if (error.code === "ENOENT") {
@@ -218,32 +218,32 @@ export async function acquireLock(filePath: string): Promise<Result<void>> {
       await fh.write(`${process.pid}\n`);
       await fh.close();
       return { ok: true, value: undefined };
-  } catch (err) {
-      // intentional: err is ErrnoException at this catch site — structuredError is set only on filesystem failures
-      const error = err as NodeJS.ErrnoException;
-      if (error.code !== "EEXIST") {
-        return { ok: false, error: `Lock error: ${error.message}`, code: ErrorCode.LOCK_ERROR };
-      }
-
-      // Lock exists — check if stale
-      const staleResult = await isLockStale(lockPath);
-      if (staleResult) {
-        // Remove stale lock and retry immediately
-        try {
-          await unlink(lockPath);
-        } catch {
-          // Another process may have removed it already
+    } catch (err) {
+        // intentional: err is ErrnoException at this catch site — structuredError is set only on filesystem failures
+        const error = err as NodeJS.ErrnoException;
+        if (error.code !== "EEXIST") {
+          return { ok: false, error: `Lock error: ${error.message}`, code: ErrorCode.LOCK_ERROR };
         }
-        continue;
-      }
 
-      // Check timeout
-      if (Date.now() - start >= LOCK_TIMEOUT_MS) {
-        return { ok: false, error: "Lock timeout: could not acquire lock within 5 seconds", code: ErrorCode.LOCK_TIMEOUT };
-      }
+        // Lock exists — check if stale
+        const staleResult = await isLockStale(lockPath);
+        if (staleResult) {
+          // Remove stale lock and retry immediately
+          try {
+            await unlink(lockPath);
+          } catch {
+            // Another process may have removed it already
+          }
+          continue;
+        }
 
-      // Wait and retry
-      await sleep(LOCK_RETRY_INTERVAL_MS);
+        // Check timeout
+        if (Date.now() - start >= LOCK_TIMEOUT_MS) {
+          return { ok: false, error: "Lock timeout: could not acquire lock within 5 seconds", code: ErrorCode.LOCK_TIMEOUT };
+        }
+
+        // Wait and retry
+        await sleep(LOCK_RETRY_INTERVAL_MS);
     }
   }
 }
