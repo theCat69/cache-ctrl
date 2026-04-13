@@ -65,7 +65,7 @@ describe("inspect-external", () => {
 
 describe("inspect-local — tracked_files stripping and --filter", () => {
   it("returns FILE_NOT_FOUND when local context.json is missing", async () => {
-    await rm(join(repo.dir, ".ai", "local-context-gatherer_cache", "context.json"));
+    await rm(join(repo.dir, ".ai", "local-context-gatherer_cache", "context.json"), { force: true });
 
     const result = await runCli(["inspect-local"], { cwd: repo.dir });
     expect(result.exitCode).toBe(1);
