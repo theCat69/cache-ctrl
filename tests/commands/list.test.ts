@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, writeFile, mkdir, stat } from "node:fs/promises";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { listCommand } from "../../src/commands/list.js";
+import * as changeDetector from "../../src/files/changeDetector.js";
+import { ErrorCode } from "../../src/types/result.js";
 import { initGitRepo } from "../../e2e/helpers/repo.js";
 
 const EXTERNAL_DIR = join(".ai", "external-context-gatherer_cache");
@@ -306,6 +308,39 @@ describe("listCommand", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value[0]!.is_stale).toBe(true);
+  });
+
+  it("marks local entry stale and warns when tracked-file status detection fails", async () => {
+    await setupCacheDir(tmpDir);
+    await writeFile(
+      join(tmpDir, LOCAL_DIR, "context.json"),
+      JSON.stringify({
+        timestamp: makeFetchedAt(0.5),
+        topic: "local scan",
+        description: "desc",
+        tracked_files: [{ path: "tracked.ts", mtime: 123 }],
+      }),
+    );
+
+    const detectSpy = vi.spyOn(changeDetector, "detectTrackedFilesStatus").mockResolvedValue({
+      ok: false,
+      error: "simulated",
+      code: ErrorCode.UNKNOWN,
+    });
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    const result = await listCommand({ agent: "local" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toHaveLength(1);
+    expect(result.value[0]!.is_stale).toBe(true);
+    expect(stderrSpy).toHaveBeenCalledWith(
+      "[cache-ctrl] Warning: could not compute local cache staleness: simulated\n",
+    );
+
+    detectSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
   it("returns empty array when cache directories are empty", async () => {
