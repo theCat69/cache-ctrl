@@ -145,7 +145,7 @@ Updates the globally installed npm package to the latest version, then re-runs t
 1. Runs `npm install -g @thecat69/cache-ctrl@latest`.
 2. Re-runs `cache-ctrl install` (idempotent — regenerates the wrapper with the new package path).
 
-If the `npm install` step fails, the error is recorded in `warnings[]` and the integration install still proceeds.
+If the `npm install` step fails, the error is recorded in `warnings[]` and the integration install still proceeds. If the integration install subprocess exits successfully but returns unreadable (non-JSON) output, `installedPaths` is returned as `[]` with a warning — the integration files were still written correctly.
 
 **Options:**
 
