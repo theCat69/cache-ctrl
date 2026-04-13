@@ -111,19 +111,14 @@ export async function resolveSourceFilePaths(
   return [...sourcePaths];
 }
 
-interface RebuildGraphCacheDependencies {
-  resolveSourceFilePaths: typeof resolveSourceFilePaths;
-  buildGraph: typeof buildGraph;
-  resolveGraphCachePath: typeof resolveGraphCachePath;
-  writeCache: typeof writeCache;
-}
-
-const defaultRebuildGraphCacheDependencies: RebuildGraphCacheDependencies = {
+const defaultRebuildGraphCacheDependencies = {
   resolveSourceFilePaths,
   buildGraph,
   resolveGraphCachePath,
   writeCache,
 };
+
+type RebuildGraphCacheDependencies = typeof defaultRebuildGraphCacheDependencies;
 
 export async function rebuildGraphCache(
   repoRoot: string,

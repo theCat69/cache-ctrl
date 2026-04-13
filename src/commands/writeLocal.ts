@@ -51,14 +51,13 @@ export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteRe
     const resolvedTrackedFiles = await resolveTrackedFileStats(submittedPaths.map((path) => ({ path })), repoRoot);
     const survivingSubmitted = resolvedTrackedFiles.filter((trackedFile) => trackedFile.mtime !== 0);
 
-    const submittedFacts =
-      typeof contentWithTimestamp["facts"] === "object" &&
-      contentWithTimestamp["facts"] !== null &&
-      !Array.isArray(contentWithTimestamp["facts"])
-        ? (contentWithTimestamp["facts"] as Record<string, unknown>)
-        : {};
-    const rawSubmittedFacts = contentWithTimestamp["facts"];
-    if (typeof rawSubmittedFacts === "object" && rawSubmittedFacts !== null && !Array.isArray(rawSubmittedFacts)) {
+    const rawFactsValue = contentWithTimestamp["facts"];
+    const submittedFactsObject =
+      typeof rawFactsValue === "object" && rawFactsValue !== null && !Array.isArray(rawFactsValue)
+        ? rawFactsValue
+        : undefined;
+    const submittedFacts = submittedFactsObject ?? {};
+    if (submittedFactsObject !== undefined) {
       const violatingPaths = Object.keys(submittedFacts).filter((path) => !guardedPaths.has(path));
       if (violatingPaths.length > 0) {
         return {
