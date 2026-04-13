@@ -1,4 +1,6 @@
 node_modules/
 .ai/
+!e2e/fixtures/repo/.ai/
+!e2e/fixtures/repo/.ai/**
 e2e/tests/
 e2e/helpers/

@@ -1,3 +1,5 @@
 .ai
+!e2e/fixtures/repo/.ai/
+!e2e/fixtures/repo/.ai/**
 node_modules
 .opencode/package-lock.json

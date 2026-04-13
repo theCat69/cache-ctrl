@@ -1,0 +1,11 @@
+{
+  "subject": "sample",
+  "description": "sample fixture external cache entry",
+  "fetched_at": "2025-01-01T00:00:00.000Z",
+  "sources": [
+    {
+      "type": "docs",
+      "url": "https://example.com/sample"
+    }
+  ]
+}

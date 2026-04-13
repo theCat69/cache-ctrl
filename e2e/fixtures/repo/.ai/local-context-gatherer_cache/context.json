@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-01-01T00:00:00.000Z",
+  "topic": "sample-local",
+  "description": "fixture local cache entry",
+  "tracked_files": [
+    {
+      "path": "src/file-a.ts",
+      "mtime": 1735689600000
+    },
+    {
+      "path": "src/file-b.ts",
+      "mtime": 1735689600000
+    }
+  ],
+  "facts": {
+    "src/file-a.ts": {
+      "facts": [
+        "fixture file a"
+      ]
+    },
+    "src/file-b.ts": {
+      "facts": [
+        "fixture file b"
+      ]
+    }
+  }
+}
