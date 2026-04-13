@@ -87,7 +87,6 @@ export type ExternalCacheFile = z.infer<typeof ExternalCacheFileSchema>;
 export type LocalCacheFile = z.infer<typeof LocalCacheFileSchema>;
 
 const GraphNodeSchema = z.object({
-  rank: z.number(),
   deps: z.array(z.string()),
   defs: z.array(z.string()),
 });

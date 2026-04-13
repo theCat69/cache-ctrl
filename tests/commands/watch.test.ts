@@ -35,12 +35,10 @@ describe("watch helpers", () => {
     const files = serializeGraphToCache(graph);
 
     expect(files["/repo/src/a.ts"]).toEqual({
-      rank: 0,
       deps: ["/repo/src/b.ts"],
       defs: ["A"],
     });
     expect(files["/repo/src/b.ts"]).toEqual({
-      rank: 0,
       deps: [],
       defs: ["B"],
     });
@@ -144,6 +142,46 @@ describe("watch helpers", () => {
     expect(dependencies.writeCache).toHaveBeenCalledOnce();
 
     stderrSpy.mockRestore();
+  });
+
+  it("rebuildGraphCache returns ok and writes serialized graph payload", async () => {
+    const dependencies = {
+      resolveSourceFilePaths: vi.fn(async () => ["/repo/src/a.ts"]),
+      buildGraph: vi.fn(async (): Promise<DependencyGraph> =>
+        new Map([
+          [
+            "/repo/src/a.ts",
+            {
+              deps: ["/repo/src/b.ts"],
+              defs: ["A"],
+            },
+          ],
+        ]),
+      ),
+      resolveGraphCachePath: vi.fn(() => "/repo/.cache-ctrl/graph.json"),
+      writeCache: vi.fn(async () => ({
+        ok: true as const,
+        value: undefined,
+      })),
+    };
+
+    const result = await rebuildGraphCache("/repo", "/repo/src/a.ts", false, dependencies);
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(dependencies.writeCache).toHaveBeenCalledOnce();
+    expect(dependencies.writeCache).toHaveBeenCalledWith(
+      "/repo/.cache-ctrl/graph.json",
+      {
+        files: {
+          "/repo/src/a.ts": {
+            deps: ["/repo/src/b.ts"],
+            defs: ["A"],
+          },
+        },
+        computed_at: expect.any(String),
+      },
+      "replace",
+    );
   });
 
   it("resolveBunWatch returns UNKNOWN when Bun.watch is unavailable", () => {
