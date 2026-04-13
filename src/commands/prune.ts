@@ -1,6 +1,6 @@
 import { unlink } from "node:fs/promises";
 import { findRepoRoot, listCacheFiles, writeCache, readCache } from "../cache/cacheManager.js";
-import { isExternalStale } from "../cache/externalCache.js";
+import { isFetchedAtStale } from "../cache/externalCache.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
@@ -57,7 +57,7 @@ export async function pruneCommand(args: PruneArgs): Promise<Result<PruneResult[
         if (!parseResult.success) continue;
         const data = parseResult.data;
 
-        if (isExternalStale(data, externalMaxAgeMs ?? undefined)) {
+        if (isFetchedAtStale(data.fetched_at ?? "", externalMaxAgeMs ?? undefined)) {
           const stem = getFileStem(filePath);
           const subject = data.subject ?? stem;
           matched.push({ file: filePath, agent: "external", subject });
