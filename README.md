@@ -16,7 +16,7 @@ cache-ctrl install
 ```
 
 `cache-ctrl install` configures the OpenCode integration in one step:
-- Writes an OpenCode tool wrapper at `~/.config/opencode/tools/cache_ctrl.ts` (Linux/macOS) or `%APPDATA%\opencode\tools\cache_ctrl.ts` (Windows).
+- Writes an OpenCode tool wrapper at `~/.config/opencode/tools/cache_ctrl.ts`.
 - Copies 3 skill SKILL.md files to `~/.config/opencode/skills/`.
 
 **Prerequisites**: `bun` ≥ 1.0.0 must be in `PATH` (Bun executes the TypeScript files natively — no build step).
@@ -106,8 +106,7 @@ Both operations are idempotent — re-running `cache-ctrl install` after `npm up
 
 **OpenCode config directory resolution** (in priority order):
 1. `--config-dir <path>` flag (explicit override; relative paths are resolved to absolute paths)
-2. `~/.config/opencode` (Linux/macOS)
-3. `%APPDATA%\opencode` (Windows)
+2. `~/.config/opencode`
 
 **Options:**
 

@@ -28,31 +28,17 @@ import {
 import { ErrorCode } from "../../src/types/result.js";
 
 describe("installCommand", () => {
-  let platformSpy: ReturnType<typeof vi.spyOn>;
-
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
-    platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("linux");
     mkdirMock.mockResolvedValue(undefined);
     writeFileMock.mockResolvedValue(undefined);
     copyFileMock.mockResolvedValue(undefined);
     homedirMock.mockReturnValue("/home/tester");
   });
 
-  afterEach(() => {
-    platformSpy.mockRestore();
-  });
-
-  it("resolves linux config dir to ~/.config/opencode via homedir", () => {
+  it("resolves config dir to ~/.config/opencode via homedir", () => {
     expect(resolveOpenCodeConfigDir()).toBe("/home/tester/.config/opencode");
-  });
-
-  it("resolves windows config dir from APPDATA", () => {
-    platformSpy.mockRestore();
-    platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("win32");
-    vi.stubEnv("APPDATA", "C:\\Users\\Tester\\AppData\\Roaming");
-    expect(resolveOpenCodeConfigDir()).toBe("C:\\Users\\Tester\\AppData\\Roaming/opencode");
   });
 
   it("uses explicit --config-dir override", () => {
