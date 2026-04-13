@@ -35,13 +35,13 @@ describe("inspect-external", () => {
     expect(Array.isArray(output.value.sources)).toBe(true);
   });
 
-  it("returns ok:false with FILE_NOT_FOUND for unknown subject", async () => {
+  it("returns ok:false with NO_MATCH for unknown subject", async () => {
     const result = await runCli(["inspect-external", "does-not-exist"], { cwd: repo.dir });
     expect(result.exitCode).toBe(1);
 
     const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
     expect(errorOutput.ok).toBe(false);
-    expect(errorOutput.code).toBe("FILE_NOT_FOUND");
+    expect(errorOutput.code).toBe("NO_MATCH");
   });
 
   it("missing subject arg exits with code 2", async () => {
