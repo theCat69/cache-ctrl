@@ -344,20 +344,17 @@ export function printHelp(command?: string): boolean {
   return true;
 }
 
+function printJson(value: unknown, stream: Pick<typeof process.stdout, "write">, pretty: boolean): void {
+  const serialized = pretty ? JSON.stringify(value, null, 2) : JSON.stringify(value);
+  stream.write(serialized + "\n");
+}
+
 function printResult(value: unknown, pretty: boolean): void {
-  if (pretty) {
-    process.stdout.write(JSON.stringify(value, null, 2) + "\n");
-  } else {
-    process.stdout.write(JSON.stringify(value) + "\n");
-  }
+  printJson(value, process.stdout, pretty);
 }
 
 function printError(error: { ok: false; error: string; code: string }, pretty: boolean): void {
-  if (pretty) {
-    process.stderr.write(JSON.stringify(error, null, 2) + "\n");
-  } else {
-    process.stderr.write(JSON.stringify(error) + "\n");
-  }
+  printJson(error, process.stderr, pretty);
 }
 
 /**

@@ -3,7 +3,7 @@ import { realpath } from "node:fs/promises";
 
 import { buildGraph, type DependencyGraph } from "../analysis/graphBuilder.js";
 import { findRepoRoot, writeCache } from "../cache/cacheManager.js";
-import { resolveGraphCachePath } from "../cache/graphCache.js";
+import { resolveGraphCachePath } from "../cache/localCache.js";
 import { getGitTrackedFiles } from "../files/gitFiles.js";
 import type { GraphCacheFile } from "../types/cache.js";
 import type { WatchArgs } from "../types/commands.js";

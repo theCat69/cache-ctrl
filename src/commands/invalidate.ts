@@ -1,7 +1,6 @@
 import { findRepoRoot, writeCache, readCache } from "../cache/cacheManager.js";
 import { updateExternalFetchedAt } from "../cache/externalCache.js";
-import { resolveGraphCachePath } from "../cache/graphCache.js";
-import { resolveLocalCachePath } from "../cache/localCache.js";
+import { resolveGraphCachePath, resolveLocalCachePath } from "../cache/localCache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { InvalidateArgs, InvalidateResult } from "../types/commands.js";
 import { toUnknownResult } from "../utils/errors.js";

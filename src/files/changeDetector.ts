@@ -1,7 +1,10 @@
 import { readFile, lstat } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { resolve, isAbsolute } from "node:path";
+import { resolve, isAbsolute, posix, relative, sep } from "node:path";
+
+import { getGitDeletedFiles, getGitTrackedFiles, getUntrackedNonIgnoredFiles } from "./gitFiles.js";
 import type { TrackedFile } from "../types/cache.js";
+import { ErrorCode, type Result } from "../types/result.js";
 
 /**
  * Comparison outcome for one tracked file baseline.
@@ -14,6 +17,42 @@ export interface FileComparisonResult {
   path: string;
   status: "changed" | "unchanged" | "missing";
   reason?: "mtime" | "hash" | "missing";
+}
+
+/**
+ * Computes repo-level staleness status from tracked baselines and git deltas.
+ */
+export async function detectTrackedFilesStatus(
+  trackedFiles: TrackedFile[],
+  repoRoot: string,
+): Promise<Result<"changed" | "unchanged">> {
+  try {
+    const comparisons = await Promise.all(trackedFiles.map((file) => compareTrackedFile(file, repoRoot)));
+    const hasTrackedDiff = comparisons.some((comparison) => comparison.status !== "unchanged");
+
+    const [gitTrackedFiles, deletedGitFiles, untrackedNonIgnoredFiles] = await Promise.all([
+      getGitTrackedFiles(repoRoot),
+      getGitDeletedFiles(repoRoot),
+      getUntrackedNonIgnoredFiles(repoRoot),
+    ]);
+
+    const toRepoRelativePosix = (filePath: string): string => {
+      const relPath = isAbsolute(filePath) ? relative(repoRoot, filePath) : filePath;
+      return relPath.split(sep).join(posix.sep);
+    };
+
+    const cachedPaths = new Set(trackedFiles.map((file) => toRepoRelativePosix(file.path)));
+    const baseFiles = trackedFiles.length > 0 ? gitTrackedFiles : [];
+    const newFiles = [...new Set([...baseFiles, ...untrackedNonIgnoredFiles])].filter(
+      (filePath) => !cachedPaths.has(toRepoRelativePosix(filePath)),
+    );
+
+    const status = hasTrackedDiff || newFiles.length > 0 || deletedGitFiles.length > 0 ? "changed" : "unchanged";
+    return { ok: true, value: status };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message, code: ErrorCode.UNKNOWN };
+  }
 }
 
 /**

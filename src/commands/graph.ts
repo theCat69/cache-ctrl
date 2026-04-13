@@ -1,6 +1,6 @@
 import { computePageRank } from "../analysis/pageRank.js";
 import { findRepoRoot, readCache } from "../cache/cacheManager.js";
-import { resolveGraphCachePath } from "../cache/graphCache.js";
+import { resolveGraphCachePath } from "../cache/localCache.js";
 import { GraphCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { DependencyGraph } from "../analysis/graphBuilder.js";

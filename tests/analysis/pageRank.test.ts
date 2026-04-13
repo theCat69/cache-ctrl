@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DependencyGraph } from "../../src/analysis/graphBuilder.js";
-import { computePageRank } from "../../src/analysis/pageRank.js";
+import { computePageRank, normalizeRanks } from "../../src/analysis/pageRank.js";
 
 function getRank(scores: Map<string, number>, node: string): number {
   return scores.get(node) ?? 0;
@@ -46,5 +46,13 @@ describe("computePageRank", () => {
     const total = [...scores.values()].reduce((sum, value) => sum + value, 0);
 
     expect(total).toBeCloseTo(1, 8);
+  });
+
+  it("falls back to uniform ranks when normalization total is non-positive", () => {
+    const degenerateRanks = new Map<string, number>([["A", 0]]);
+
+    const scores = normalizeRanks(degenerateRanks);
+
+    expect(scores.get("A")).toBe(1);
   });
 });

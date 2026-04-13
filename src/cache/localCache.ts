@@ -9,3 +9,8 @@ export function resolveLocalCacheDir(repoRoot: string): string {
 export function resolveLocalCachePath(repoRoot: string): string {
   return join(resolveLocalCacheDir(repoRoot), "context.json");
 }
+
+/** Resolves the local dependency graph cache file path (`graph.json`). */
+export function resolveGraphCachePath(repoRoot: string): string {
+  return join(resolveLocalCacheDir(repoRoot), "graph.json");
+}
