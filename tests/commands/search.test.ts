@@ -225,4 +225,27 @@ describe("searchCommand - scoring", () => {
     expect(result.value.some((e) => e.subject === "good")).toBe(true);
     expect(result.value.some((e) => e.subject === "broken")).toBe(false);
   });
+
+  it("includes local cache entry in ranked results", async () => {
+    const localPath = join(tmpDir, LOCAL_DIR, "context.json");
+    await writeFile(
+      localPath,
+      JSON.stringify({
+        timestamp: "2026-01-01T00:00:00Z",
+        topic: "workspace context",
+        description: "Local cache content",
+        tracked_files: [],
+      }),
+    );
+
+    const result = await searchCommand({ keywords: ["workspace"] });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const localEntry = result.value.find((entry) => entry.agent === "local");
+    expect(localEntry).toBeDefined();
+    expect(localEntry?.file).toBe(localPath);
+    expect(localEntry?.subject).toBe("workspace context");
+    expect(localEntry?.score).toBeGreaterThan(0);
+  });
 });

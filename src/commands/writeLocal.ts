@@ -20,7 +20,7 @@ function hasStringPath(entry: unknown): entry is { path: string } {
   if (typeof entry !== "object" || entry === null) {
     return false;
   }
-  const pathValue = Reflect.get(entry, "path");
+  const pathValue = (entry as Record<string, unknown>)["path"];
   return typeof pathValue === "string";
 }
 
