@@ -137,7 +137,7 @@ The operation is idempotent — re-running `cache-ctrl install` refreshes the in
 }
 ```
 
-**Error codes**: `FILE_WRITE_ERROR` if a skill file cannot be written.
+**Error codes**: `INVALID_ARGS` if `--config-dir` resolves outside the user's home directory; `FILE_WRITE_ERROR` if a skill file cannot be written.
 
 ---
 

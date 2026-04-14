@@ -21,11 +21,19 @@ export function resolveOpenCodeConfigDir(overrideDir?: string): string {
 
 /**
  * Installs or refreshes bundled skills in the target OpenCode config directory.
+ *
+ * Rejects `configDir` values that resolve outside the user's home directory
+ * (path-confinement guard to prevent accidental writes to system directories
+ * like `/etc` when a misconfigured `--config-dir` is provided).
+ *
+ * @returns `Result<InstallResult>` with `INVALID_ARGS` when `configDir`
+ * resolves outside `os.homedir()/`, or `FILE_WRITE_ERROR` when any skill
+ * file cannot be written.
  */
 export async function installSkills(configDir: string, packageRoot: string): Promise<Result<InstallResult>> {
   try {
     const resolvedConfigDir = path.resolve(configDir);
-    if (!resolvedConfigDir.startsWith(os.homedir())) {
+    if (!resolvedConfigDir.startsWith(`${os.homedir()}/`)) {
       return {
         ok: false,
         error: `Config directory must be within home directory: ${resolvedConfigDir}`,
