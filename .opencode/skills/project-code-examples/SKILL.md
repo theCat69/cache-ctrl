@@ -14,7 +14,7 @@ All example files live in `.code-examples-for-ai/` at the repo root. Each file d
 | File | Pattern | Key Source File |
 |---|---|---|
 | `result-pattern.md` | `Result<T, E>` discriminated union — typed error returns without throwing | `src/types/result.ts` |
-| `zod-schema-validation.md` | Zod `safeParse()` at write boundaries — validate all external JSON before disk writes | `src/types/cache.ts`, `src/commands/writeExternal.ts` |
+| `zod-schema-validation.md` | Zod `safeParse()` at boundaries plus structured `buildZodFailure` payloads for CLI self-correction | `src/types/cache.ts`, `src/validation.ts`, `src/index.ts` |
 | `command-handler.md` | Command handler structure — async function, typed Args, delegate I/O to services | `src/commands/list.ts`, `src/index.ts` |
 | `error-handling.md` | Canonical catch-all conversion in command handlers via `toUnknownResult(err)` | `src/errors.ts`, `src/commands/list.ts`, `src/commands/writeLocal.ts` |
 | `change-detector.md` | Async file comparison — `Promise.all` parallelism, mtime/hash fallback, path traversal guard | `src/files/changeDetector.ts` |

@@ -11,15 +11,15 @@ import { searchCommand } from "./commands/search.js";
 import { writeLocalCommand } from "./commands/writeLocal.js";
 import { writeExternalCommand } from "./commands/writeExternal.js";
 import { installCommand } from "./commands/install.js";
-import { updateCommand } from "./commands/update.js";
-import { uninstallCommand } from "./commands/uninstall.js";
 import { graphCommand } from "./commands/graph.js";
 import { mapCommand } from "./commands/map.js";
 import { watchCommand } from "./commands/watch.js";
 import { versionCommand } from "./commands/version.js";
-import type { AgentType } from "./types/cache.js";
+import type { CacheError } from "./types/result.js";
+import { WriteExternalInputSchema, WriteLocalInputSchema, type AgentType } from "./types/cache.js";
 import { ErrorCode } from "./types/result.js";
 import { toUnknownResult } from "./errors.js";
+import { buildZodFailure } from "./validation.js";
 
 type CommandName =
   | "list"
@@ -34,8 +34,6 @@ type CommandName =
   | "write-local"
   | "write-external"
   | "install"
-  | "update"
-  | "uninstall"
   | "graph"
   | "map"
   | "watch"
@@ -50,6 +48,18 @@ function isKnownCommand(cmd: string): cmd is CommandName {
 function isListAgent(value: string | undefined): value is ListAgent {
   return value === "external" || value === "local" || value === "all";
 }
+
+const WRITE_LOCAL_HINT =
+  "Required: topic (string), description (string), " +
+  "tracked_files (array of {path: string}). " +
+  "Optional: global_facts (string[] ≤20 items, each ≤300 chars), " +
+  "facts (Record<path, {summary?, role?: entry-point|interface|implementation|test|config, " +
+  "importance?: 1|2|3, facts?: string[]}>), cache_miss_reason (string)";
+
+const WRITE_EXTERNAL_HINT =
+  "Required: description (string), " +
+  'fetched_at (ISO 8601 UTC e.g. "2026-04-14T12:00:00.000Z"), ' +
+  "sources (array of {type: string, url: string, version?: string})";
 
 interface CommandHelp {
   usage: string;
@@ -203,7 +213,7 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
   },
   install: {
     usage: "install [--config-dir <path>]",
-    description: "Set up OpenCode tool and skills in the user config directory",
+    description: "Install cache-ctrl skills in the user config directory",
     details: [
       "  Arguments:",
       "    (none)",
@@ -211,33 +221,7 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "  Options:",
       "    --config-dir <path>  Override the OpenCode config directory (default: platform-specific)",
       "",
-      "  Output: JSON object describing installed tool/skill paths.",
-    ].join("\n"),
-  },
-  update: {
-    usage: "update [--config-dir <path>]",
-    description: "Update npm package globally and refresh OpenCode integration",
-    details: [
-      "  Arguments:",
-      "    (none)",
-      "",
-      "  Options:",
-      "    --config-dir <path>  Override the OpenCode config directory (default: platform-specific)",
-      "",
-      "  Output: JSON object with package update status, installed paths, and warnings.",
-    ].join("\n"),
-  },
-  uninstall: {
-    usage: "uninstall [--config-dir <path>]",
-    description: "Remove OpenCode integration files and uninstall global npm package",
-    details: [
-      "  Arguments:",
-      "    (none)",
-      "",
-      "  Options:",
-      "    --config-dir <path>  Override the OpenCode config directory (default: platform-specific)",
-      "",
-      "  Output: JSON object with removed paths, npm uninstall status, and warnings.",
+      "  Output: JSON object describing installed skill paths.",
     ].join("\n"),
   },
   graph: {
@@ -363,12 +347,12 @@ function printResult(value: unknown, pretty: boolean): void {
   printJson(value, process.stdout, pretty);
 }
 
-function printError(error: { ok: false; error: string; code: string }, pretty: boolean): void {
+function printError(error: { ok: false } & CacheError, pretty: boolean): void {
   printJson(error, process.stderr, pretty);
 }
 
 function dispatchResult(
-  result: { ok: true; value: unknown } | { ok: false; error: string; code: string },
+  result: { ok: true; value: unknown } | ({ ok: false } & CacheError),
   pretty: boolean,
 ): void {
   if (result.ok) {
@@ -378,20 +362,6 @@ function dispatchResult(
 
   printError(result, pretty);
   process.exit(1);
-}
-
-async function runConfigDirCommand<T>(
-  flags: Record<string, string | boolean>,
-  commandFn: (args: { configDir?: string }) => Promise<{ ok: true; value: T } | { ok: false; error: string; code: string }>,
-  pretty: boolean,
-): Promise<void> {
-  if (flags["config-dir"] === true) {
-    usageError("--config-dir requires a value: --config-dir <path>");
-  }
-
-  const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
-  const result = await commandFn(configDir !== undefined ? { configDir } : {});
-  dispatchResult(result, pretty);
 }
 
 /**
@@ -484,7 +454,7 @@ async function main(): Promise<void> {
 
   const command = args[0];
   if (!command) {
-    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect-external, inspect-local, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, update, uninstall, graph, map, watch, version");
+    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect-external, inspect-local, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, graph, map, watch, version");
   }
 
   switch (command) {
@@ -636,18 +606,24 @@ async function main(): Promise<void> {
       if (!dataStr) {
         usageError("Usage: cache-ctrl write-local --data '<json>'");
       }
-      let content: Record<string, unknown>;
+      let parsedData: unknown;
       try {
-        content = JSON.parse(dataStr) as Record<string, unknown>; // JSON.parse returns any; writeLocalCommand validates the payload shape via Zod before use.
+        parsedData = JSON.parse(dataStr);
       } catch {
         usageError("--data must be valid JSON");
       }
-      if (typeof content !== "object" || content === null || Array.isArray(content)) {
+      if (typeof parsedData !== "object" || parsedData === null || Array.isArray(parsedData)) {
         usageError("--data must be a JSON object");
       }
+      const parsed = WriteLocalInputSchema.safeParse(parsedData);
+      if (!parsed.success) {
+        printError(buildZodFailure(parsed.error, WRITE_LOCAL_HINT), pretty);
+        process.exit(1);
+      }
+
       const result = await writeLocalCommand({
         agent: "local",
-        content,
+        content: parsed.data,
       });
       dispatchResult(result, pretty);
       break;
@@ -662,36 +638,37 @@ async function main(): Promise<void> {
       if (!dataStr) {
         usageError("Usage: cache-ctrl write-external <subject> --data '<json>'");
       }
-      let content: Record<string, unknown>;
+      let parsedData: unknown;
       try {
-        content = JSON.parse(dataStr) as Record<string, unknown>; // JSON.parse returns any; writeExternalCommand validates the payload shape via Zod before use.
+        parsedData = JSON.parse(dataStr);
       } catch {
         usageError("--data must be valid JSON");
       }
-      if (typeof content !== "object" || content === null || Array.isArray(content)) {
+      if (typeof parsedData !== "object" || parsedData === null || Array.isArray(parsedData)) {
         usageError("--data must be a JSON object");
       }
+      const parsed = WriteExternalInputSchema.safeParse(parsedData);
+      if (!parsed.success) {
+        printError(buildZodFailure(parsed.error, WRITE_EXTERNAL_HINT), pretty);
+        process.exit(1);
+      }
+
       const result = await writeExternalCommand({
         agent: "external",
         subject,
-        content,
+        content: parsed.data,
       });
       dispatchResult(result, pretty);
       break;
     }
 
     case "install": {
-      await runConfigDirCommand(flags, installCommand, pretty);
-      break;
-    }
-
-    case "update": {
-      await runConfigDirCommand(flags, updateCommand, pretty);
-      break;
-    }
-
-    case "uninstall": {
-      await runConfigDirCommand(flags, uninstallCommand, pretty);
+      if (flags["config-dir"] === true) {
+        usageError("--config-dir requires a value: --config-dir <path>");
+      }
+      const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
+      const result = await installCommand(configDir !== undefined ? { configDir } : {});
+      dispatchResult(result, pretty);
       break;
     }
 
@@ -762,7 +739,7 @@ async function main(): Promise<void> {
     }
 
     default:
-      usageError(`Unknown command: "${command}". Commands: list, inspect-external, inspect-local, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, update, uninstall, graph, map, watch, version`);
+      usageError(`Unknown command: "${command}". Commands: list, inspect-external, inspect-local, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, graph, map, watch, version`);
   }
 }
 

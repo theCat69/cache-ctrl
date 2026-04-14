@@ -101,3 +101,49 @@ const data = parseResult.data;   // fully typed ExternalCacheFile
 - Error messages include the Zod issue path: `parsed.error.issues.map(i => i.path.length > 0 ? \`${sanitizedPath}: ${i.message}\` : i.message)` — sanitize path segments with `.replace(/[\x00-\x1f\x7f]/g, "?")` before joining
 - The Zod schema is the single source of truth — derive TypeScript types from it with `z.infer<>`
 - Never trust the shape of data read from disk, even from your own files
+
+## Pattern: structured validation failures for CLI self-correction
+
+When validation fails, return a machine-friendly error with both a human string and per-issue fields.
+
+```typescript
+// src/validation.ts
+import { z, type ZodError } from "zod";
+import { ErrorCode, type ZodIssueSummary } from "./types/result.js";
+
+export function buildZodFailure(
+  error: ZodError,
+  hint?: string,
+): {
+  ok: false;
+  error: string;
+  code: ErrorCode.VALIDATION_ERROR;
+  issues: ZodIssueSummary[];
+  hint?: string;
+} {
+  return {
+    ok: false,
+    error: z.prettifyError(error),
+    code: ErrorCode.VALIDATION_ERROR,
+    issues: error.issues.map((issue) => ({
+      path: issue.path.map((segment) => String(segment).replace(/[\x00-\x1f\x7f]/g, "?")).join("."),
+      message: issue.message,
+      code: issue.code,
+      ...("expected" in issue && issue.expected !== undefined ? { expected: String(issue.expected) } : {}),
+      ...("received" in issue && issue.received !== undefined ? { received: String(issue.received) } : {}),
+      ...("values" in issue && issue.values !== undefined ? { values: issue.values } : {}),
+      ...("minimum" in issue && typeof issue.minimum === "number" ? { minimum: issue.minimum } : {}),
+    })),
+    ...(hint !== undefined ? { hint } : {}),
+  };
+}
+```
+
+```typescript
+// src/index.ts (dispatch boundary)
+const parsed = WriteExternalInputSchema.safeParse(parsedData);
+if (!parsed.success) {
+  printError(buildZodFailure(parsed.error, WRITE_EXTERNAL_HINT), pretty);
+  process.exit(1);
+}
+```

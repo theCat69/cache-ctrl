@@ -7,7 +7,6 @@
   },
   "files": [
     "src/",
-    "cache_ctrl.ts",
     "skills/",
     "README.md"
   ],
@@ -25,7 +24,6 @@
     "prepublishOnly": "bun run typecheck && bun run test"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "latest",
     "@typescript-eslint/typescript-estree": "8.58.1",
     "zod": "4.3.6"
   },

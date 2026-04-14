@@ -1,6 +1,6 @@
-import type { ZodError } from "zod";
+import { z, type ZodError } from "zod";
 
-import { ErrorCode, type Result } from "./types/result.js";
+import { ErrorCode, type Result, type ZodIssueSummary } from "./types/result.js";
 
 /**
  * Regex for safe cache subject names.
@@ -15,18 +15,42 @@ const SUBJECT_MAX_LENGTH = 128;
 /** Maximum allowed length for a folder filter argument. */
 const FOLDER_MAX_LENGTH = 512;
 
+function summarizeZodIssue(issue: ZodError["issues"][number]): ZodIssueSummary {
+  const path = issue.path.map((segment) => String(segment).replace(/[\x00-\x1f\x7f]/g, "?")).join(".");
+
+  return {
+    path,
+    message: issue.message,
+    code: issue.code,
+    ...("expected" in issue && issue.expected !== undefined ? { expected: String(issue.expected) } : {}),
+    ...("received" in issue && issue.received !== undefined
+      ? { received: String(issue.received).replace(/[\x00-\x1f\x7f]/g, "?").slice(0, 200) }
+      : {}),
+    ...("options" in issue && Array.isArray(issue.options) ? { values: issue.options } : {}),
+    ...("minimum" in issue && typeof issue.minimum === "number" ? { minimum: issue.minimum } : {}),
+  };
+}
+
 /**
- * Formats a ZodError's issues into a human-readable semicolon-separated string.
- * Each issue is prefixed with its dot-separated field path when present.
+ * Builds a structured validation failure payload from a Zod error.
  */
-export function formatZodError(error: ZodError): string {
-  return error.issues
-    .map((i) => {
-      if (i.path.length === 0) return i.message;
-      const pathStr = i.path.map((seg) => String(seg).replace(/[\x00-\x1f\x7f]/g, "?")).join(".");
-      return `${pathStr}: ${i.message}`;
-    })
-    .join("; ");
+export function buildZodFailure(
+  error: ZodError,
+  hint?: string,
+): {
+  ok: false;
+  error: string;
+  code: ErrorCode.VALIDATION_ERROR;
+  issues: ZodIssueSummary[];
+  hint?: string;
+} {
+  return {
+    ok: false,
+    error: z.prettifyError(error),
+    code: ErrorCode.VALIDATION_ERROR,
+    issues: error.issues.map(summarizeZodIssue),
+    ...(hint !== undefined ? { hint } : {}),
+  };
 }
 
 /**
