@@ -1,5 +1,6 @@
+import { basename } from "node:path";
+
 import type { CacheEntry } from "../types/cache.js";
-import { getFileStem } from "../utils/fileStem.js";
 
 /**
  * Scores a cache entry against one or more keywords.
@@ -11,7 +12,7 @@ import { getFileStem } from "../utils/fileStem.js";
  * exact word in subject/topic (70), subject/topic substring (50), description substring (30).
  */
 export function scoreEntry(entry: CacheEntry, keywords: string[]): number {
-  const stem = getFileStem(entry.file).toLowerCase();
+  const stem = basename(entry.file, ".json").toLowerCase();
   const subject = entry.subject.toLowerCase();
   const description = (entry.description ?? "").toLowerCase();
 

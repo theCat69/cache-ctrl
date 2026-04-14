@@ -3,15 +3,15 @@ import { resolveLocalCachePath } from "../cache/localCache.js";
 import { compareTrackedFile, computeGitFileSetDelta } from "../files/changeDetector.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import type { CheckFilesResult } from "../types/commands.js";
-import { toUnknownResult } from "../utils/errors.js";
+import type { CheckFilesArgs, CheckFilesResult } from "../types/commands.js";
+import { toUnknownResult } from "../errors.js";
 
 /**
  * Compares local tracked files against stored baselines and git file-set deltas.
  * @returns Promise<Result<CheckFilesResult["value"]>>; common failures include FILE_NOT_FOUND,
  * PARSE_ERROR, FILE_READ_ERROR, and UNKNOWN.
  */
-export async function checkFilesCommand(): Promise<Result<CheckFilesResult["value"]>> {
+export async function checkFilesCommand(args?: CheckFilesArgs): Promise<Result<CheckFilesResult["value"]>> {
   try {
     const repoRoot = await findRepoRoot(process.cwd());
     const localPath = resolveLocalCachePath(repoRoot);
@@ -27,12 +27,15 @@ export async function checkFilesCommand(): Promise<Result<CheckFilesResult["valu
     const trackedFiles = data.tracked_files;
 
     const changedFiles: Array<{ path: string; reason: "mtime" | "hash" | "missing" }> = [];
-    const unchangedFiles: string[] = [];
+    const shouldIncludeUnchanged = args?.includeUnchanged === true;
+    const unchangedPaths: string[] = [];
 
     for (const trackedFile of trackedFiles) {
       const result = await compareTrackedFile(trackedFile, repoRoot);
       if (result.status === "unchanged") {
-        unchangedFiles.push(trackedFile.path);
+        if (shouldIncludeUnchanged) {
+          unchangedPaths.push(trackedFile.path);
+        }
       } else if (result.status === "missing") {
         changedFiles.push({ path: trackedFile.path, reason: "missing" });
       } else {
@@ -55,7 +58,7 @@ export async function checkFilesCommand(): Promise<Result<CheckFilesResult["valu
             ? "changed"
             : "unchanged",
         changed_files: changedFiles,
-        unchanged_files: unchangedFiles,
+        ...(shouldIncludeUnchanged ? { unchanged_files: unchangedPaths } : {}),
         missing_files: missingFiles,
         new_files: newFiles,
         deleted_git_files: deletedGitFiles,

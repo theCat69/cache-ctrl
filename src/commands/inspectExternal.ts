@@ -4,8 +4,8 @@ import type { CacheEntry } from "../types/cache.js";
 import type { InspectExternalArgs, InspectExternalResult } from "../types/commands.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { toUnknownResult } from "../utils/errors.js";
-import { validateSubject } from "../utils/validate.js";
+import { toUnknownResult } from "../errors.js";
+import { validateSubject } from "../validation.js";
 
 /**
  * Inspects the best-matching external cache entry by subject keyword.

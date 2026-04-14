@@ -25,6 +25,7 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 vi.mock("node:os", () => ({
+  homedir: homedirMock,
   default: {
     homedir: homedirMock,
   },

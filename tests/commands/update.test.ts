@@ -5,6 +5,7 @@ const { homedirMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("node:os", () => ({
+  homedir: homedirMock,
   default: {
     homedir: homedirMock,
   },

@@ -6,7 +6,7 @@
 The first-char-alphanumeric rule is a deliberate security constraint, not just cosmetic validation.
 
 ```typescript
-// src/utils/validate.ts
+// src/validation.ts
 
 import { ErrorCode, type Result } from "../types/result.js";
 

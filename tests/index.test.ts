@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { parseArgs, usageError, printHelp } from "../src/index.js";
-import { isRefinementContext, rejectTraversalKeys } from "../src/utils/traversal.js";
+import { isRefinementContext, rejectTraversalKeys } from "../src/validation.js";
 
 describe("parseArgs", () => {
   it("returns empty args and flags for empty input", () => {

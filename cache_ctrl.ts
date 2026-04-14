@@ -9,8 +9,8 @@ import { writeLocalCommand } from "./src/commands/writeLocal.js";
 import { writeExternalCommand } from "./src/commands/writeExternal.js";
 import { graphCommand } from "./src/commands/graph.js";
 import { mapCommand } from "./src/commands/map.js";
-import { toUnknownResult } from "./src/utils/errors.js";
-import { rejectTraversalKeys } from "./src/utils/traversal.js";
+import { toUnknownResult } from "./src/errors.js";
+import { rejectTraversalKeys } from "./src/validation.js";
 
 const z = tool.schema;
 
@@ -88,7 +88,7 @@ export const inspect_external = tool({
 
 export const inspect_local = tool({
   description:
-    "Return the local context cache content (context.json) with optional path/fact filters. Use filter (file path keyword), folder (recursive path prefix), or search_facts (fact text keyword) to narrow results. Omitting all three returns the entire facts map — only appropriate for codebases with ≤ ~20 tracked files. tracked_files is never returned.",
+    "Return the local context cache content (context.json) with optional path/fact filters. Use filter (file path keyword), folder (recursive path prefix), or search_facts (fact text keyword) to narrow results. Omitting all three returns the entire facts map — only appropriate for codebases with ≤ ~20 tracked files. tracked_files is never returned. Passing an empty array for filter or search_facts is equivalent to omitting that parameter entirely — both trigger the unfiltered path and the PAYLOAD_TOO_LARGE size guard.",
   args: {
     filter: z.array(z.string().min(1).max(256)).optional(),
     folder: z.string().min(1).max(256).optional(),
@@ -132,7 +132,7 @@ export const invalidate = tool({
 
 export const check_files = tool({
   description:
-    "For local cache: compare tracked files against stored mtime/hash values and return which files changed. Also reports new_files (files not excluded by .gitignore that are absent from cache — includes both git-tracked and untracked-non-ignored files) and deleted_git_files (git-tracked files deleted from working tree).",
+    "For local cache: compare tracked files against stored mtime/hash values and return which files changed. Also reports new_files (files not excluded by .gitignore that are absent from cache — includes both git-tracked and untracked-non-ignored files) and deleted_git_files (git-tracked files deleted from working tree). unchanged_files is intentionally omitted from this tool output.",
   args: {},
   async execute(_args) {
     try {
@@ -252,7 +252,12 @@ export const map = tool({
       .enum(["overview", "modules", "full"])
       .optional()
       .describe("Map depth (default: 'overview')"),
-    folder: z.string().optional().describe("Restrict map to files under this path prefix"),
+    folder: z
+      .string()
+      .optional()
+      .describe(
+        "Restrict map to files under this path prefix. Must be a relative path (no leading '/'), no '..' segments, no null bytes, max 512 characters.",
+      ),
   },
   async execute(args) {
     try {

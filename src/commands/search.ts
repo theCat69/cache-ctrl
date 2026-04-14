@@ -5,7 +5,7 @@ import type { CacheEntry } from "../types/cache.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { SearchArgs, SearchResult } from "../types/commands.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 /**
  * Searches cache entries across namespaces using keyword-based scoring.

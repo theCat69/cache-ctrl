@@ -1,5 +1,5 @@
-import os from "node:os";
-import path from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, resolve, sep } from "node:path";
 
 import { ErrorCode, type CacheError, type Result } from "../types/result.js";
 
@@ -11,12 +11,12 @@ export function validateConfigDir(configDir?: string): Result<void, CacheError> 
     return { ok: true, value: undefined };
   }
 
-  const absoluteConfigDir = path.isAbsolute(configDir)
-    ? path.resolve(configDir)
-    : path.resolve(process.cwd(), configDir);
-  const homeDirectory = os.homedir();
+  const absoluteConfigDir = isAbsolute(configDir)
+    ? resolve(configDir)
+    : resolve(process.cwd(), configDir);
+  const homeDirectory = homedir();
 
-  if (!absoluteConfigDir.startsWith(homeDirectory + path.sep) && absoluteConfigDir !== homeDirectory) {
+  if (!absoluteConfigDir.startsWith(homeDirectory + sep) && absoluteConfigDir !== homeDirectory) {
     return {
       ok: false,
       error: `--config-dir must be within the user home directory, got: ${configDir}`,

@@ -4,43 +4,30 @@ import type { FileFacts } from "../types/cache.js";
 import type { InspectLocalArgs, InspectLocalResult } from "../types/commands.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
+import { normalizeFolderArg } from "../validation.js";
 
 /** Maximum UTF-8 byte size of the full unfiltered facts map (~5 000 tokens at ~4 bytes/token). */
 const INSPECT_LOCAL_MAX_FACTS_BYTES = 20_000;
 const KEY_COUNT_LIMIT = 500;
 
+function isEffectivelyUnfiltered(args: InspectLocalArgs): boolean {
+  const hasActiveFilter = (args.filter ?? []).some((k) => k.length > 0);
+  const hasActiveSearchFacts = (args.searchFacts ?? []).some((k) => k.length > 0);
+  return !hasActiveFilter && args.folder === undefined && !hasActiveSearchFacts;
+}
+
 function filterFacts(
   facts: Record<string, FileFacts>,
   keywords: string[],
 ): Record<string, FileFacts> {
-  if (keywords.length === 0) return facts;
-  const lowerKeywords = keywords.map((keyword) => keyword.toLowerCase());
+  const activeKeywords = keywords.filter((k) => k.length > 0).map((k) => k.toLowerCase());
+  if (activeKeywords.length === 0) return facts;
   return Object.fromEntries(
-    Object.entries(facts).filter(([path]) => lowerKeywords.some((keyword) => path.toLowerCase().includes(keyword))),
+    Object.entries(facts).filter(([path]) =>
+      activeKeywords.some((keyword) => path.toLowerCase().includes(keyword)),
+    ),
   );
-}
-
-function normalizeFolderArg(folder: string): Result<string> {
-  const normalizedFolder = folder.replace(/\\/g, "/").replace(/\/+$/, "");
-
-  if (normalizedFolder.length === 0) {
-    return {
-      ok: false,
-      error: "--folder must not be an empty string",
-      code: ErrorCode.INVALID_ARGS,
-    };
-  }
-
-  if (normalizedFolder.includes("..")) {
-    return {
-      ok: false,
-      error: "--folder must not contain '..' path segments",
-      code: ErrorCode.INVALID_ARGS,
-    };
-  }
-
-  return { ok: true, value: normalizedFolder };
 }
 
 /**
@@ -86,8 +73,9 @@ export async function inspectLocalCommand(args: InspectLocalArgs): Promise<Resul
       filteredFacts = filterFacts(filteredFacts, args.filter ?? []);
     }
 
-    if (filteredFacts !== undefined && args.searchFacts !== undefined) {
-      const loweredKeywords = args.searchFacts.map((keyword) => keyword.toLowerCase());
+    const searchFacts = (args.searchFacts ?? []).filter((k) => k.length > 0);
+    if (filteredFacts !== undefined && searchFacts.length > 0) {
+      const loweredKeywords = searchFacts.map((keyword) => keyword.toLowerCase());
       filteredFacts = Object.fromEntries(
         Object.entries(filteredFacts).filter(([, factEntry]) =>
           (factEntry.facts ?? []).some((fact) => loweredKeywords.some((keyword) => fact.toLowerCase().includes(keyword))),
@@ -96,19 +84,14 @@ export async function inspectLocalCommand(args: InspectLocalArgs): Promise<Resul
     }
 
     // Only enforce the size limit for fully unfiltered requests; filtered results may legitimately be large.
-    if (
-      filteredFacts !== undefined &&
-      args.filter === undefined &&
-      args.folder === undefined &&
-      args.searchFacts === undefined
-    ) {
+    if (filteredFacts !== undefined && isEffectivelyUnfiltered(args)) {
       // Fast structural pre-check: avoid serializing obviously oversized payloads.
       if (Object.keys(filteredFacts).length > KEY_COUNT_LIMIT) {
         return {
           ok: false,
           error:
             `The unfiltered facts map contains more than ${KEY_COUNT_LIMIT} entries. ` +
-            `Use --filter <keyword>, --folder <path>, or --search-facts <term> to narrow the query, ` +
+            `Use the filter, folder, or search_facts parameter to narrow the query, ` +
             `or use the map or graph tools to navigate the codebase first.`,
           code: ErrorCode.PAYLOAD_TOO_LARGE,
         };
@@ -121,7 +104,7 @@ export async function inspectLocalCommand(args: InspectLocalArgs): Promise<Resul
           ok: false,
           error:
             `The unfiltered facts map is too large (${serializedBytes} bytes, limit ${INSPECT_LOCAL_MAX_FACTS_BYTES} bytes ≈ 5 000 tokens). ` +
-            `Use --filter <keyword>, --folder <path>, or --search-facts <term> to narrow the query, ` +
+            `Use the filter, folder, or search_facts parameter to narrow the query, ` +
             `or use the map or graph tools to navigate the codebase first.`,
           code: ErrorCode.PAYLOAD_TOO_LARGE,
         };
@@ -133,7 +116,7 @@ export async function inspectLocalCommand(args: InspectLocalArgs): Promise<Resul
       ...(filteredFacts !== undefined ? { facts: filteredFacts } : {}),
       file: localPath,
       agent: "local",
-      ...(args.filter === undefined && args.folder === undefined && args.searchFacts === undefined
+      ...(isEffectivelyUnfiltered(args)
         ? {
             warning:
               "No filters provided: returning full facts map. This may exceed token limits for large codebases.",

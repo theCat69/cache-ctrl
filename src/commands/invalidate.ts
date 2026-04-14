@@ -3,7 +3,7 @@ import { updateExternalFetchedAt } from "../cache/externalCache.js";
 import { resolveGraphCachePath, resolveLocalCachePath } from "../cache/localCache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { InvalidateArgs, InvalidateResult } from "../types/commands.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 /**
  * Marks cache entries stale by zeroing their freshness timestamps.

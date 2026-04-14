@@ -1,4 +1,4 @@
-import { ErrorCode } from "../types/result.js";
+import { ErrorCode } from "./types/result.js";
 
 /**
  * Converts an unknown thrown value into the canonical UNKNOWN result shape.

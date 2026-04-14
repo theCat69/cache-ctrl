@@ -44,7 +44,7 @@ Avoid generic names: `data`, `value`, `temp`, `result`, `obj`, `info`. When a na
 2. Third-party packages (`zod`)
 3. Internal — types (`../types/result.js`, `../types/cache.js`)
 4. Internal — services (`../cache/cacheManager.js`, `../files/changeDetector.js`)
-5. Internal — utilities (`../utils/validate.js`)
+5. Internal — utilities (`../validation.js`, `../errors.js`)
 
 Group each tier with a blank line separator. Use `import type` for all type-only imports.
 
@@ -57,7 +57,7 @@ import { z } from "zod";
 import type { TrackedFile } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 
-import { validateSubject } from "../utils/validate.js";
+import { validateSubject } from "../validation.js";
 ```
 
 ---

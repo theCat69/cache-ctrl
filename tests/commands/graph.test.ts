@@ -79,11 +79,14 @@ describe("graphCommand", () => {
     }
   });
 
-  it("clamps maxTokens to minimum token budget", async () => {
+  it("reports entries_skipped when token budget truncates ranked output", async () => {
     await writeGraphFile(tempDir, {
       files: {
-        "src/a.ts": { rank: 0.3, deps: [], defs: ["A"] },
-        "src/b.ts": { rank: 0.2, deps: [], defs: ["B"] },
+        "src/a.ts": { rank: 0.9, deps: ["src/b.ts", "src/c.ts", "src/d.ts"], defs: ["A", "A2", "A3"] },
+        "src/b.ts": { rank: 0.8, deps: ["src/c.ts", "src/d.ts"], defs: ["B", "B2"] },
+        "src/c.ts": { rank: 0.7, deps: ["src/d.ts"], defs: ["C", "C2"] },
+        "src/d.ts": { rank: 0.6, deps: [], defs: ["D", "D2"] },
+        "src/e.ts": { rank: 0.5, deps: ["src/a.ts", "src/d.ts"], defs: ["E", "E2"] },
       },
       computed_at: "2026-04-11T12:00:00.000Z",
     });
@@ -93,6 +96,24 @@ describe("graphCommand", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.ranked_files.length).toBeGreaterThan(0);
+    expect(result.value.entries_skipped).toBeGreaterThan(0);
+  });
+
+  it("omits entries_skipped when all ranked files fit budget", async () => {
+    await writeGraphFile(tempDir, {
+      files: {
+        "src/a.ts": { rank: 0.5, deps: ["src/b.ts"], defs: ["A"] },
+        "src/b.ts": { rank: 0.4, deps: [], defs: ["B"] },
+      },
+      computed_at: "2026-04-11T12:00:00.000Z",
+    });
+
+    const result = await graphCommand({ maxTokens: 4096 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ranked_files).toHaveLength(2);
+    expect(result.value.entries_skipped).toBeUndefined();
   });
 
   it("personalizes ranking with seed files", async () => {

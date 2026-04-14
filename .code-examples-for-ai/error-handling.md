@@ -6,7 +6,7 @@ returned as a typed `Result` failure with `ErrorCode.UNKNOWN`.
 ```typescript
 // src/commands/list.ts
 
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 import { type Result } from "../types/result.js";
 import type { ListArgs, ListResult } from "../types/commands.js";
 
@@ -23,7 +23,7 @@ export async function listCommand(args: ListArgs): Promise<Result<ListResult["va
 ```typescript
 // src/commands/writeLocal.ts
 
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteResult["value"]>> {
   try {

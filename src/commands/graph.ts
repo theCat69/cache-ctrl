@@ -5,7 +5,7 @@ import { GraphCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { DependencyGraph } from "../analysis/graphBuilder.js";
 import type { GraphArgs, GraphResult } from "../types/commands.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 interface RankedFileEntry {
   path: string;
@@ -123,6 +123,9 @@ export async function graphCommand(args: GraphArgs): Promise<Result<GraphResult[
         total_files: graph.size,
         computed_at: parsed.computed_at,
         token_estimate: tokenEstimate,
+        ...(budgetedEntries.length < rankedEntries.length
+          ? { entries_skipped: rankedEntries.length - budgetedEntries.length }
+          : {}),
       },
     };
   } catch (err) {

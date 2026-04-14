@@ -19,7 +19,7 @@ import { watchCommand } from "./commands/watch.js";
 import { versionCommand } from "./commands/version.js";
 import type { AgentType } from "./types/cache.js";
 import { ErrorCode } from "./types/result.js";
-import { toUnknownResult } from "./utils/errors.js";
+import { toUnknownResult } from "./errors.js";
 
 type CommandName =
   | "list"
@@ -152,11 +152,14 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
     ].join("\n"),
   },
   "check-files": {
-    usage: "check-files",
+    usage: "check-files [--include-unchanged]",
     description: "Compare tracked local files against stored mtime/hash",
     details: [
       "  Arguments:",
       "    (none)",
+      "",
+      "  Options:",
+      "    --include-unchanged   Include unchanged_files in the output payload",
       "",
       "  Output: List of files whose mtime or hash differs from the stored baseline.",
       "  Also reports new_files (files not excluded by .gitignore that are absent from cache — includes git-tracked and untracked-non-ignored files) and deleted_git_files.",
@@ -611,7 +614,9 @@ async function main(): Promise<void> {
     }
 
     case "check-files": {
-      const result = await checkFilesCommand();
+      const result = await checkFilesCommand(
+        flags["include-unchanged"] === true ? { includeUnchanged: true } : undefined,
+      );
       dispatchResult(result, pretty);
       break;
     }

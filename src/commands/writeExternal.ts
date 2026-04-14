@@ -4,8 +4,8 @@ import { findRepoRoot, resolveCacheDir, writeCache } from "../cache/cacheManager
 import type { WriteArgs, WriteResult } from "../types/commands.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { toUnknownResult } from "../utils/errors.js";
-import { formatZodError, validateSubject } from "../utils/validate.js";
+import { toUnknownResult } from "../errors.js";
+import { formatZodError, validateSubject } from "../validation.js";
 
 /**
  * Validates and writes one external cache entry.

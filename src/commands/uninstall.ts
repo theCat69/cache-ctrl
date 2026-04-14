@@ -5,8 +5,8 @@ import path from "node:path";
 import { resolveOpenCodeConfigDir } from "../files/openCodeInstaller.js";
 import type { UninstallArgs, UninstallResult } from "../types/commands.js";
 import type { Result } from "../types/result.js";
-import { validateConfigDir } from "../utils/configDir.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { validateConfigDir } from "./configDir.js";
+import { toUnknownResult } from "../errors.js";
 
 const CACHE_CTRL_SKILL_DIR_PATTERN = /^cache-ctrl-/;
 

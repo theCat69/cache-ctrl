@@ -129,6 +129,11 @@ export type PruneResult = {
 
 // ── check-files ───────────────────────────────────────────────────────────────
 
+/** Arguments accepted by the `check-files` command. */
+export interface CheckFilesArgs {
+  includeUnchanged?: boolean;
+}
+
 /** Success payload shape returned by the `check-files` command. */
 export type CheckFilesResult = {
   ok: true;
@@ -138,7 +143,7 @@ export type CheckFilesResult = {
       path: string;
       reason: "mtime" | "hash" | "missing";
     }>;
-    unchanged_files: string[];
+    unchanged_files?: string[];
     missing_files: string[];
     new_files: string[];
     deleted_git_files: string[];
@@ -214,6 +219,7 @@ export interface GraphResult {
     total_files: number;
     computed_at: string;
     token_estimate: number;
+    entries_skipped?: number;
   };
 }
 
