@@ -132,7 +132,7 @@ export const invalidate = tool({
 
 export const check_files = tool({
   description:
-    "For local cache: compare tracked files against stored mtime/hash values and return which files changed. Also reports new_files (files not excluded by .gitignore that are absent from cache — includes both git-tracked and untracked-non-ignored files) and deleted_git_files (git-tracked files deleted from working tree).",
+    "For local cache: compare tracked files against stored mtime/hash values and return which files changed. Also reports new_files (files not excluded by .gitignore that are absent from cache — includes both git-tracked and untracked-non-ignored files) and deleted_git_files (git-tracked files deleted from working tree). unchanged_files is intentionally omitted from this tool output.",
   args: {},
   async execute(_args) {
     try {

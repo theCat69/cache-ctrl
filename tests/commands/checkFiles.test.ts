@@ -72,7 +72,7 @@ describe("checkFilesCommand", () => {
     if (!result.ok) return;
     expect(result.value.status).toBe("unchanged");
     expect(result.value.changed_files).toHaveLength(0);
-    expect(result.value.unchanged_files).toHaveLength(0);
+    expect("unchanged_files" in result.value).toBe(false);
     expect(result.value.missing_files).toHaveLength(0);
     expect(result.value.new_files).toEqual([]);
     expect(result.value.deleted_git_files).toEqual([]);
@@ -88,9 +88,47 @@ describe("checkFilesCommand", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.status).toBe("unchanged");
-    expect(result.value.unchanged_files).toContain("tracked.ts");
+    expect("unchanged_files" in result.value).toBe(false);
     expect(result.value.new_files).toEqual([]);
     expect(result.value.deleted_git_files).toEqual([]);
+  });
+
+  it("includes unchanged_files when includeUnchanged is true", async () => {
+    const trackedPath = join(tmpDir, "tracked.ts");
+    await writeFile(trackedPath, "export const x = 1;");
+    const mtime = await getMtime(trackedPath);
+
+    await writeLocalCache([{ path: "tracked.ts", mtime }]);
+    const result = await checkFilesCommand({ includeUnchanged: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.status).toBe("unchanged");
+    expect(result.value.unchanged_files).toContain("tracked.ts");
+  });
+
+  it("includes only unchanged paths in unchanged_files when includeUnchanged is true", async () => {
+    const unchangedPath = join(tmpDir, "unchanged.ts");
+    const changedPath = join(tmpDir, "changed.ts");
+    await writeFile(unchangedPath, "export const unchanged = true;");
+    await writeFile(changedPath, "export const changed = true;");
+
+    const unchangedMtime = await getMtime(unchangedPath);
+    const changedMtime = await getMtime(changedPath);
+
+    await writeLocalCache([
+      { path: "unchanged.ts", mtime: unchangedMtime },
+      { path: "changed.ts", mtime: changedMtime - 10_000 },
+    ]);
+
+    const result = await checkFilesCommand({ includeUnchanged: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.unchanged_files).toContain("unchanged.ts");
+    expect(result.value.unchanged_files).not.toContain("changed.ts");
+    expect(result.value.changed_files).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "changed.ts" })]),
+    );
   });
 
   it("returns changed when mtime differs and no hash stored", async () => {
@@ -124,7 +162,7 @@ describe("checkFilesCommand", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.status).toBe("unchanged");
-    expect(result.value.unchanged_files).toContain("tracked.ts");
+    expect("unchanged_files" in result.value).toBe(false);
     expect(result.value.new_files).toEqual([]);
     expect(result.value.deleted_git_files).toEqual([]);
   });
@@ -185,7 +223,7 @@ describe("checkFilesCommand", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.status).toBe("changed");
-    expect(result.value.unchanged_files).toContain("unchanged.ts");
+    expect("unchanged_files" in result.value).toBe(false);
     expect(result.value.changed_files.map((f) => f.path)).toContain("changed.ts");
     expect(result.value.missing_files).toContain("missing.ts");
     expect(result.value.new_files).toEqual([]);

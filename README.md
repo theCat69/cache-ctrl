@@ -409,7 +409,7 @@ cache-ctrl prune --agent external --max-age 1d --delete
 ### `check-files`
 
 ```
-cache-ctrl check-files [--pretty]
+cache-ctrl check-files [--include-unchanged] [--pretty]
 ```
 
 Reads `tracked_files[]` from the local cache and compares each file's current `mtime` (and `hash` if stored) against the saved values.
@@ -422,8 +422,24 @@ Reads `tracked_files[]` from the local cache and compares each file's current `m
 
 If `tracked_files` is absent or empty → returns `{ status: "unchanged", ... }` (not an error).
 
+By default, `unchanged_files` is omitted from output to reduce payload size. Pass `--include-unchanged` to include it.
+
 ```jsonc
 // cache-ctrl check-files --pretty
+{
+  "ok": true,
+  "value": {
+    "status": "unchanged",
+    "changed_files": [],
+    "missing_files": [],
+    "new_files": [],
+    "deleted_git_files": []
+  }
+}
+```
+
+```jsonc
+// cache-ctrl check-files --include-unchanged --pretty
 {
   "ok": true,
   "value": {
