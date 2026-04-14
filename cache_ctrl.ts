@@ -88,7 +88,7 @@ export const inspect_external = tool({
 
 export const inspect_local = tool({
   description:
-    "Return the local context cache content (context.json) with optional path/fact filters. Use filter (file path keyword), folder (recursive path prefix), or search_facts (fact text keyword) to narrow results. Omitting all three returns the entire facts map — only appropriate for codebases with ≤ ~20 tracked files. tracked_files is never returned.",
+    "Return the local context cache content (context.json) with optional path/fact filters. Use filter (file path keyword), folder (recursive path prefix), or search_facts (fact text keyword) to narrow results. Omitting all three returns the entire facts map — only appropriate for codebases with ≤ ~20 tracked files. tracked_files is never returned. Passing an empty array for filter or search_facts is equivalent to omitting that parameter entirely — both trigger the unfiltered path and the PAYLOAD_TOO_LARGE size guard.",
   args: {
     filter: z.array(z.string().min(1).max(256)).optional(),
     folder: z.string().min(1).max(256).optional(),
@@ -252,7 +252,12 @@ export const map = tool({
       .enum(["overview", "modules", "full"])
       .optional()
       .describe("Map depth (default: 'overview')"),
-    folder: z.string().optional().describe("Restrict map to files under this path prefix"),
+    folder: z
+      .string()
+      .optional()
+      .describe(
+        "Restrict map to files under this path prefix. Must be a relative path (no leading '/'), no '..' segments, no null bytes, max 512 characters.",
+      ),
   },
   async execute(args) {
     try {

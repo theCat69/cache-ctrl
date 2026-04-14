@@ -219,6 +219,7 @@ export interface GraphResult {
     total_files: number;
     computed_at: string;
     token_estimate: number;
+    entries_skipped?: number;
   };
 }
 

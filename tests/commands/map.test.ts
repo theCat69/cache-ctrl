@@ -185,6 +185,52 @@ describe("mapCommand", () => {
     expect(result.value.files[0]?.path).toBe("src/foo/bar.ts");
   });
 
+  it("returns INVALID_ARGS when folder contains '..'", async () => {
+    const result = await mapCommand({ folder: ".." });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.INVALID_ARGS);
+    expect(result.error).toContain("folder must not contain");
+  });
+
+  it("returns INVALID_ARGS when folder is an empty string", async () => {
+    const result = await mapCommand({ folder: "" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.INVALID_ARGS);
+    expect(result.error).toContain("folder must not be an empty string");
+  });
+
+  it("returns INVALID_ARGS when folder is an absolute path", async () => {
+    const result = await mapCommand({ folder: "/etc" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.INVALID_ARGS);
+    expect(result.error).toContain("folder must be a relative path");
+  });
+
+  it("does not reject folder with '..' embedded in a directory name segment", async () => {
+    await writeContextJson({
+      timestamp: "2026-04-11T00:00:00.000Z",
+      topic: "test",
+      description: "test",
+      tracked_files: [],
+      facts: {
+        "src/foo..bar/file.ts": { summary: "test file", role: "implementation", importance: 1 },
+      },
+    });
+
+    const result = await mapCommand({ folder: "src/foo..bar" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.files).toHaveLength(1);
+    expect(result.value.folder_filter).toBe("src/foo..bar");
+  });
+
   it("returns empty files when facts field is absent", async () => {
     await writeContextJson({
       timestamp: "2026-04-11T00:00:00.000Z",
@@ -201,5 +247,35 @@ describe("mapCommand", () => {
     expect(result.value.files).toEqual([]);
     expect(result.value.total_files).toBe(0);
     expect(result.value.global_facts).toEqual(["bun runtime"]);
+  });
+
+  it("returns PAYLOAD_TOO_LARGE when serialized map output exceeds byte limit", async () => {
+    const oversizedFacts = Object.fromEntries(
+      Array.from({ length: 80 }, (_, index) => [
+        `src/generated/huge-${index}.ts`,
+        {
+          summary: `summary-${"x".repeat(80)}`,
+          role: "implementation",
+          importance: ((index % 3) + 1) as 1 | 2 | 3,
+          facts: Array.from({ length: 10 }, (__, factIndex) => `fact-${factIndex}-${"y".repeat(120)}`),
+        },
+      ]),
+    );
+
+    await writeContextJson({
+      timestamp: "2026-04-11T00:00:00.000Z",
+      topic: "local context",
+      description: "oversized payload",
+      tracked_files: [],
+      global_facts: ["large map"],
+      facts: oversizedFacts,
+    });
+
+    const result = await mapCommand({ depth: "full" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
+    expect(result.error).toContain("Map output is too large");
   });
 });

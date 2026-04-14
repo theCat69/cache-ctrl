@@ -12,6 +12,9 @@ const SUBJECT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 /** Maximum allowed length for a cache subject. */
 const SUBJECT_MAX_LENGTH = 128;
 
+/** Maximum allowed length for a folder filter argument. */
+const FOLDER_MAX_LENGTH = 512;
+
 /**
  * Formats a ZodError's issues into a human-readable semicolon-separated string.
  * Each issue is prefixed with its dot-separated field path when present.
@@ -90,4 +93,53 @@ export function rejectTraversalKeys(record: Record<string, unknown>, ctx: unknow
       });
     }
   }
+}
+
+/**
+ * Normalizes and validates a folder filter argument used for path-prefix matching.
+ */
+export function normalizeFolderArg(folder: string): Result<string> {
+  if (folder.length > FOLDER_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `folder must be ${FOLDER_MAX_LENGTH} characters or fewer`,
+      code: ErrorCode.INVALID_ARGS,
+    };
+  }
+
+  const normalizedFolder = folder.replace(/\\/g, "/").replace(/\/+$/, "");
+
+  if (normalizedFolder.length === 0) {
+    return {
+      ok: false,
+      error: "folder must not be an empty string",
+      code: ErrorCode.INVALID_ARGS,
+    };
+  }
+
+  if (normalizedFolder.startsWith("/")) {
+    return {
+      ok: false,
+      error: "folder must be a relative path",
+      code: ErrorCode.INVALID_ARGS,
+    };
+  }
+
+  if (normalizedFolder.includes("\x00")) {
+    return {
+      ok: false,
+      error: "folder must not contain null bytes",
+      code: ErrorCode.INVALID_ARGS,
+    };
+  }
+
+  if (normalizedFolder.split("/").some((seg) => seg === "..")) {
+    return {
+      ok: false,
+      error: "folder must not contain '..' path segments",
+      code: ErrorCode.INVALID_ARGS,
+    };
+  }
+
+  return { ok: true, value: normalizedFolder };
 }

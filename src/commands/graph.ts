@@ -123,6 +123,9 @@ export async function graphCommand(args: GraphArgs): Promise<Result<GraphResult[
         total_files: graph.size,
         computed_at: parsed.computed_at,
         token_estimate: tokenEstimate,
+        ...(budgetedEntries.length < rankedEntries.length
+          ? { entries_skipped: rankedEntries.length - budgetedEntries.length }
+          : {}),
       },
     };
   } catch (err) {

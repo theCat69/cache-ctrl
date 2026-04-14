@@ -4,18 +4,28 @@ import { LocalCacheFileSchema } from "../types/cache.js";
 import type { MapArgs, MapDepth, MapResult } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../errors.js";
+import { normalizeFolderArg } from "../validation.js";
+
+const MAP_MAX_BYTES = 20_000;
 
 /**
  * Returns a semantic map view of local context cache content.
  *
  * @param args - {@link MapArgs} command arguments.
  * @returns Promise<Result<MapResult["value"]>>; common failures include FILE_NOT_FOUND,
- * PARSE_ERROR, FILE_READ_ERROR, and UNKNOWN.
+ * PARSE_ERROR, FILE_READ_ERROR, PAYLOAD_TOO_LARGE, and UNKNOWN.
  */
 export async function mapCommand(args: MapArgs): Promise<Result<MapResult["value"]>> {
   try {
     const depth: MapDepth = args.depth ?? "overview";
     const repoRoot = await findRepoRoot(process.cwd());
+    let normalizedFolder: string | undefined;
+    if (args.folder !== undefined) {
+      const folderResult = normalizeFolderArg(args.folder);
+      if (!folderResult.ok) return folderResult;
+      normalizedFolder = folderResult.value;
+    }
+
     const contextPath = resolveLocalCachePath(repoRoot);
 
     const readResult = await readCache(contextPath);
@@ -41,12 +51,11 @@ export async function mapCommand(args: MapArgs): Promise<Result<MapResult["value
 
     const parsed = parseResult.data;
     const allFacts = parsed.facts ?? {};
-    const folderPrefix = args.folder;
     const filteredFacts =
-      folderPrefix !== undefined
+      normalizedFolder !== undefined
         ? Object.fromEntries(
             Object.entries(allFacts).filter(
-              ([filePath]) => filePath === folderPrefix || filePath.startsWith(`${folderPrefix}/`),
+              ([filePath]) => filePath === normalizedFolder || filePath.startsWith(`${normalizedFolder}/`),
             ),
           )
         : allFacts;
@@ -68,18 +77,30 @@ export async function mapCommand(args: MapArgs): Promise<Result<MapResult["value
         return a.path.localeCompare(b.path);
       });
 
+    const value: MapResult["value"] = {
+      depth,
+      global_facts: parsed.global_facts ?? [],
+      files,
+      ...((depth === "modules" || depth === "full") && parsed.modules !== undefined ? { modules: parsed.modules } : {}),
+      total_files: files.length,
+      ...(normalizedFolder !== undefined ? { folder_filter: normalizedFolder } : {}),
+    };
+
+    const serialized = JSON.stringify(value);
+    const serializedBytes = Buffer.byteLength(serialized, "utf8");
+    if (serializedBytes > MAP_MAX_BYTES) {
+      return {
+        ok: false,
+        error:
+          `Map output is too large (${serializedBytes} bytes, limit ${MAP_MAX_BYTES} bytes). ` +
+          "Use the folder parameter to restrict to a subdirectory, or use depth: overview instead of full.",
+        code: ErrorCode.PAYLOAD_TOO_LARGE,
+      };
+    }
+
     return {
       ok: true,
-      value: {
-        depth,
-        global_facts: parsed.global_facts ?? [],
-        files,
-        ...((depth === "modules" || depth === "full") && parsed.modules !== undefined
-          ? { modules: parsed.modules }
-          : {}),
-        total_files: files.length,
-        ...(args.folder !== undefined ? { folder_filter: args.folder } : {}),
-      },
+      value,
     };
   } catch (err) {
     return toUnknownResult(err);

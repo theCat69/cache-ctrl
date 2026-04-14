@@ -293,7 +293,75 @@ describe("inspectLocalCommand", () => {
     if (result.ok) return;
 
     expect(result.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
-    expect(result.error).toMatch(/filter/i);
+    expect(result.error).toContain("Use the filter, folder, or search_facts parameter to narrow the query");
+  });
+
+  it("treats empty filter array as unfiltered and enforces PAYLOAD_TOO_LARGE guard", async () => {
+    const largeFacts = buildLargeFacts();
+
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        ...localFixtureBase,
+        facts: largeFacts,
+      }),
+    );
+
+    const result = await inspectLocalCommand({ filter: [] });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
+    expect(result.error).toContain("Use the filter, folder, or search_facts parameter to narrow the query");
+  });
+
+  it("treats filter with only empty-string elements as unfiltered and enforces PAYLOAD_TOO_LARGE", async () => {
+    const largeFacts = buildLargeFacts();
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        ...localFixtureBase,
+        facts: largeFacts,
+      }),
+    );
+
+    const result = await inspectLocalCommand({ filter: [""] });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
+    expect(result.error).toContain("Use the filter, folder, or search_facts parameter to narrow the query");
+  });
+
+  it("treats empty searchFacts array as unfiltered and enforces PAYLOAD_TOO_LARGE guard", async () => {
+    const largeFacts = buildLargeFacts();
+
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        ...localFixtureBase,
+        facts: largeFacts,
+      }),
+    );
+
+    const result = await inspectLocalCommand({ searchFacts: [] });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
+    expect(result.error).toContain("Use the filter, folder, or search_facts parameter to narrow the query");
+  });
+
+  it("treats searchFacts with only empty-string elements as unfiltered and enforces PAYLOAD_TOO_LARGE", async () => {
+    const largeFacts = buildLargeFacts();
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        ...localFixtureBase,
+        facts: largeFacts,
+      }),
+    );
+
+    const result = await inspectLocalCommand({ searchFacts: [""] });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
+    expect(result.error).toContain("Use the filter, folder, or search_facts parameter to narrow the query");
   });
 
   it("returns large filtered result without PAYLOAD_TOO_LARGE", async () => {
@@ -347,5 +415,39 @@ describe("inspectLocalCommand", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe(ErrorCode.INVALID_ARGS);
+  });
+
+  it("returns INVALID_ARGS when folder is an empty string", async () => {
+    const result = await inspectLocalCommand({ folder: "" });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.INVALID_ARGS);
+    expect(result.error).toContain("folder must not be an empty string");
+  });
+
+  it("returns INVALID_ARGS when folder is an absolute path", async () => {
+    const result = await inspectLocalCommand({ folder: "/etc" });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.INVALID_ARGS);
+    expect(result.error).toContain("folder must be a relative path");
+  });
+
+  it("does not reject folder with '..' embedded in a directory name segment", async () => {
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        ...localFixtureBase,
+        facts: {
+          "src/foo..bar/file.ts": { facts: ["test fact"] },
+        },
+      }),
+    );
+
+    const result = await inspectLocalCommand({ folder: "src/foo..bar" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.facts).toEqual({
+      "src/foo..bar/file.ts": { facts: ["test fact"] },
+    });
   });
 });

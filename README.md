@@ -534,17 +534,20 @@ Returns `FILE_NOT_FOUND` if `graph.json` does not exist — run `cache-ctrl watc
       {
         "path": "src/cache/cacheManager.ts",
         "rank": 0.142,
-        "deps": ["src/utils/validate.ts"],
+        "deps": ["src/validation.ts"],
         "defs": ["readCache", "writeCache", "findRepoRoot"],
         "ref_count": 12
       }
     ],
     "total_files": 36,
     "computed_at": "2026-04-11T10:00:00Z",
-    "token_estimate": 487
+    "token_estimate": 487,
+    "entries_skipped": 5 // present only when token budget truncated output
   }
 }
 ```
+
+`entries_skipped` is present (and non-zero) when the token budget truncated the ranked list; absent when all files fit within the budget.
 
 ---
 
@@ -569,6 +572,10 @@ Returns a semantic map of the local `context.json` using the structured `FileFac
 - `full` — includes all per-file `facts[]` strings
 
 Returns `FILE_NOT_FOUND` if `context.json` does not exist.
+
+Returns `PAYLOAD_TOO_LARGE` if the serialized output exceeds **20 000 UTF-8 bytes**. Use `--folder` to restrict to a subdirectory, or switch to `--depth overview` instead of `full`.
+
+`--folder` must be a **relative path** (no leading `/`). Rejects `..` segments, null bytes, and strings longer than 512 characters; returns `INVALID_ARGS` otherwise.
 
 ```jsonc
 // cache-ctrl map --depth overview --folder src/commands --pretty
@@ -760,7 +767,7 @@ Written and maintained by the `watch` daemon. Read by `cache-ctrl graph` and `ca
   "files": {
     "src/cache/cacheManager.ts": {
       "rank": 0.0,          // stored as 0.0; PageRank is recomputed on every graph command call
-      "deps": ["src/utils/validate.ts", "src/types/result.ts"],
+      "deps": ["src/validation.ts", "src/types/result.ts"],
       "defs": ["readCache", "writeCache", "findRepoRoot"]
     }
   }
@@ -784,7 +791,7 @@ Written and maintained by the `watch` daemon. Read by `cache-ctrl graph` and `ca
 | `VALIDATION_ERROR` | Schema validation failed (e.g., missing required field or type mismatch in `write`) |
 | `NO_MATCH` | No cache file matched the keyword |
 | `AMBIGUOUS_MATCH` | Multiple files with identical top score |
-| `PAYLOAD_TOO_LARGE` | `inspect-local` unfiltered response exceeds 20 000 bytes or 500 entries. Use `--filter`, `--folder`, or `--search-facts`, or navigate with `map`/`graph` first. |
+| `PAYLOAD_TOO_LARGE` | `inspect-local` unfiltered response exceeds 20 000 bytes or 500 entries; `map` output exceeds 20 000 bytes. Use `--filter`, `--folder`, or `--search-facts`, or navigate with `map`/`graph` first. |
 | `UNKNOWN` | Unexpected internal/runtime error (including unexpected HTTP client failures) |
 
 ---
