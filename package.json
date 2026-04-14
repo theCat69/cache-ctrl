@@ -1,6 +1,6 @@
 {
   "name": "@thecat69/cache-ctrl",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "type": "module",
   "bin": {
     "cache-ctrl": "src/index.ts"
