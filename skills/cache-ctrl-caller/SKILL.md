@@ -11,15 +11,26 @@ This skill defines how orchestrators and agents should use cache state to decide
 
 | `check_files` result | Action |
 |---|---|
-| `status: "unchanged"` AND cache has relevant content | Call `cache_ctrl_inspect_local` (filter: task keywords). Do NOT call gatherer. |
-| `status: "unchanged"` BUT cache is empty or irrelevant | Call `local-context-gatherer` with "forced full scan" instruction. |
 | `status: "changed"` | Call `local-context-gatherer` for delta scan. Pass `changed_files` and `new_files` lists in the prompt. |
-| No cache yet (cold start) | Call `local-context-gatherer` for initial scan. |
 | `cache_ctrl_check_files` fails | Treat as stale. Call `local-context-gatherer`. |
+| `status: "unchanged"` AND cache has relevant content | Call `cache_ctrl_inspect_local` (filter: task keywords). Do NOT call gatherer. |
+| `status: "unchanged"` AND cache is empty or irrelevant | **Navigate first** — use `cache_ctrl_map` + `cache_ctrl_graph` + filenames (see below). Call `local-context-gatherer` only if navigation tools are insufficient. |
+| No cache yet (cold start) | Try `cache_ctrl_map` / `cache_ctrl_graph`; if empty or insufficient, call one or multiple `local-context-gatherer` for initial scan. |
 
 Note: check-files returns `new_files` (non-gitignored files absent from cache) and `deleted_git_files` (git-tracked files removed from working tree). If either is non-empty, `status` is `"changed"`.
 
 Note: To force a full re-scan (after major restructure): call `cache_ctrl_invalidate` with `agent: "local"`.
+
+### Navigation-First When Files Are Unchanged
+
+When `check_files` returns `status: "unchanged"` but the cache lacks the relevant facts, **prefer self-service navigation over spawning a gatherer**. Follow this sequence:
+
+1. Call `cache_ctrl_map` (`depth: "overview"` or `"modules"`) to get a structural picture of the codebase.
+2. Call `cache_ctrl_graph` (optionally with `seed` file paths) to understand file dependencies and centrality.
+3. From the map and graph output, identify files relevant to the task by name and path.
+4. Call `cache_ctrl_inspect_local` with targeted `filter` or `folder` to fetch per-file facts.
+
+**Only call `local-context-gatherer`** if, after the above steps, you still cannot locate the relevant context — for example when the map and graph are both empty, or when the task requires cross-cutting semantic facts not surfaced by filenames alone.
 
 ## External Context
 
@@ -37,6 +48,8 @@ Note: To force a full re-scan (after major restructure): call `cache_ctrl_invali
 To force a re-fetch for a specific subject: call `cache_ctrl_invalidate` with `agent: "external"` and the subject keyword.
 
 ## Repo Navigation
+
+These are the **primary self-service tools** for codebase orientation. Use them before resorting to spawning a `local-context-gatherer` subagent.
 
 ### `cache_ctrl_map`
 
