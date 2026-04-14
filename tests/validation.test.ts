@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { validateSubject } from "../../src/utils/validate.js";
-import { ErrorCode } from "../../src/types/result.js";
-import { rejectTraversalKeys } from "../../src/utils/traversal.js";
+import { validateSubject, rejectTraversalKeys } from "../src/validation.js";
+import { ErrorCode } from "../src/types/result.js";
 
 describe("validateSubject", () => {
   it("accepts a single-character subject", () => {

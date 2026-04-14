@@ -4,7 +4,7 @@ import path from "node:path";
 
 import type { InstallResult } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 const SKILL_NAMES = ["cache-ctrl-external", "cache-ctrl-local", "cache-ctrl-caller"] as const;
 

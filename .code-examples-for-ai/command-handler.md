@@ -8,14 +8,13 @@ Commands are thin orchestrators — they validate, delegate to services, and ret
 ```typescript
 // src/commands/list.ts — a representative command handler
 
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { findRepoRoot, listCacheFiles, readCache } from "../cache/cacheManager.js";
 import { getAgeHuman, isExternalStale } from "../cache/externalCache.js";
 import { ExternalCacheFileSchema, LocalCacheFileSchema } from "../types/cache.js";
 import { type Result } from "../types/result.js";
 import type { ListArgs, ListEntry, ListResult } from "../types/commands.js";  // import type for type-only imports
-import { getFileStem } from "../utils/fileStem.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 // The command function signature: typed Args in, Promise<Result<T>> out
 export async function listCommand(args: ListArgs): Promise<Result<ListResult["value"]>> {
@@ -46,7 +45,7 @@ export async function listCommand(args: ListArgs): Promise<Result<ListResult["va
         entries.push({
           file: filePath,
           agent: "external",
-          subject: data.subject ?? getFileStem(filePath),
+          subject: data.subject ?? basename(filePath, ".json"),
           fetched_at: data.fetched_at ?? "",
           age_human: getAgeHuman(data.fetched_at ?? ""),
           is_stale: isExternalStale(data),

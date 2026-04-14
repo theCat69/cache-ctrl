@@ -16,9 +16,9 @@ All example files live in `.code-examples-for-ai/` at the repo root. Each file d
 | `result-pattern.md` | `Result<T, E>` discriminated union — typed error returns without throwing | `src/types/result.ts` |
 | `zod-schema-validation.md` | Zod `safeParse()` at write boundaries — validate all external JSON before disk writes | `src/types/cache.ts`, `src/commands/writeExternal.ts` |
 | `command-handler.md` | Command handler structure — async function, typed Args, delegate I/O to services | `src/commands/list.ts`, `src/index.ts` |
-| `error-handling.md` | Canonical catch-all conversion in command handlers via `toUnknownResult(err)` | `src/utils/errors.ts`, `src/commands/list.ts`, `src/commands/writeLocal.ts` |
+| `error-handling.md` | Canonical catch-all conversion in command handlers via `toUnknownResult(err)` | `src/errors.ts`, `src/commands/list.ts`, `src/commands/writeLocal.ts` |
 | `change-detector.md` | Async file comparison — `Promise.all` parallelism, mtime/hash fallback, path traversal guard | `src/files/changeDetector.ts` |
-| `subject-validation.md` | Subject string validation — regex + max-length guard that becomes a file path component | `src/utils/validate.ts` |
+| `subject-validation.md` | Subject string validation — regex + max-length guard that becomes a file path component | `src/validation.ts` |
 | `personalized-pagerank.md` | Personalized PageRank ranking over dependency graphs with dangling-node redistribution | `src/analysis/pageRank.ts` |
 | `watch-daemon-command.md` | Long-running Bun watcher command with debounce, serialized rebuilds, and signal shutdown | `src/commands/watch.ts` |
 

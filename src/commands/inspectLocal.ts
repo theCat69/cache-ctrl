@@ -4,7 +4,7 @@ import type { FileFacts } from "../types/cache.js";
 import type { InspectLocalArgs, InspectLocalResult } from "../types/commands.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 /** Maximum UTF-8 byte size of the full unfiltered facts map (~5 000 tokens at ~4 bytes/token). */
 const INSPECT_LOCAL_MAX_FACTS_BYTES = 20_000;

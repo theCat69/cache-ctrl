@@ -5,8 +5,8 @@ import { filterExistingFiles, resolveTrackedFileStats } from "../files/changeDet
 import type { WriteArgs, WriteResult } from "../types/commands.js";
 import { type FileFacts, LocalCacheFileSchema, type TrackedFile, TrackedFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { toUnknownResult } from "../utils/errors.js";
-import { formatZodError } from "../utils/validate.js";
+import { toUnknownResult } from "../errors.js";
+import { formatZodError } from "../validation.js";
 
 function evictFactsForDeletedPaths(
   facts: Record<string, unknown>,

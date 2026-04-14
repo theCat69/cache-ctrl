@@ -4,7 +4,7 @@ import { resolveLocalCachePath } from "../cache/localCache.js";
 import { detectTrackedFilesStatus } from "../files/changeDetector.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 import type { ListArgs, ListEntry, ListResult } from "../types/commands.js";
 
 /**

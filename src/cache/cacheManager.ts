@@ -1,9 +1,8 @@
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { AgentType, CacheEntry, ExternalCacheFile, LocalCacheFile } from "../types/cache.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { getFileStem } from "../utils/fileStem.js";
 
 const LOCK_RETRY_INTERVAL_MS = 50;
 const LOCK_TIMEOUT_MS = 5000;
@@ -180,7 +179,7 @@ export async function loadExternalCacheEntries(repoRoot: string): Promise<Result
       continue;
     }
     const data: ExternalCacheFile = parseResult.data;
-    const stem = getFileStem(filePath);
+    const stem = basename(filePath, ".json");
     const subject = data.subject ?? stem;
     if (subject !== stem) {
       process.stderr.write(`[cache-ctrl] Warning: subject "${subject}" does not match file stem "${stem}" in ${filePath}\n`);

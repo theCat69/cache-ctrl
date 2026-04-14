@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { unlink } from "node:fs/promises";
 import { findRepoRoot, listCacheFiles, writeCache, readCache } from "../cache/cacheManager.js";
 import { isFetchedAtStale } from "../cache/externalCache.js";
@@ -5,8 +6,7 @@ import { resolveLocalCachePath } from "../cache/localCache.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { PruneArgs, PruneResult } from "../types/commands.js";
-import { getFileStem } from "../utils/fileStem.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 /**
  * Parses duration text in `<number><unit>` form.
@@ -58,7 +58,7 @@ export async function pruneCommand(args: PruneArgs): Promise<Result<PruneResult[
         const data = parseResult.data;
 
         if (isFetchedAtStale(data.fetched_at ?? "", externalMaxAgeMs ?? undefined)) {
-          const stem = getFileStem(filePath);
+          const stem = basename(filePath, ".json");
           const subject = data.subject ?? stem;
           matched.push({ file: filePath, agent: "external", subject });
           if (doDelete) {

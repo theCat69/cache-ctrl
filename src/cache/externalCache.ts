@@ -1,7 +1,7 @@
 import { ErrorCode, type Result } from "../types/result.js";
 import { listCacheFiles, loadExternalCacheEntries, writeCache } from "./cacheManager.js";
 import { scoreEntry } from "../search/keywordSearch.js";
-import { validateSubject } from "../utils/validate.js";
+import { validateSubject } from "../validation.js";
 
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 

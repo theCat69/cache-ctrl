@@ -5,7 +5,7 @@ import { GraphCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { DependencyGraph } from "../analysis/graphBuilder.js";
 import type { GraphArgs, GraphResult } from "../types/commands.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 interface RankedFileEntry {
   path: string;

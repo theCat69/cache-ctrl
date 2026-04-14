@@ -4,7 +4,7 @@ import { compareTrackedFile, computeGitFileSetDelta } from "../files/changeDetec
 import { LocalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { CheckFilesResult } from "../types/commands.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 /**
  * Compares local tracked files against stored baselines and git file-set deltas.

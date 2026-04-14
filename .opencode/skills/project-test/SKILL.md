@@ -27,7 +27,7 @@ Mirror the `src/` directory structure exactly:
 ```
 src/commands/write.ts       →  tests/commands/write.test.ts
 src/files/changeDetector.ts →  tests/files/changeDetector.test.ts
-src/utils/validate.ts       →  tests/utils/validate.test.ts
+src/validation.ts          →  tests/validation.test.ts
 src/cache/cacheManager.ts   →  tests/cache/cacheManager.test.ts
 ```
 

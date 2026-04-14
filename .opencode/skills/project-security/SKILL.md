@@ -22,7 +22,7 @@ description: Project-specific security guidelines for secrets, input validation,
 
 ### Subject Validation (Path Traversal Prevention)
 
-All subject strings that become file path components must pass through `validateSubject()` in `src/utils/validate.ts` before any file operation:
+All subject strings that become file path components must pass through `validateSubject()` in `src/validation.ts` before any file operation:
 
 ```typescript
 // SUBJECT_PATTERN blocks pure-dot strings ("..", ".") and dot-leading strings

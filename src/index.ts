@@ -19,7 +19,7 @@ import { watchCommand } from "./commands/watch.js";
 import { versionCommand } from "./commands/version.js";
 import type { AgentType } from "./types/cache.js";
 import { ErrorCode } from "./types/result.js";
-import { toUnknownResult } from "./utils/errors.js";
+import { toUnknownResult } from "./errors.js";
 
 type CommandName =
   | "list"

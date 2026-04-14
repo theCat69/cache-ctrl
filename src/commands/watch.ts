@@ -8,7 +8,7 @@ import { getGitTrackedFiles } from "../files/gitFiles.js";
 import type { GraphCacheFile } from "../types/cache.js";
 import type { WatchArgs } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 const WATCH_DEBOUNCE_MS = 200;
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);

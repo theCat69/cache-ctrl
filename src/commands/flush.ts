@@ -3,7 +3,7 @@ import { findRepoRoot, listCacheFiles } from "../cache/cacheManager.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { FlushArgs, FlushResult } from "../types/commands.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 /**
  * Deletes cache files for one or both agent namespaces.

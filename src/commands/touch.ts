@@ -3,7 +3,7 @@ import { updateExternalFetchedAt } from "../cache/externalCache.js";
 import { resolveLocalCachePath } from "../cache/localCache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { TouchArgs, TouchResult } from "../types/commands.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 /**
  * Marks cache entries fresh by setting timestamps to current UTC time.

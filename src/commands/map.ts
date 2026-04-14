@@ -3,7 +3,7 @@ import { resolveLocalCachePath } from "../cache/localCache.js";
 import { LocalCacheFileSchema } from "../types/cache.js";
 import type { MapArgs, MapDepth, MapResult } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { toUnknownResult } from "../errors.js";
 
 /**
  * Returns a semantic map view of local context cache content.

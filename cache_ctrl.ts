@@ -9,8 +9,8 @@ import { writeLocalCommand } from "./src/commands/writeLocal.js";
 import { writeExternalCommand } from "./src/commands/writeExternal.js";
 import { graphCommand } from "./src/commands/graph.js";
 import { mapCommand } from "./src/commands/map.js";
-import { toUnknownResult } from "./src/utils/errors.js";
-import { rejectTraversalKeys } from "./src/utils/traversal.js";
+import { toUnknownResult } from "./src/errors.js";
+import { rejectTraversalKeys } from "./src/validation.js";
 
 const z = tool.schema;
 

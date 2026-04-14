@@ -3,8 +3,8 @@ import path from "node:path";
 import type { InstallResult, UpdateArgs, UpdateResult } from "../types/commands.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { resolveOpenCodeConfigDir } from "../files/openCodeInstaller.js";
-import { validateConfigDir } from "../utils/configDir.js";
-import { toUnknownResult } from "../utils/errors.js";
+import { validateConfigDir } from "./configDir.js";
+import { toUnknownResult } from "../errors.js";
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
