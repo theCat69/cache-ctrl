@@ -23,9 +23,6 @@ vi.mock("node:fs/promises", () => ({
 vi.mock("web-tree-sitter", () => {
   class ParserMock {
     static init = initMock;
-    static Language = {
-      load: languageLoadMock,
-    };
 
     setLanguage(language: unknown): void {
       setLanguageMock(language);
@@ -48,7 +45,12 @@ vi.mock("web-tree-sitter", () => {
     }
   }
 
-  return { default: ParserMock };
+  return {
+    Parser: ParserMock,
+    Language: {
+      load: languageLoadMock,
+    },
+  };
 });
 
 let parseFileSymbols: typeof import("../../src/analysis/treeSitterEngine.js").parseFileSymbols;
