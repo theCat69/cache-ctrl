@@ -351,12 +351,29 @@ function printError(error: { ok: false } & CacheError, pretty: boolean): void {
   printJson(error, process.stderr, pretty);
 }
 
-function dispatchResult(
+/**
+ * Writes a command result to stdout (success) or stderr (error) as JSON and
+ * exits the process on failure.
+ *
+ * @param result - The `Result` returned by a command handler. Success values
+ *   are wrapped in an envelope before output; error values are written as-is
+ *   to stderr.
+ * @param pretty - When `true`, output is indented with 2-space JSON formatting.
+ * @param includeServerTime - When `true` (the default), the success envelope
+ *   includes a `serverTime` field (ISO 8601 UTC string) at the top level,
+ *   alongside `ok` and `value`. The `install` command passes `false` to omit
+ *   `serverTime` from its output.
+ */
+export function dispatchResult(
   result: { ok: true; value: unknown } | ({ ok: false } & CacheError),
   pretty: boolean,
+  includeServerTime = true,
 ): void {
   if (result.ok) {
-    printResult(result, pretty);
+    const envelope = includeServerTime
+      ? { ...result, serverTime: new Date().toISOString() }
+      : result;
+    printResult(envelope, pretty);
     return;
   }
 
@@ -668,7 +685,7 @@ async function main(): Promise<void> {
       }
       const configDir = typeof flags["config-dir"] === "string" ? flags["config-dir"] : undefined;
       const result = await installCommand(configDir !== undefined ? { configDir } : {});
-      dispatchResult(result, pretty);
+      dispatchResult(result, pretty, false);
       break;
     }
 

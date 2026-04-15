@@ -82,6 +82,7 @@ Command Layer
 ## CLI Reference
 
 **Output format**: JSON (single line) by default. Add `--pretty` to any command for indented output.  
+**Success envelope**: Every successful response includes an `"ok": true` field, a `"value"` field containing the command payload, and a `"serverTime"` field (ISO 8601 UTC string) at the top level — except the `install` command, which omits `serverTime`.  
 **Errors**: Written to stderr as JSON. Exit code `1` on error, `2` on bad arguments. Example:
 
 ```json
@@ -186,7 +187,8 @@ Lists all cache entries. Shows age, human-readable age string, and staleness fla
       "age_human": "2 hours ago",
       "is_stale": false
     }
-  ]
+  ],
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -357,7 +359,8 @@ By default, `unchanged_files` is omitted from output to reduce payload size. Pas
     "missing_files": [],
     "new_files": [],
     "deleted_git_files": []
-  }
+  },
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -372,7 +375,8 @@ By default, `unchanged_files` is omitted from output to reduce payload size. Pas
     "missing_files": [],
     "new_files": [],
     "deleted_git_files": []
-  }
+  },
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -426,7 +430,7 @@ Writes a validated cache entry to disk. The `--data` argument must be a valid JS
 
 ```json
 // cache-ctrl write-external mysubject --data '{"subject":"mysubject","description":"...","fetched_at":"2026-04-05T10:00:00Z","sources":[]}' --pretty
-{ "ok": true, "value": { "file": "/path/to/.ai/external-context-gatherer_cache/mysubject.json" } }
+{ "ok": true, "value": { "file": "/path/to/.ai/external-context-gatherer_cache/mysubject.json" }, "serverTime": "2026-04-15T12:00:00.000Z" }
 ```
 
 ---
@@ -466,7 +470,8 @@ Returns `FILE_NOT_FOUND` if `graph.json` does not exist — run `cache-ctrl watc
     "computed_at": "2026-04-11T10:00:00Z",
     "token_estimate": 487,
     "entries_skipped": 5 // present only when token budget truncated output
-  }
+  },
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -517,7 +522,8 @@ Returns `PAYLOAD_TOO_LARGE` if the serialized output exceeds **20 000 UTF-8 byte
     ],
     "total_files": 1,
     "folder_filter": "src/commands"
-  }
+  },
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -563,7 +569,7 @@ No flags or arguments.
 
 ```jsonc
 // cache-ctrl version
-{ "ok": true, "value": { "version": "1.1.1" } }
+{ "ok": true, "value": { "version": "1.1.1" }, "serverTime": "2026-04-15T12:00:00.000Z" }
 ```
 
 ---
