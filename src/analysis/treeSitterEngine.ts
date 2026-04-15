@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { dirname, extname, resolve, sep } from "node:path";
 
-import Parser from "web-tree-sitter";
+import { Language, Parser } from "web-tree-sitter";
 import type { FileSymbols } from "./fileSymbols.js";
 
-type LoadedLanguage = Awaited<ReturnType<typeof Parser.Language.load>>;
+type LoadedLanguage = Awaited<ReturnType<typeof Language.load>>;
 
 let initPromise: Promise<void> | null = null;
 const languageCache = new Map<string, LoadedLanguage>();
@@ -201,7 +201,7 @@ async function loadLanguage(wasmPath: string): Promise<LoadedLanguage> {
     return ongoingLoad;
   }
 
-  const loadPromise = Parser.Language.load(wasmPath)
+  const loadPromise = Language.load(wasmPath)
     .then((loadedLanguage) => {
       languageCache.set(wasmPath, loadedLanguage);
       return loadedLanguage;
@@ -228,6 +228,9 @@ export async function parseFileSymbols(filePath: string, wasmPath: string, repoR
     const parser = new Parser();
     parser.setLanguage(language);
     const tree = parser.parse(sourceCode);
+    if (tree === null) {
+      return { deps: [], defs: [] };
+    }
     const extension = extname(filePath).toLowerCase();
     const isTypeScriptOrJavaScript = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"].includes(extension);
     const dependencies = new Set<string>();

@@ -22,6 +22,7 @@ All example files live in `.code-examples-for-ai/` at the repo root. Each file d
 | `personalized-pagerank.md` | Personalized PageRank ranking over dependency graphs with dangling-node redistribution | `src/analysis/pageRank.ts` |
 | `watch-daemon-command.md` | Long-running Bun watcher command with debounce, serialized rebuilds, and signal shutdown | `src/commands/watch.ts` |
 | `wasm-parser-download.md` | On-demand WASM parser cache download with temp-file + rename atomic write | `src/http/parserDownloader.ts` |
+| `e2e-test-pattern.md` | E2E test structure for daemon commands — `runCliWithTimeout` vs `runCli`, `exitCode: -1` convention | `e2e/tests/watch.e2e.test.ts`, `e2e/helpers/cli.ts` |
 
 ---
 
@@ -49,4 +50,4 @@ After adding a new example file, add a row to the index table in this SKILL.md.
 - Atomic write via temp file + rename — `src/cache/cacheManager.ts`
 - Keyword scoring / search ranking — `src/search/keywordSearch.ts`
 - HTTP HEAD freshness check — `src/http/`
-- E2E test structure with Docker — `e2e/tests/`
+- E2E test structure with Docker — covered by `e2e-test-pattern.md`

@@ -63,3 +63,48 @@ export function parseJsonOutput<T = unknown>(raw: string): T {
     throw new Error(`parseJsonOutput: invalid JSON from CLI — ${message}\n${trimmed.slice(0, 200)}`);
   }
 }
+
+/**
+ * Spawns: bun /app/src/index.ts ...args
+ *
+ * Kills the process after `timeoutMs` if it has not already exited.
+ * exitCode is -1 when the process was killed by the timeout.
+ *
+ * Useful for testing daemon commands (e.g. `watch`) that never exit on their own.
+ *
+ * @param args - CLI arguments to pass after the entrypoint.
+ * @param timeoutMs - Milliseconds to wait before killing the process.
+ * @param options - Optional spawn options (e.g. `cwd`).
+ */
+export async function runCliWithTimeout(
+  args: string[],
+  timeoutMs: number,
+  options?: { cwd?: string },
+): Promise<CliResult> {
+  const proc = Bun.spawn(["bun", CLI_ENTRYPOINT, ...args], {
+    cwd: options?.cwd ?? process.cwd(),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    proc.kill();
+  }, timeoutMs);
+
+  let stdout = "";
+  let stderr = "";
+  let rawExitCode = 1;
+  try {
+    [stdout, stderr, rawExitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+
+  return { stdout, stderr, exitCode: timedOut ? -1 : rawExitCode };
+}

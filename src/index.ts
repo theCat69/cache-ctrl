@@ -741,6 +741,14 @@ async function main(): Promise<void> {
     }
 
     case "watch": {
+      const unsupportedWatchFlag = Object.keys(flags).find(
+        (flag) => flag !== "verbose" && flag !== "pretty" && flag !== "help",
+      );
+      if (unsupportedWatchFlag !== undefined) {
+        const safeFlag = unsupportedWatchFlag.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+        usageError(`Unknown flag for watch: "--${safeFlag}"`);
+      }
+
       const result = await watchCommand({ verbose: flags.verbose === true });
       if (!result.ok) {
         printError(result, pretty);

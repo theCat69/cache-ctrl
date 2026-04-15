@@ -23,13 +23,7 @@ declare module "web-tree-sitter" {
     query(query: string): Query;
   }
 
-  export default class Parser {
-    static init(): Promise<void>;
-    static Language: {
-      load(path: string): Promise<Language>;
-    };
-
-    setLanguage(language: Language): void;
-    parse(input: string): Tree;
+  export interface Parser {
+    parse(input: string): Tree | null;
   }
 }
