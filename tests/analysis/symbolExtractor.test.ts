@@ -1,100 +1,90 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { join } from "node:path";
 
+const {
+  detectLanguageMock,
+  downloadParserMock,
+  parseFileSymbolsMock,
+  getXdgCacheDirMock,
+} = vi.hoisted(() => ({
+  detectLanguageMock: vi.fn(),
+  downloadParserMock: vi.fn(),
+  parseFileSymbolsMock: vi.fn(),
+  getXdgCacheDirMock: vi.fn(),
+}));
+
+vi.mock("../../src/analysis/languageDetector.js", () => ({
+  detectLanguage: detectLanguageMock,
+}));
+
+vi.mock("../../src/http/parserDownloader.js", () => ({
+  downloadParser: downloadParserMock,
+}));
+
+vi.mock("../../src/analysis/treeSitterEngine.js", () => ({
+  parseFileSymbols: parseFileSymbolsMock,
+}));
+
+vi.mock("../../src/platform/xdg.js", () => ({
+  getXdgCacheDir: getXdgCacheDirMock,
+}));
+
 import { extractSymbols } from "../../src/analysis/symbolExtractor.js";
-
-const tempDirs: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    tempDirs.splice(0).map(async (directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
+import { ErrorCode } from "../../src/types/result.js";
 
 describe("extractSymbols", () => {
-  it("extracts relative imports and export definitions from a TypeScript file", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-symbols-"));
-    tempDirs.push(tempDir);
+  beforeEach(() => {
+    vi.clearAllMocks();
 
-    const filePath = join(tempDir, "entry.ts");
-    await writeFile(
-      filePath,
-      [
-        "import { helper } from './helper.js';",
-        "import './side-effect';",
-        "export const alpha = 1;",
-        "const beta = 2;",
-        "export { beta };",
-        "export default function gamma() { return helper + beta; }",
-      ].join("\n"),
-    );
-
-    const symbols = await extractSymbols(filePath, tempDir);
-
-    expect(new Set(symbols.deps)).toEqual(
-      new Set([join(tempDir, "helper.js"), join(tempDir, "side-effect")]),
-    );
-    expect(new Set(symbols.defs)).toEqual(new Set(["alpha", "beta", "default", "gamma"]));
+    detectLanguageMock.mockReturnValue("typescript");
+    getXdgCacheDirMock.mockReturnValue(join("/cache", "cache-ctrl"));
+    downloadParserMock.mockResolvedValue({ ok: true, value: "/cache/cache-ctrl/parsers/typescript.wasm" });
+    parseFileSymbolsMock.mockResolvedValue({ deps: ["/repo/src/dep.ts"], defs: ["alpha"] });
   });
 
-  it("does not include non-relative imports in dependencies", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-symbols-"));
-    tempDirs.push(tempDir);
+  it("returns empty symbols for unsupported files", async () => {
+    detectLanguageMock.mockReturnValue(null);
 
-    const filePath = join(tempDir, "entry.ts");
-    await writeFile(
-      filePath,
-      [
-        "import { z } from 'zod';",
-        "import { localValue } from './local.js';",
-        "export { localValue };",
-      ].join("\n"),
-    );
+    const symbols = await extractSymbols("/repo/README.md", "/repo");
 
-    const symbols = await extractSymbols(filePath, tempDir);
-    expect(symbols.deps).toEqual([join(tempDir, "local.js")]);
-  });
-
-  it("returns empty symbols when parsing fails", async () => {
-    const symbols = await extractSymbols("/path/that/does/not/exist.ts", "/");
     expect(symbols).toEqual({ deps: [], defs: [] });
+    expect(downloadParserMock).not.toHaveBeenCalled();
+    expect(parseFileSymbolsMock).not.toHaveBeenCalled();
   });
 
-  it("excludes resolved relative imports that escape repo root", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-symbols-"));
-    tempDirs.push(tempDir);
+  it("downloads parser and delegates to tree-sitter engine", async () => {
+    const symbols = await extractSymbols("/repo/src/entry.ts", "/repo");
 
-    const filePath = join(tempDir, "src", "entry.ts");
-    await mkdir(join(tempDir, "src"), { recursive: true });
-    await writeFile(filePath, "import '../../../outside.js';\nexport const inside = true;\n");
-
-    const symbols = await extractSymbols(filePath, tempDir);
-    expect(symbols.deps).toEqual([]);
+    expect(downloadParserMock).toHaveBeenCalledWith(
+      "typescript",
+      join("/cache", "cache-ctrl", "parsers"),
+    );
+    expect(parseFileSymbolsMock).toHaveBeenCalledWith(
+      "/repo/src/entry.ts",
+      "/cache/cache-ctrl/parsers/typescript.wasm",
+      "/repo",
+    );
+    expect(symbols).toEqual({ deps: ["/repo/src/dep.ts"], defs: ["alpha"] });
   });
 
-  it("collects exported type alias names", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-symbols-"));
-    tempDirs.push(tempDir);
+  it("returns empty symbols when parser download fails", async () => {
+    downloadParserMock.mockResolvedValue({
+      ok: false,
+      code: ErrorCode.PARSER_DOWNLOAD_ERROR,
+      error: "network unavailable",
+    });
 
-    const filePath = join(tempDir, "types.ts");
-    await writeFile(filePath, "export type UserId = string;\n");
+    const symbols = await extractSymbols("/repo/src/entry.ts", "/repo");
 
-    const symbols = await extractSymbols(filePath, tempDir);
-
-    expect(symbols.defs).toContain("UserId");
+    expect(symbols).toEqual({ deps: [], defs: [] });
+    expect(parseFileSymbolsMock).not.toHaveBeenCalled();
   });
 
-  it("collects exported interface declaration names", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-symbols-"));
-    tempDirs.push(tempDir);
+  it("returns empty symbols when engine throws", async () => {
+    parseFileSymbolsMock.mockRejectedValue(new Error("parse crash"));
 
-    const filePath = join(tempDir, "interfaces.ts");
-    await writeFile(filePath, "export interface CacheEntry { subject: string }\n");
+    const symbols = await extractSymbols("/repo/src/entry.ts", "/repo");
 
-    const symbols = await extractSymbols(filePath, tempDir);
-
-    expect(symbols.defs).toContain("CacheEntry");
+    expect(symbols).toEqual({ deps: [], defs: [] });
   });
 });

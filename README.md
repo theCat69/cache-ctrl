@@ -55,9 +55,12 @@ Command Layer
     externalCache ← external staleness logic
     localCache    ← local scan path logic
     graphCache    ← graph.json read/write path
+    platform/xdg  ← XDG cache dir resolver
+    http/parserDownloader ← on-demand WASM parser download + atomic cache
     changeDetector   ← mtime/hash comparison
    keywordSearch    ← scoring engine
-   analysis/symbolExtractor ← import/export AST pass
+   analysis/symbolExtractor ← Tree-sitter symbol extraction (multi-language)
+   analysis/treeSitterEngine ← web-tree-sitter WASM parser runtime
    analysis/graphBuilder    ← dependency graph construction
    analysis/pageRank        ← Personalized PageRank ranking
                  │
@@ -443,6 +446,10 @@ cache-ctrl graph [--max-tokens <number>] [--seed <path>[,<path>...]] [--pretty]
 
 Returns a PageRank-ranked dependency graph within a token budget. Reads from `graph.json` computed by the `watch` daemon. Files are ranked by their centrality in the import graph; use `--seed` to personalize the ranking toward specific files (e.g. recently changed files).
 
+Graph analysis is multi-language via Tree-sitter parsers: TypeScript, JavaScript, Python, Rust, Go, Java, C, and C++.
+
+On first use, parser WASM files are downloaded and cached at `~/.cache/cache-ctrl/parsers/` (respects `$XDG_CACHE_HOME`).
+
 **Options:**
 
 | Flag | Description |
@@ -535,7 +542,7 @@ Returns `PAYLOAD_TOO_LARGE` if the serialized output exceeds **20 000 UTF-8 byte
 cache-ctrl watch [--verbose]
 ```
 
-Long-running daemon that watches the repo for source file changes (`.ts`, `.tsx`, `.js`, `.jsx`) and incrementally rebuilds `graph.json`. On startup it performs an initial full graph build. Subsequent file changes trigger a debounced rebuild (200 ms). Rebuilds are serialized — concurrent changes are queued.
+Long-running daemon that watches the repo for source file changes and incrementally rebuilds `graph.json`. The analysis engine supports multiple languages via Tree-sitter parsers (TypeScript, JavaScript, Python, Rust, Go, Java, C, C++). On startup it performs an initial full graph build. Subsequent file changes trigger a debounced rebuild (200 ms). Rebuilds are serialized — concurrent changes are queued.
 
 Writes to `.ai/local-context-gatherer_cache/graph.json`. The graph is then available to `cache-ctrl graph` and `cache_ctrl_graph`.
 

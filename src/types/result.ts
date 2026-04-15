@@ -28,6 +28,9 @@ export enum ErrorCode {
   /** Returned when keyword matching yields multiple top-scoring candidates. */
   AMBIGUOUS_MATCH = "AMBIGUOUS_MATCH",
 
+  /** Returned when a Tree-sitter parser download or save operation fails. */
+  PARSER_DOWNLOAD_ERROR = "PARSER_DOWNLOAD_ERROR",
+
   /**
    * Returned when the unfiltered facts payload exceeds the maximum allowed byte size.
    * Use --filter, map, or graph to narrow the query.

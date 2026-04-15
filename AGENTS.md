@@ -21,9 +21,10 @@ Concrete, annotated snippets extracted from the real codebase live in `.code-exa
 
 - **Runtime**: Bun 1.x (TypeScript executed natively — no build step)
 - **Language**: TypeScript strict mode (ESNext, verbatimModuleSyntax, noUncheckedIndexedAccess, exactOptionalPropertyTypes)
+- **Analysis parser**: `web-tree-sitter` (multi-language) for graph/watch analysis (replaces `@typescript-eslint/typescript-estree` TypeScript-only parsing)
 - **Schema validation**: Zod 4.x
 - **Test framework**: Vitest 4.x (unit in `tests/`, E2E in `e2e/` via Docker)
-- **Architecture**: CLI command layer (`src/commands/`) + core services (`src/cache/`, `src/files/`, `src/http/`, `src/search/`) + analysis engine (`src/analysis/` — symbol extraction, dependency graph, PageRank)
+- **Architecture**: CLI command layer (`src/commands/`) + core services (`src/cache/`, `src/files/`, `src/http/`, `src/search/`, `src/platform/`) + analysis engine (`src/analysis/` — multi-language Tree-sitter symbol extraction, dependency graph, PageRank)
 
 ## Key Rules
 
