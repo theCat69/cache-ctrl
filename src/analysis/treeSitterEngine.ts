@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { dirname, extname, resolve, sep } from "node:path";
 
-import { Language, Parser } from "web-tree-sitter";
+import { Language, Parser, Query } from "web-tree-sitter";
 import type { FileSymbols } from "./fileSymbols.js";
 
-type LoadedLanguage = Awaited<ReturnType<typeof Language.load>>;
+type LoadedLanguage = Language;
 
 let initPromise: Promise<void> | null = null;
 const languageCache = new Map<string, LoadedLanguage>();
@@ -58,8 +58,11 @@ function collectNodes(rootNode: SyntaxNodeLike, onVisit: (node: SyntaxNodeLike) 
 
 function queryCapturedNodes(language: LoadedLanguage, rootNode: SyntaxNodeLike, queryText: string): SyntaxNodeLike[] {
   try {
-    const query = language.query(queryText);
-    const captures = query.captures(rootNode);
+    const query = new Query(language, queryText);
+    // rootNode originates from web-tree-sitter Parser.parse(), so this bridge keeps
+    // local lightweight node typing while satisfying Query's stricter declaration.
+    const queryRootNode = rootNode as unknown as Parameters<Query["captures"]>[0];
+    const captures = query.captures(queryRootNode);
     const nodes: SyntaxNodeLike[] = [];
     for (const capture of captures) {
       if (isCaptureWithNode(capture)) {
@@ -202,7 +205,7 @@ async function loadLanguage(wasmPath: string): Promise<LoadedLanguage> {
   }
 
   const loadPromise = Language.load(wasmPath)
-    .then((loadedLanguage) => {
+    .then((loadedLanguage: Language) => {
       languageCache.set(wasmPath, loadedLanguage);
       return loadedLanguage;
     })

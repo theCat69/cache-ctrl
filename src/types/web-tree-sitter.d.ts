@@ -15,12 +15,13 @@ declare module "web-tree-sitter" {
     readonly node: SyntaxNode;
   }
 
-  export interface Query {
+  export declare class Query {
+    constructor(language: Language, source: string);
     captures(node: SyntaxNode): QueryCapture[];
   }
 
-  export interface Language {
-    query(query: string): Query;
+  export declare class Language {
+    static load(path: string | Uint8Array): Promise<Language>;
   }
 
   export interface Parser {
