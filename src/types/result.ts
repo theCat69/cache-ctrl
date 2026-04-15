@@ -28,6 +28,9 @@ export enum ErrorCode {
   /** Returned when keyword matching yields multiple top-scoring candidates. */
   AMBIGUOUS_MATCH = "AMBIGUOUS_MATCH",
 
+  /** Returned when a Tree-sitter parser download or save operation fails. */
+  PARSER_DOWNLOAD_ERROR = "PARSER_DOWNLOAD_ERROR",
+
   /**
    * Returned when the unfiltered facts payload exceeds the maximum allowed byte size.
    * Use --filter, map, or graph to narrow the query.
@@ -39,11 +42,27 @@ export enum ErrorCode {
 }
 
 /**
+ * Compact, CLI-safe subset of a Zod issue used in validation failures.
+ */
+export interface ZodIssueSummary {
+  path: string;
+  message: string;
+  code: string;
+  expected?: string;
+  received?: string;
+  // present for invalid_value (enum) — populated from Zod 4 issue.options
+  values?: unknown[];
+  minimum?: number;
+}
+
+/**
  * Canonical failure payload used by the error branch of {@link Result}.
  */
 export interface CacheError {
   code: ErrorCode;
   error: string;
+  issues?: ZodIssueSummary[];
+  hint?: string;
 }
 
 /**
@@ -56,4 +75,4 @@ export interface CacheError {
  */
 export type Result<T, E extends CacheError = CacheError> =
   | { ok: true; value: T }
-  | { ok: false; error: string; code: E["code"] };
+  | ({ ok: false } & E);

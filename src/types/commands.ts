@@ -261,7 +261,6 @@ export interface InstallArgs {
 
 /** Success payload shape returned by the `install` command. */
 export interface InstallResult {
-  toolPath: string;
   skillPaths: string[];
   configDir: string;
 }
@@ -273,29 +272,3 @@ export type VersionArgs = Record<string, never>;
 
 /** Success payload shape returned by the `version` command. */
 export type VersionResult = { value: { version: string } };
-
-// ── update / uninstall ────────────────────────────────────────────────────────
-
-/** Arguments accepted by the `update` command. */
-export interface UpdateArgs {
-  configDir?: string;
-}
-
-/** Success payload shape returned by the `update` command. */
-export interface UpdateResult {
-  packageUpdated: boolean;
-  installedPaths: string[];
-  warnings: string[];
-}
-
-/** Arguments accepted by the `uninstall` command. */
-export interface UninstallArgs {
-  configDir?: string;
-}
-
-/** Success payload shape returned by the `uninstall` command. */
-export interface UninstallResult {
-  removed: string[];
-  packageUninstalled: boolean;
-  warnings: string[];
-}

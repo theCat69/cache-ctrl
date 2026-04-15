@@ -45,6 +45,16 @@ e2e/fixtures/                     # E2E fixture data
 - File naming: `<command>.e2e.test.ts`
 - E2E tests run inside Docker via `docker compose -f e2e/docker-compose.yml run --rm e2e`
 
+**E2E helpers** (`e2e/helpers/cli.ts`):
+
+| Helper | Use when |
+|---|---|
+| `runCli(args, options?)` | Command exits quickly (happy path, error path) |
+| `runCliWithTimeout(args, timeoutMs, options?)` | Daemon command that never exits on its own (e.g. `watch`) |
+| `parseJsonOutput<T>(raw)` | Parse CLI stdout as JSON inside a test |
+
+`runCliWithTimeout` kills the process after `timeoutMs` ms and returns `exitCode: -1` to signal the timeout fired. In daemon tests, `exitCode: -1` is the *success* signal — it means the process was still running after the initialization window. See `.code-examples-for-ai/e2e-test-pattern.md` for a complete example.
+
 ---
 
 ## Writing Tests

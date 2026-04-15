@@ -943,7 +943,7 @@ describe("writeCommand", () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
-      expect(result.error).toMatch(/facts\./);
+      expect(result.error).toContain("facts");
     });
 
     it("returns VALIDATION_ERROR when facts array for a file exceeds 10 entries", async () => {
@@ -963,7 +963,7 @@ describe("writeCommand", () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
-      expect(result.error).toMatch(/facts\./);
+      expect(result.error).toContain("facts");
     });
 
     it("returns VALIDATION_ERROR when a global_fact string exceeds 300 chars", async () => {

@@ -1,6 +1,6 @@
 # cache-ctrl
 
-A CLI tool and native opencode plugin that manages the two AI agent caches (`.ai/external-context-gatherer_cache/` and `.ai/local-context-gatherer_cache/`) with a uniform interface.
+A CLI tool that manages the two AI agent caches (`.ai/external-context-gatherer_cache/` and `.ai/local-context-gatherer_cache/`) with a uniform interface.
 
 It handles advisory locking for safe concurrent writes, keyword search across all entries, and file-change detection for local scans.
 
@@ -15,8 +15,7 @@ npm install -g @thecat69/cache-ctrl
 cache-ctrl install
 ```
 
-`cache-ctrl install` configures the OpenCode integration in one step:
-- Writes an OpenCode tool wrapper at `~/.config/opencode/tools/cache_ctrl.ts`.
+`cache-ctrl install` configures OpenCode skills in one step:
 - Copies 3 skill SKILL.md files to `~/.config/opencode/skills/`.
 
 **Prerequisites**: `bun` ≥ 1.0.0 must be in `PATH` (Bun executes the TypeScript files natively — no build step).
@@ -31,7 +30,6 @@ zsh install.sh
 
 This creates two symlinks:
 - `~/.local/bin/cache-ctrl` → `src/index.ts` — global CLI command (executed directly by Bun)
-- `.opencode/tools/cache-ctrl.ts` → `cache_ctrl.ts` — auto-discovered by OpenCode as a native plugin
 
 `install.sh` is for local development only. For end-user installation, use `npm install -g @thecat69/cache-ctrl`.
 
@@ -40,27 +38,29 @@ This creates two symlinks:
 ## Architecture
 
 ```
-CLI (cache-ctrl)          opencode Plugin
-src/index.ts              cache_ctrl.ts
-     │                         │
-     └──────────┬──────────────┘
-               │
-        Command Layer
+CLI (cache-ctrl)
+src/index.ts
+     │
+     │
+Command Layer
    src/commands/{list, inspectExternal,
            inspectLocal, flush, invalidate,
        touch, prune,
        checkFiles, search, writeLocal,
-      writeExternal, install, update, uninstall,
-      graph, map, watch, version}.ts
+       writeExternal, install,
+       graph, map, watch, version}.ts
                  │
            Core Services
     cacheManager  ← read/write + advisory lock
     externalCache ← external staleness logic
     localCache    ← local scan path logic
     graphCache    ← graph.json read/write path
+    platform/xdg  ← XDG cache dir resolver
+    http/parserDownloader ← on-demand WASM parser download + atomic cache
     changeDetector   ← mtime/hash comparison
    keywordSearch    ← scoring engine
-   analysis/symbolExtractor ← import/export AST pass
+   analysis/symbolExtractor ← Tree-sitter symbol extraction (multi-language)
+   analysis/treeSitterEngine ← web-tree-sitter WASM parser runtime
    analysis/graphBuilder    ← dependency graph construction
    analysis/pageRank        ← Personalized PageRank ranking
                  │
@@ -76,7 +76,6 @@ src/index.ts              cache_ctrl.ts
 
 **Key design decisions:**
 - All commands funnel through `cacheManager` for reads/writes — no direct filesystem access from command handlers.
-- The CLI and plugin share the same command functions — no duplicated business logic.
 - All operations return `Result<T, CacheError>` — nothing throws into the caller.
 - `writeCache` defaults to merging updates onto the existing object (preserving unknown agent fields). Local writes use per-path merge — submitted `tracked_files` entries replace existing entries for those paths; entries for other paths are preserved; entries for files no longer present on disk are evicted automatically.
 - `write.ts` is a thin router; all business logic lives in `writeLocal.ts`, `writeExternal.ts`, `inspectLocal.ts`, `inspectExternal.ts`.
@@ -86,7 +85,19 @@ src/index.ts              cache_ctrl.ts
 ## CLI Reference
 
 **Output format**: JSON (single line) by default. Add `--pretty` to any command for indented output.  
-**Errors**: Written to stderr as `{ "ok": false, "error": "...", "code": "..." }`. Exit code `1` on error, `2` on bad arguments.  
+**Success envelope**: Every successful response includes an `"ok": true` field, a `"value"` field containing the command payload, and a `"serverTime"` field (ISO 8601 UTC string) at the top level — except the `install` command, which omits `serverTime`.  
+**Errors**: Written to stderr as JSON. Exit code `1` on error, `2` on bad arguments. Example:
+
+```json
+{
+  "ok": false,
+  "code": "VALIDATION_ERROR",
+  "error": "✖ fetched_at must be ISO 8601 UTC ...",
+  "issues": [{ "path": "fetched_at", "message": "...", "code": "invalid_string", "received": "..." }],
+  "hint": "Required: description (string), fetched_at (ISO 8601 UTC ...), sources (...)"
+}
+```
+
 **Help**: Run `cache-ctrl --help` or `cache-ctrl help` for the full command reference. Run `cache-ctrl help <command>` for per-command usage, arguments, and options. Help output is plain text written to stdout; exit code `0` on success, `1` for unknown command.
 
 ---
@@ -99,10 +110,11 @@ cache-ctrl install [--config-dir <path>]
 
 Configures OpenCode integration after `npm install -g @thecat69/cache-ctrl`. Does two things:
 
-1. **Generates an OpenCode tool wrapper** at `<opencode-config>/tools/cache_ctrl.ts` — a one-line re-export that points back to the installed package so Bun resolves all relative imports correctly.
-2. **Copies 3 skill files** (`cache-ctrl-caller`, `cache-ctrl-local`, `cache-ctrl-external`) to `<opencode-config>/skills/<name>/SKILL.md`.
+1. **Copies 3 skill files** (`cache-ctrl-caller`, `cache-ctrl-local`, `cache-ctrl-external`) to `~/.config/opencode/skills/`.
 
-Both operations are idempotent — re-running `cache-ctrl install` after `npm update -g @thecat69/cache-ctrl` regenerates the wrapper with the new package path.
+`cache-ctrl install` is now skills-only: no tool wrapper is generated.
+
+The operation is idempotent — re-running `cache-ctrl install` refreshes the installed skill files.
 
 **OpenCode config directory resolution** (in priority order):
 1. `--config-dir <path>` flag (explicit override; relative paths are resolved to absolute paths)
@@ -120,7 +132,6 @@ Both operations are idempotent — re-running `cache-ctrl install` after `npm up
   "ok": true,
   "value": {
     "configDir": "/home/user/.config/opencode",
-    "toolPath": "/home/user/.config/opencode/tools/cache_ctrl.ts",
     "skillPaths": [
       "/home/user/.config/opencode/skills/cache-ctrl-caller/SKILL.md",
       "/home/user/.config/opencode/skills/cache-ctrl-local/SKILL.md",
@@ -130,91 +141,7 @@ Both operations are idempotent — re-running `cache-ctrl install` after `npm up
 }
 ```
 
-**Error codes**: `FILE_WRITE_ERROR` if the tool wrapper or a skill file cannot be written.
-
----
-
-### `update`
-
-```
-cache-ctrl update [--config-dir <path>]
-```
-
-Updates the globally installed npm package to the latest version, then re-runs the OpenCode integration install to refresh the tool wrapper and skill files.
-
-1. Runs `npm install -g @thecat69/cache-ctrl@latest`.
-2. Re-runs `cache-ctrl install` (idempotent — regenerates the wrapper with the new package path).
-
-If the `npm install` step fails, the error is recorded in `warnings[]` and the integration install still proceeds. If the integration install subprocess exits successfully but returns unreadable (non-JSON) output, `installedPaths` is returned as `[]` with a warning — the integration files were still written correctly.
-
-**Options:**
-
-| Flag | Description |
-|---|---|
-| `--config-dir <path>` | Override the detected OpenCode config directory |
-
-```jsonc
-// cache-ctrl update --pretty
-{
-  "ok": true,
-  "value": {
-    "packageUpdated": true,
-    "installedPaths": [
-      "/home/user/.config/opencode/tools/cache_ctrl.ts",
-      "/home/user/.config/opencode/skills/cache-ctrl-caller/SKILL.md",
-      "/home/user/.config/opencode/skills/cache-ctrl-local/SKILL.md",
-      "/home/user/.config/opencode/skills/cache-ctrl-external/SKILL.md"
-    ],
-    "warnings": []
-  }
-}
-```
-
-**Error codes**: `INVALID_ARGS` if `--config-dir` is outside the user home directory. `FILE_WRITE_ERROR` if the integration files cannot be written.
-
----
-
-### `uninstall`
-
-```
-cache-ctrl uninstall [--config-dir <path>]
-```
-
-Removes the cache-ctrl OpenCode integration and uninstalls the global npm package.
-
-Removes, in order:
-1. `<configDir>/tools/cache_ctrl.ts`
-2. All `<configDir>/skills/cache-ctrl-*` directories (recursive)
-3. `~/.local/bin/cache-ctrl`
-4. Runs `npm uninstall -g @thecat69/cache-ctrl`
-
-Missing files are not treated as errors — they produce a `warnings[]` entry instead. If the `npm uninstall` step fails, the error is recorded in `warnings[]`.
-
-**Options:**
-
-| Flag | Description |
-|---|---|
-| `--config-dir <path>` | Override the detected OpenCode config directory |
-
-```jsonc
-// cache-ctrl uninstall --pretty
-{
-  "ok": true,
-  "value": {
-    "removed": [
-      "/home/user/.config/opencode/tools/cache_ctrl.ts",
-      "/home/user/.config/opencode/skills/cache-ctrl-caller",
-      "/home/user/.config/opencode/skills/cache-ctrl-local",
-      "/home/user/.config/opencode/skills/cache-ctrl-external",
-      "/home/user/.local/bin/cache-ctrl"
-    ],
-    "packageUninstalled": true,
-    "warnings": []
-  }
-}
-```
-
-**Error codes**: `INVALID_ARGS` if `--config-dir` is outside the user home directory. `UNKNOWN` for unexpected filesystem errors.
+**Error codes**: `INVALID_ARGS` if `--config-dir` resolves outside the user's home directory; `FILE_WRITE_ERROR` if a skill file cannot be written.
 
 ---
 
@@ -263,7 +190,8 @@ Lists all cache entries. Shows age, human-readable age string, and staleness fla
       "age_human": "2 hours ago",
       "is_stale": false
     }
-  ]
+  ],
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -434,7 +362,8 @@ By default, `unchanged_files` is omitted from output to reduce payload size. Pas
     "missing_files": [],
     "new_files": [],
     "deleted_git_files": []
-  }
+  },
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -449,7 +378,8 @@ By default, `unchanged_files` is omitted from output to reduce payload size. Pas
     "missing_files": [],
     "new_files": [],
     "deleted_git_files": []
-  }
+  },
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -503,7 +433,7 @@ Writes a validated cache entry to disk. The `--data` argument must be a valid JS
 
 ```json
 // cache-ctrl write-external mysubject --data '{"subject":"mysubject","description":"...","fetched_at":"2026-04-05T10:00:00Z","sources":[]}' --pretty
-{ "ok": true, "value": { "file": "/path/to/.ai/external-context-gatherer_cache/mysubject.json" } }
+{ "ok": true, "value": { "file": "/path/to/.ai/external-context-gatherer_cache/mysubject.json" }, "serverTime": "2026-04-15T12:00:00.000Z" }
 ```
 
 ---
@@ -515,6 +445,10 @@ cache-ctrl graph [--max-tokens <number>] [--seed <path>[,<path>...]] [--pretty]
 ```
 
 Returns a PageRank-ranked dependency graph within a token budget. Reads from `graph.json` computed by the `watch` daemon. Files are ranked by their centrality in the import graph; use `--seed` to personalize the ranking toward specific files (e.g. recently changed files).
+
+Graph analysis is multi-language via Tree-sitter parsers: TypeScript, JavaScript, Python, Rust, Go, Java, C, and C++.
+
+On first use, parser WASM files are downloaded and cached at `~/.cache/cache-ctrl/parsers/` (respects `$XDG_CACHE_HOME`).
 
 **Options:**
 
@@ -543,7 +477,8 @@ Returns `FILE_NOT_FOUND` if `graph.json` does not exist — run `cache-ctrl watc
     "computed_at": "2026-04-11T10:00:00Z",
     "token_estimate": 487,
     "entries_skipped": 5 // present only when token budget truncated output
-  }
+  },
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -594,7 +529,8 @@ Returns `PAYLOAD_TOO_LARGE` if the serialized output exceeds **20 000 UTF-8 byte
     ],
     "total_files": 1,
     "folder_filter": "src/commands"
-  }
+  },
+  "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
 
@@ -606,7 +542,7 @@ Returns `PAYLOAD_TOO_LARGE` if the serialized output exceeds **20 000 UTF-8 byte
 cache-ctrl watch [--verbose]
 ```
 
-Long-running daemon that watches the repo for source file changes (`.ts`, `.tsx`, `.js`, `.jsx`) and incrementally rebuilds `graph.json`. On startup it performs an initial full graph build. Subsequent file changes trigger a debounced rebuild (200 ms). Rebuilds are serialized — concurrent changes are queued.
+Long-running daemon that watches the repo for source file changes and incrementally rebuilds `graph.json`. The analysis engine supports multiple languages via Tree-sitter parsers (TypeScript, JavaScript, Python, Rust, Go, Java, C, C++). On startup it performs an initial full graph build. Subsequent file changes trigger a debounced rebuild (200 ms). Rebuilds are serialized — concurrent changes are queued.
 
 Writes to `.ai/local-context-gatherer_cache/graph.json`. The graph is then available to `cache-ctrl graph` and `cache_ctrl_graph`.
 
@@ -640,39 +576,11 @@ No flags or arguments.
 
 ```jsonc
 // cache-ctrl version
-{ "ok": true, "value": { "version": "1.1.1" } }
+{ "ok": true, "value": { "version": "1.1.1" }, "serverTime": "2026-04-15T12:00:00.000Z" }
 ```
 
 ---
 
-## opencode Plugin Tools
-
-The plugin (`cache_ctrl.ts`) is auto-discovered via `~/.config/opencode/tools/cache_ctrl.ts` and registers 10 tools that call the same command functions as the CLI:
-
-| Tool | Description |
-|---|---|
-| `cache_ctrl_search` | Search all cache entries by keyword |
-| `cache_ctrl_list` | List entries with age and staleness flags |
-| `cache_ctrl_inspect_external` | Return full content of a specific external cache entry |
-| `cache_ctrl_inspect_local` | Return local context cache with optional path/fact filters |
-| `cache_ctrl_invalidate` | Zero out a cache entry's timestamp |
-| `cache_ctrl_check_files` | Compare tracked files against stored mtime/hash |
-| `cache_ctrl_write_local` | Write a validated local cache entry |
-| `cache_ctrl_write_external` | Write a validated external cache entry |
-| `cache_ctrl_graph` | Return a PageRank-ranked dependency graph within a token budget (reads `graph.json`) |
-| `cache_ctrl_map` | Return a semantic map of `context.json` with per-file FileFacts metadata |
-
-No bash permission is required for agents that use the plugin tools directly.
-
-All 10 plugin tool responses include a `server_time` field at the outer JSON level:
-
-```json
-{ "ok": true, "value": { ... }, "server_time": "2026-04-05T12:34:56.789Z" }
-```
-
-Use `server_time` to assess how stale stored timestamps are without requiring bash or system access.
-
----
 
 ## Agent Integration
 

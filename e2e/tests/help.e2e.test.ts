@@ -25,8 +25,6 @@ const ALL_COMMANDS = [
   "write-local",
   "write-external",
   "install",
-  "update",
-  "uninstall",
   "graph",
   "map",
   "watch",

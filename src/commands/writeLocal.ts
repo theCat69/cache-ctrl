@@ -3,10 +3,16 @@ import { join } from "node:path";
 import { findRepoRoot, readCache, resolveCacheDir, writeCache } from "../cache/cacheManager.js";
 import { filterExistingFiles, resolveTrackedFileStats } from "../files/changeDetector.js";
 import type { WriteArgs, WriteResult } from "../types/commands.js";
-import { type FileFacts, LocalCacheFileSchema, type TrackedFile, TrackedFileSchema } from "../types/cache.js";
+import {
+  type FileFacts,
+  LocalCacheFileSchema,
+  type TrackedFile,
+  TrackedFileSchema,
+  WriteLocalInputSchema,
+} from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../errors.js";
-import { formatZodError } from "../validation.js";
+import { buildZodFailure } from "../validation.js";
 
 function evictFactsForDeletedPaths(
   facts: Record<string, unknown>,
@@ -39,10 +45,15 @@ function getSubmittedTrackedPaths(rawTrackedFiles: unknown): string[] {
  */
 export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteResult["value"]>> {
   try {
+    const inputParse = WriteLocalInputSchema.safeParse(args.content);
+    if (!inputParse.success) {
+      return buildZodFailure(inputParse.error);
+    }
+
     const repoRoot = await findRepoRoot(process.cwd());
 
     const contentWithTimestamp: Record<string, unknown> = {
-      ...args.content,
+      ...inputParse.data,
       timestamp: new Date().toISOString(),
     };
 
@@ -107,8 +118,7 @@ export async function writeLocalCommand(args: WriteArgs): Promise<Result<WriteRe
 
     const parsed = LocalCacheFileSchema.safeParse(processedContent);
     if (!parsed.success) {
-      const message = formatZodError(parsed.error);
-      return { ok: false, error: `Validation failed: ${message}`, code: ErrorCode.VALIDATION_ERROR };
+      return buildZodFailure(parsed.error);
     }
 
     const writeResult = await writeCache(filePath, processedContent, "replace");

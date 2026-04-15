@@ -21,6 +21,17 @@ const SourceSchema = z.object({
   version: z.string().optional(),
 });
 
+export const WriteExternalInputSchema = z.looseObject({
+  description: z.string(),
+  fetched_at: z.string().datetime({
+    error: (issue) =>
+      issue.input === undefined
+        ? 'fetched_at is required — ISO 8601 UTC e.g. "2026-04-14T12:00:00.000Z"'
+        : `fetched_at must be ISO 8601 UTC e.g. "2026-04-14T12:00:00.000Z", got: ${String(issue.input)}`,
+  }),
+  sources: z.array(SourceSchema),
+});
+
 /**
  * Validates external context cache JSON files stored under `.ai/external-context-gatherer_cache/`.
  */
@@ -41,10 +52,24 @@ export const TrackedFileSchema = z.object({
 const FileFactsSchema = z.object({
   summary: z.string().max(300).optional(),
   role: z
-    .enum(["entry-point", "interface", "implementation", "test", "config"])
+    .enum(["entry-point", "interface", "implementation", "test", "config"], {
+      error: (issue) =>
+        issue.input === undefined
+          ? "role is required when provided in facts"
+          : `role must be one of: entry-point, interface, implementation, test, config (received: ${String(issue.input)})`,
+    })
     .optional(),
   importance: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
   facts: z.array(z.string().max(300)).max(10).optional(),
+});
+
+export const WriteLocalInputSchema = z.looseObject({
+  topic: z.string(),
+  description: z.string(),
+  tracked_files: z.array(z.object({ path: z.string() })),
+  global_facts: z.array(z.string().max(300)).max(20).optional(),
+  facts: z.record(z.string(), FileFactsSchema).optional(),
+  cache_miss_reason: z.string().optional(),
 });
 
 /**

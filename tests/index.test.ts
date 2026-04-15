@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseArgs, usageError, printHelp } from "../src/index.js";
+import { parseArgs, usageError, printHelp, dispatchResult } from "../src/index.js";
 import { isRefinementContext, rejectTraversalKeys } from "../src/validation.js";
 
 describe("parseArgs", () => {
@@ -264,5 +264,60 @@ describe("cache_ctrl helper guards", () => {
       const badContext = { addIssue: "nope" };
       expect(() => rejectTraversalKeys({ "../secret": {} }, badContext)).not.toThrow();
     });
+  });
+});
+
+describe("dispatchResult — serverTime envelope", () => {
+  let stdoutSpy: ReturnType<typeof vi.spyOn>;
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    exitSpy = vi.spyOn(process, "exit").mockImplementation((_code?: number | string | null) => {
+      throw new Error("process.exit called");
+    });
+  });
+
+  afterEach(() => {
+    stdoutSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  function capturedJson(): Record<string, unknown> {
+    const call = stdoutSpy.mock.calls[0];
+    if (!call) throw new Error("dispatchResult did not write to stdout");
+    const written = call[0] as string;
+    return JSON.parse(written) as Record<string, unknown>;
+  }
+
+  it("includes serverTime as a top-level ISO 8601 string for a normal command", () => {
+    const before = new Date().toISOString();
+    dispatchResult({ ok: true, value: { version: "1.0.0" } }, false);
+    const after = new Date().toISOString();
+
+    const output = capturedJson();
+    expect(output.ok).toBe(true);
+    expect(typeof output.serverTime).toBe("string");
+    expect(output.serverTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    const serverTime = output.serverTime as string;
+    expect(serverTime >= before).toBe(true);
+    expect(serverTime <= after).toBe(true);
+  });
+
+  it("serverTime is a sibling of ok and value — not nested inside value", () => {
+    dispatchResult({ ok: true, value: { count: 42 } }, false);
+
+    const output = capturedJson();
+    expect(output.ok).toBe(true);
+    expect(output.serverTime).toBeDefined();
+    expect((output.value as Record<string, unknown>).serverTime).toBeUndefined();
+  });
+
+  it("omits serverTime when includeServerTime is false (install command path)", () => {
+    dispatchResult({ ok: true, value: { skillPaths: [] } }, false, false);
+
+    const output = capturedJson();
+    expect(output.ok).toBe(true);
+    expect(output.serverTime).toBeUndefined();
   });
 });

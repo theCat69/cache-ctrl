@@ -2,10 +2,10 @@ import { join } from "node:path";
 
 import { findRepoRoot, resolveCacheDir, writeCache } from "../cache/cacheManager.js";
 import type { WriteArgs, WriteResult } from "../types/commands.js";
-import { ExternalCacheFileSchema } from "../types/cache.js";
+import { ExternalCacheFileSchema, WriteExternalInputSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../errors.js";
-import { formatZodError, validateSubject } from "../validation.js";
+import { buildZodFailure, validateSubject } from "../validation.js";
 
 /**
  * Validates and writes one external cache entry.
@@ -23,6 +23,11 @@ export async function writeExternalCommand(args: WriteArgs): Promise<Result<Writ
     const subjectValidation = validateSubject(args.subject);
     if (!subjectValidation.ok) return subjectValidation;
 
+    const inputParse = WriteExternalInputSchema.safeParse(args.content);
+    if (!inputParse.success) {
+      return buildZodFailure(inputParse.error);
+    }
+
     if (args.content["subject"] !== undefined && args.content["subject"] !== args.subject) {
       return {
         ok: false,
@@ -31,12 +36,11 @@ export async function writeExternalCommand(args: WriteArgs): Promise<Result<Writ
       };
     }
 
-    const contentWithSubject = { ...args.content, subject: args.subject };
+    const contentWithSubject = { ...inputParse.data, subject: args.subject };
 
     const parsed = ExternalCacheFileSchema.safeParse(contentWithSubject);
     if (!parsed.success) {
-      const message = formatZodError(parsed.error);
-      return { ok: false, error: `Validation failed: ${message}`, code: ErrorCode.VALIDATION_ERROR };
+      return buildZodFailure(parsed.error);
     }
 
     const repoRoot = await findRepoRoot(process.cwd());
