@@ -481,6 +481,9 @@ export async function main(): Promise<void> {
       break;
     }
     case "list": {
+      if (flags.agent === true) {
+        usageError("--agent requires a value: --agent external|local|all");
+      }
       const agentArg = typeof flags.agent === "string" ? flags.agent : undefined;
       if (agentArg !== undefined && !isListAgent(agentArg)) {
         usageError(`Invalid --agent value: "${agentArg}". Must be external, local, or all`);
@@ -585,6 +588,9 @@ export async function main(): Promise<void> {
     }
 
     case "prune": {
+      if (flags.agent === true) {
+        usageError("--agent requires a value: --agent external|local|all");
+      }
       const agentArg = typeof flags.agent === "string" ? flags.agent : undefined;
       if (agentArg && agentArg !== "external" && agentArg !== "local" && agentArg !== "all") {
         usageError(`Invalid --agent value: "${agentArg}". Must be external, local, or all`);

@@ -606,6 +606,126 @@ describe("watch helpers", () => {
       stderrSpy.mockRestore();
     }
   }, 10_000);
+
+  it("watchCommand shuts down watcher and clears debounce timer on SIGINT", async () => {
+    let watchCallback: ((event: "rename" | "change", changedPath: string, hasExplicitFilename: boolean, isWithinTrackedScope: boolean) => void) | undefined;
+    let keepAliveResolve: ((result: Result<never>) => void) | undefined;
+
+    const watcherClose = vi.fn();
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const processExitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+
+    let sigintHandler: (() => void) | undefined;
+    const processOnceSpy = vi.spyOn(process, "once").mockImplementation((event, listener) => {
+      if (event === "SIGINT") {
+        sigintHandler = listener as () => void;
+      }
+      return process;
+    });
+
+    try {
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        createWatcher: vi.fn(async (_watchPath: string, callback) => {
+          watchCallback = callback;
+          return { ok: true as const, value: { close: watcherClose } };
+        }),
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(
+          () =>
+            new Promise<Result<never>>((resolve) => {
+              keepAliveResolve = resolve;
+            }),
+        ),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+
+      const startedAt = Date.now();
+      while (watchCallback === undefined || sigintHandler === undefined || keepAliveResolve === undefined) {
+        if (Date.now() - startedAt > 1_000) {
+          throw new Error("watchCommand did not finish startup in time");
+        }
+        await Promise.resolve();
+      }
+
+      watchCallback("change", "/repo/src/a.ts", true, true);
+      sigintHandler();
+
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(expect.anything());
+      expect(watcherClose).toHaveBeenCalledTimes(1);
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+
+      keepAliveResolve({ ok: false, error: "stop test keep-alive", code: ErrorCode.UNKNOWN });
+      await expect(commandPromise).resolves.toEqual({
+        ok: false,
+        error: "stop test keep-alive",
+        code: ErrorCode.UNKNOWN,
+      });
+    } finally {
+      clearTimeoutSpy.mockRestore();
+      processOnceSpy.mockRestore();
+      processExitSpy.mockRestore();
+    }
+  });
+
+  it("watchCommand stops watcher via stop() on SIGTERM when close() is unavailable", async () => {
+    let keepAliveResolve: ((result: Result<never>) => void) | undefined;
+    const watcherStop = vi.fn();
+    const processExitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+
+    let sigtermHandler: (() => void) | undefined;
+    const processOnceSpy = vi.spyOn(process, "once").mockImplementation((event, listener) => {
+      if (event === "SIGTERM") {
+        sigtermHandler = listener as () => void;
+      }
+      return process;
+    });
+
+    try {
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        createWatcher: vi.fn(async () => ({ ok: true as const, value: { stop: watcherStop } })),
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(
+          () =>
+            new Promise<Result<never>>((resolve) => {
+              keepAliveResolve = resolve;
+            }),
+        ),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+
+      const startedAt = Date.now();
+      while (sigtermHandler === undefined || keepAliveResolve === undefined) {
+        if (Date.now() - startedAt > 1_000) {
+          throw new Error("watchCommand did not finish startup in time");
+        }
+        await Promise.resolve();
+      }
+
+      sigtermHandler();
+
+      expect(watcherStop).toHaveBeenCalledTimes(1);
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+
+      keepAliveResolve({ ok: false, error: "stop test keep-alive", code: ErrorCode.UNKNOWN });
+      await expect(commandPromise).resolves.toEqual({
+        ok: false,
+        error: "stop test keep-alive",
+        code: ErrorCode.UNKNOWN,
+      });
+    } finally {
+      processOnceSpy.mockRestore();
+      processExitSpy.mockRestore();
+    }
+  });
 });
   it("watchCommand ignores rename events for unrelated top-level directories", async () => {
     vi.useFakeTimers();

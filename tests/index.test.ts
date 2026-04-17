@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFile } from "node:fs/promises";
-import { parseArgs, usageError, printHelp, dispatchResult } from "../src/index.js";
+import { parseArgs, usageError, printHelp, dispatchResult, main } from "../src/index.js";
 import { isRefinementContext, rejectTraversalKeys } from "../src/validation.js";
 
 describe("parseArgs", () => {
@@ -92,6 +92,40 @@ describe("usageError side effects", () => {
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("test message");
     expect(parsed.code).toBe("INVALID_ARGS");
+  });
+});
+
+describe("main --agent validation", () => {
+  let stderrSpy: ReturnType<typeof vi.spyOn>;
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let originalArgv: string[];
+
+  beforeEach(() => {
+    originalArgv = [...process.argv];
+    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    exitSpy = vi.spyOn(process, "exit").mockImplementation((_code?: number | string | null) => {
+      throw new Error("process.exit called");
+    });
+  });
+
+  afterEach(() => {
+    process.argv = originalArgv;
+    stderrSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("returns INVALID_ARGS usage error when list receives bare --agent flag", async () => {
+    process.argv = ["bun", "src/index.ts", "list", "--agent"];
+
+    await expect(main()).rejects.toThrow("process.exit called");
+    expect(exitSpy).toHaveBeenCalledWith(2);
+
+    const written = stderrSpy.mock.calls[0]?.[0];
+    expect(typeof written).toBe("string");
+    const parsed = JSON.parse(String(written)) as { ok: boolean; error: string; code: string };
+    expect(parsed.ok).toBe(false);
+    expect(parsed.code).toBe("INVALID_ARGS");
+    expect(parsed.error).toContain("--agent requires a value");
   });
 });
 
