@@ -11,6 +11,11 @@ export interface CliResult {
   exitCode: number;
 }
 
+interface CliExecutionOptions {
+  cwd?: string;
+  timeoutMs?: number;
+}
+
 const CLI_ENTRYPOINT = "/app/bin/cache-ctrl.js";
 
 function readStream(stream: NodeJS.ReadableStream | null): Promise<string> {
@@ -44,10 +49,23 @@ export async function runCli(
   args: string[],
   options?: { cwd?: string },
 ): Promise<CliResult> {
+  return executeCli(args, options?.cwd === undefined ? {} : { cwd: options.cwd });
+}
+
+async function executeCli(args: string[], options: CliExecutionOptions): Promise<CliResult> {
   const proc = spawn(CLI_ENTRYPOINT, args, {
     cwd: options?.cwd ?? process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],
   });
+
+  let timedOut = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  if (options.timeoutMs !== undefined) {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      proc.kill("SIGTERM");
+    }, options.timeoutMs);
+  }
 
   const exitCodePromise = new Promise<number>((resolve, reject) => {
     proc.on("error", reject);
@@ -56,13 +74,19 @@ export async function runCli(
     });
   });
 
-  const [stdout, stderr, exitCode] = await Promise.all([
-    readStream(proc.stdout),
-    readStream(proc.stderr),
-    exitCodePromise,
-  ]);
+  try {
+    const [stdout, stderr, exitCode] = await Promise.all([
+      readStream(proc.stdout),
+      readStream(proc.stderr),
+      exitCodePromise,
+    ]);
 
-  return { stdout, stderr, exitCode };
+    return { stdout, stderr, exitCode: timedOut ? -1 : exitCode };
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 /**
@@ -107,36 +131,12 @@ export async function runCliWithTimeout(
   timeoutMs: number,
   options?: { cwd?: string },
 ): Promise<CliResult> {
-  const proc = spawn(CLI_ENTRYPOINT, args, {
-    cwd: options?.cwd ?? process.cwd(),
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    proc.kill("SIGTERM");
-  }, timeoutMs);
-
-  let stdout = "";
-  let stderr = "";
-  let rawExitCode = 1;
-  try {
-    const exitCodePromise = new Promise<number>((resolve, reject) => {
-      proc.on("error", reject);
-      proc.on("close", (exitCode) => {
-        resolve(exitCode ?? 1);
-      });
-    });
-
-    [stdout, stderr, rawExitCode] = await Promise.all([
-      readStream(proc.stdout),
-      readStream(proc.stderr),
-      exitCodePromise,
-    ]);
-  } finally {
-    clearTimeout(timer);
+  if (options?.cwd === undefined) {
+    return executeCli(args, { timeoutMs });
   }
 
-  return { stdout, stderr, exitCode: timedOut ? -1 : rawExitCode };
+  return executeCli(args, {
+    cwd: options.cwd,
+    timeoutMs,
+  });
 }

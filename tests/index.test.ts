@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { readFile } from "node:fs/promises";
 import { parseArgs, usageError, printHelp, dispatchResult, main } from "../src/index.js";
 import { isRefinementContext, rejectTraversalKeys } from "../src/validation.js";
@@ -378,5 +380,64 @@ describe("published CLI wrapper", () => {
 
     expect(packageJson.bin?.["cache-ctrl"]).toBe("bin/cache-ctrl.js");
     expect(packageJson.files).toContain("bin/");
+  });
+});
+
+describe("e2e helper contracts", () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("parseJsonOutput throws when stdout is empty", async () => {
+    const { parseJsonOutput } = await import("../e2e/helpers/cli.ts");
+
+    expect(() => parseJsonOutput("   \n\t ")).toThrowError("parseJsonOutput: stdout was empty");
+  });
+
+  it("parseJsonOutput throws actionable error for malformed JSON", async () => {
+    const { parseJsonOutput } = await import("../e2e/helpers/cli.ts");
+
+    expect(() => parseJsonOutput("{bad-json}")).toThrowError(/parseJsonOutput: invalid JSON from CLI/);
+  });
+
+  it("runCliWithTimeout terminates a hung child and returns timeout exit code", async () => {
+    const spawnMock = vi.fn(() => {
+      const childProcess = new EventEmitter() as EventEmitter & {
+        stdout: PassThrough;
+        stderr: PassThrough;
+        kill: (signal?: NodeJS.Signals) => boolean;
+      };
+      childProcess.stdout = new PassThrough();
+      childProcess.stderr = new PassThrough();
+      childProcess.kill = vi.fn(() => {
+        childProcess.stdout.end();
+        childProcess.stderr.end();
+        childProcess.emit("close", 143);
+        return true;
+      });
+      return childProcess;
+    });
+
+    vi.doMock("node:child_process", () => ({
+      spawn: spawnMock,
+    }));
+
+    vi.useFakeTimers();
+    try {
+      const { runCliWithTimeout } = await import("../e2e/helpers/cli.ts");
+
+      const resultPromise = runCliWithTimeout(["watch", "--verbose"], 50);
+      await vi.advanceTimersByTimeAsync(50);
+      const result = await resultPromise;
+
+      const spawnedChild = spawnMock.mock.results[0]?.value as {
+        kill: ReturnType<typeof vi.fn>;
+      };
+      expect(spawnedChild.kill).toHaveBeenCalledWith("SIGTERM");
+      expect(result.exitCode).toBe(-1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
