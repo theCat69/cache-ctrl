@@ -31,9 +31,9 @@ fi
 mkdir -p "${HOME}/.local/bin"
 
 # ── CLI symlink ────────────────────────────────────────────
-# ~/.local/bin/cache-ctrl → <cache-ctrl-dir>/src/index.ts
-ln -sf "${TOOL_DIR}/src/index.ts" "${HOME}/.local/bin/cache-ctrl"
-chmod +x "${TOOL_DIR}/src/index.ts"
+# ~/.local/bin/cache-ctrl → <cache-ctrl-dir>/bin/cache-ctrl.js
+ln -sf "${TOOL_DIR}/bin/cache-ctrl.js" "${HOME}/.local/bin/cache-ctrl"
+chmod +x "${TOOL_DIR}/bin/cache-ctrl.js"
 
 # ── Install dependencies ───────────────────────────────────
 # bun install is idempotent — safe to re-run

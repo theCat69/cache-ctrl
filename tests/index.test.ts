@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { readFile } from "node:fs/promises";
 import { parseArgs, usageError, printHelp, dispatchResult } from "../src/index.js";
 import { isRefinementContext, rejectTraversalKeys } from "../src/validation.js";
 
@@ -319,5 +320,29 @@ describe("dispatchResult — serverTime envelope", () => {
     const output = capturedJson();
     expect(output.ok).toBe(true);
     expect(output.serverTime).toBeUndefined();
+  });
+});
+
+describe("published CLI wrapper", () => {
+  it("uses a Bun shebang and delegates to the main entrypoint", async () => {
+    const wrapperPath = new URL("../bin/cache-ctrl.js", import.meta.url);
+    const wrapperSource = await readFile(wrapperPath, "utf8");
+
+    expect(wrapperSource.startsWith("#!/usr/bin/env bun\n")).toBe(true);
+    expect(wrapperSource).toContain('import { toUnknownResult } from "../src/errors.js";');
+    expect(wrapperSource).toContain('import { main } from "../src/index.js";');
+    expect(wrapperSource).toContain("void main().catch((error) => {");
+  });
+
+  it("publishes the wrapper as the package bin entry", async () => {
+    const packageJsonPath = new URL("../package.json", import.meta.url);
+    const packageJsonSource = await readFile(packageJsonPath, "utf8");
+    const packageJson = JSON.parse(packageJsonSource) as {
+      bin?: Record<string, string>;
+      files?: string[];
+    };
+
+    expect(packageJson.bin?.["cache-ctrl"]).toBe("bin/cache-ctrl.js");
+    expect(packageJson.files).toContain("bin/");
   });
 });

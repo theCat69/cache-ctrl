@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { readFile } from "node:fs/promises";
 import { runCli, parseJsonOutput } from "../helpers/cli.ts";
 import { createTestRepo, type TestRepo } from "../helpers/repo.ts";
 
@@ -32,6 +33,13 @@ const ALL_COMMANDS = [
 ] as const;
 
 describe("help", () => {
+  it("uses a published wrapper with a Bun shebang", async () => {
+    const wrapperSource = await readFile("/app/bin/cache-ctrl.js", "utf8");
+
+    expect(wrapperSource.startsWith("#!/usr/bin/env bun\n")).toBe(true);
+    expect(wrapperSource).toContain('import { main } from "../src/index.js";');
+  });
+
   it("--help flag exits 0 and stdout contains 'Usage'", async () => {
     const result = await runCli(["--help"], { cwd: repo.dir });
     expect(result.exitCode).toBe(0);

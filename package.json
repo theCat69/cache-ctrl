@@ -3,9 +3,10 @@
   "version": "1.5.1",
   "type": "module",
   "bin": {
-    "cache-ctrl": "src/index.ts"
+    "cache-ctrl": "bin/cache-ctrl.js"
   },
   "files": [
+    "bin/",
     "src/",
     "skills/",
     "README.md"

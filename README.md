@@ -28,8 +28,8 @@ Run from inside the `cache-ctrl/` directory:
 zsh install.sh
 ```
 
-This creates two symlinks:
-- `~/.local/bin/cache-ctrl` → `src/index.ts` — global CLI command (executed directly by Bun)
+This creates a CLI symlink and skill symlinks:
+- `~/.local/bin/cache-ctrl` → `bin/cache-ctrl.js` — global CLI command (executed directly by Bun)
 
 `install.sh` is for local development only. For end-user installation, use `npm install -g @thecat69/cache-ctrl`.
 
@@ -39,7 +39,10 @@ This creates two symlinks:
 
 ```
 CLI (cache-ctrl)
-src/index.ts
+bin/cache-ctrl.js
+     │
+     │
+  src/index.ts
      │
      │
 Command Layer

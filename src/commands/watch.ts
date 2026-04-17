@@ -1,5 +1,6 @@
 import path from "node:path";
-import { realpath } from "node:fs/promises";
+import { watch as watchFileSystem, type FSWatcher } from "node:fs";
+import { readdir, realpath } from "node:fs/promises";
 
 import { buildGraph, type DependencyGraph } from "../analysis/graphBuilder.js";
 import { isSupportedSourceExtension } from "../analysis/supportedLanguages.js";
@@ -8,44 +9,162 @@ import { resolveGraphCachePath } from "../cache/localCache.js";
 import { getGitTrackedFiles } from "../files/gitFiles.js";
 import type { GraphCacheFile } from "../types/cache.js";
 import type { WatchArgs } from "../types/commands.js";
-import { ErrorCode, type Result } from "../types/result.js";
+import type { CacheError } from "../types/result.js";
+import { type Result } from "../types/result.js";
 import { toUnknownResult } from "../errors.js";
 
 const WATCH_DEBOUNCE_MS = 200;
+const IGNORED_WATCH_DIRECTORIES = new Set([
+  ".ai",
+  ".git",
+  ".next",
+  ".turbo",
+  "build",
+  "coverage",
+  "dist",
+  "node_modules",
+]);
 
 type TrackedFilesProvider = (repoRoot: string) => Promise<string[]>;
 type WatchEvent = "rename" | "change";
-type BunWatchCallback = (event: WatchEvent, filename: string | null) => void;
+type FileWatchCallback = (event: WatchEvent, changedPath: string, hasExplicitFilename: boolean) => void;
+type WatchErrorHandler = (error: { ok: false } & CacheError) => void;
 
 interface WatcherHandle {
   close?: () => void;
   stop?: () => void;
 }
 
-type BunWatchFunction = (
+type FileWatcherFactory = (
   watchPath: string,
-  options: { recursive: boolean },
-  callback: BunWatchCallback,
-) => WatcherHandle;
+  callback: FileWatchCallback,
+  onError: WatchErrorHandler,
+) => Promise<Result<WatcherHandle>>;
 
-export function resolveBunWatch(): Result<BunWatchFunction> {
-  const bunRuntime = Reflect.get(globalThis, "Bun");
-  if (typeof bunRuntime !== "object" || bunRuntime === null) {
-    return {
-      ok: false,
-      error: "Bun.watch is not available in this runtime",
-      code: ErrorCode.UNKNOWN,
-    };
+async function collectDirectoryPaths(rootPath: string): Promise<string[]> {
+  const directoryPaths = [rootPath];
+
+  for (let index = 0; index < directoryPaths.length; index += 1) {
+    const currentDirectory = directoryPaths[index]!;
+    let entries;
+    try {
+      entries = await readdir(currentDirectory, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      if (IGNORED_WATCH_DIRECTORIES.has(entry.name)) {
+        continue;
+      }
+
+      directoryPaths.push(path.join(currentDirectory, entry.name));
+    }
   }
-  const watchFn = Reflect.get(bunRuntime, "watch");
-  if (typeof watchFn !== "function") {
-    return {
-      ok: false,
-      error: "Bun.watch is not available in this runtime",
-      code: ErrorCode.UNKNOWN,
+
+  return directoryPaths;
+}
+
+export async function createRecursiveFileWatcher(
+  watchPath: string,
+  callback: FileWatchCallback,
+  onError: WatchErrorHandler,
+): Promise<Result<WatcherHandle>> {
+  try {
+    const directoryWatchers = new Map<string, FSWatcher>();
+    let isClosed = false;
+    let syncPromise: Promise<void> | undefined;
+    let syncQueued = false;
+
+    const closeAllWatchers = (): void => {
+      if (isClosed) {
+        return;
+      }
+
+      isClosed = true;
+      for (const watcher of directoryWatchers.values()) {
+        watcher.close();
+      }
+      directoryWatchers.clear();
     };
+
+    const syncDirectoryWatchers = (): Promise<void> => {
+      if (syncPromise !== undefined) {
+        syncQueued = true;
+        return syncPromise;
+      }
+
+      syncPromise = (async () => {
+        try {
+          do {
+            syncQueued = false;
+            const nextDirectories = new Set(await collectDirectoryPaths(watchPath));
+            if (isClosed) {
+              return;
+            }
+
+            for (const [directoryPath, watcher] of directoryWatchers.entries()) {
+              if (nextDirectories.has(directoryPath)) {
+                continue;
+              }
+
+              watcher.close();
+              directoryWatchers.delete(directoryPath);
+            }
+
+            for (const directoryPath of nextDirectories) {
+              if (directoryWatchers.has(directoryPath)) {
+                continue;
+              }
+
+              const watcher = watchFileSystem(directoryPath, (event: WatchEvent, filename) => {
+              const changedPath = filename === null
+                ? directoryPath
+                : path.join(directoryPath, filename.toString());
+                callback(event, changedPath, filename !== null);
+                if (event === "rename") {
+                  void runWatcherSync();
+                }
+              });
+
+              watcher.on("error", (error: unknown) => {
+                directoryWatchers.delete(directoryPath);
+                watcher.close();
+                onError(toUnknownResult(error));
+                void runWatcherSync();
+              });
+
+              directoryWatchers.set(directoryPath, watcher);
+            }
+          } while (syncQueued && !isClosed);
+        } finally {
+          syncPromise = undefined;
+        }
+      })();
+
+      return syncPromise;
+    };
+
+    const runWatcherSync = (): Promise<void> =>
+      syncDirectoryWatchers().catch((error: unknown) => {
+        onError(toUnknownResult(error));
+      });
+
+    await syncDirectoryWatchers();
+
+    return {
+      ok: true,
+      value: {
+        close: closeAllWatchers,
+        stop: closeAllWatchers,
+      },
+    };
+  } catch (err) {
+    return toUnknownResult(err);
   }
-  return { ok: true, value: watchFn };
 }
 
 /**
@@ -123,7 +242,7 @@ type RebuildGraphCacheDependencies = typeof defaultRebuildGraphCacheDependencies
 interface WatchCommandDependencies {
   findRepoRoot: typeof findRepoRoot;
   rebuildGraphCache: typeof rebuildGraphCache;
-  resolveBunWatch: typeof resolveBunWatch;
+  createWatcher: FileWatcherFactory;
   setDebounceTimer: typeof setTimeout;
   clearDebounceTimer: typeof clearTimeout;
   createKeepAlivePromise: () => Promise<Result<never>>;
@@ -132,7 +251,7 @@ interface WatchCommandDependencies {
 const defaultWatchCommandDependencies: WatchCommandDependencies = {
   findRepoRoot,
   rebuildGraphCache,
-  resolveBunWatch,
+  createWatcher: createRecursiveFileWatcher,
   setDebounceTimer: setTimeout,
   clearDebounceTimer: clearTimeout,
   createKeepAlivePromise: () =>
@@ -243,28 +362,29 @@ export async function watchCommand(
       }, WATCH_DEBOUNCE_MS);
     };
 
-    const watchResult = dependencies.resolveBunWatch();
+    const watchResult = await dependencies.createWatcher(
+      repoRoot,
+      (event, changedPath, hasExplicitFilename) => {
+        if (event !== "rename" && hasExplicitFilename && !isSourceFile(changedPath)) {
+          return;
+        }
+
+        if (args.verbose === true) {
+          process.stdout.write(`[watch] File changed: ${changedPath}, recomputing...\n`);
+        }
+
+        scheduleRebuild(changedPath);
+      },
+      (watchError) => {
+        process.stderr.write(`[watch] Watcher error: ${watchError.error}\n`);
+      },
+    );
     if (!watchResult.ok) {
       process.stderr.write(`[watch] ${watchResult.error}\n`);
       return watchResult;
     }
 
-    const watcher = watchResult.value(repoRoot, { recursive: true }, (_event, filename) => {
-      if (filename === null) {
-        return;
-      }
-
-      const absolutePath = path.join(repoRoot, filename);
-      if (!isSourceFile(absolutePath)) {
-        return;
-      }
-
-      if (args.verbose === true) {
-        process.stdout.write(`[watch] File changed: ${absolutePath}, recomputing...\n`);
-      }
-
-      scheduleRebuild(absolutePath);
-    });
+    const watcher = watchResult.value;
 
     const shutdown = (): void => {
       if (debounceTimer !== undefined) {
