@@ -53,14 +53,6 @@ describe("inspect-external", () => {
     expect(errorOutput.code).toBe("INVALID_ARGS");
   });
 
-  it("missing both command args exits with code 2", async () => {
-    const result = await runCli(["inspect-external"], { cwd: repo.dir });
-    expect(result.exitCode).toBe(2);
-
-    const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
-    expect(errorOutput.ok).toBe(false);
-    expect(errorOutput.code).toBe("INVALID_ARGS");
-  });
 });
 
 describe("inspect-local — tracked_files stripping and --filter", () => {

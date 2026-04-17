@@ -86,6 +86,35 @@ describe("graph", () => {
     expect(output.value.token_estimate).toBeLessThanOrEqual(32);
   });
 
+  it("applies 64-token minimum budget and reports entries_skipped when output truncates", async () => {
+    await writeGraphJson(repo.dir, {
+      files: {
+        "src/alpha.ts": { deps: ["src/beta.ts", "src/gamma.ts", "src/delta.ts"], defs: ["Alpha", "AlphaFactory", "AlphaRegistry"] },
+        "src/beta.ts": { deps: ["src/gamma.ts", "src/delta.ts"], defs: ["Beta", "BetaService", "BetaConfig"] },
+        "src/gamma.ts": { deps: ["src/delta.ts"], defs: ["Gamma", "GammaController", "GammaUtils"] },
+        "src/delta.ts": { deps: [], defs: ["Delta", "DeltaModel", "DeltaMapper"] },
+        "src/epsilon.ts": { deps: ["src/alpha.ts"], defs: ["Epsilon", "EpsilonRunner", "EpsilonState"] },
+      },
+      computed_at: "2025-01-01T00:00:00.000Z",
+    });
+
+    const result = await runCli(["graph", "--max-tokens", "1"], { cwd: repo.dir });
+    expect(result.exitCode).toBe(0);
+
+    const output = parseJsonOutput<{
+      ok: boolean;
+      value: {
+        ranked_files: Array<{ path: string }>;
+        token_estimate: number;
+        entries_skipped?: number;
+      };
+    }>(result.stdout);
+    expect(output.ok).toBe(true);
+    expect(output.value.ranked_files.length).toBeGreaterThan(0);
+    expect(output.value.token_estimate).toBeLessThanOrEqual(64);
+    expect(output.value.entries_skipped).toBeGreaterThan(0);
+  });
+
   it("returns PARSE_ERROR when graph.json is malformed", async () => {
     await writeGraphJson(repo.dir, {
       files: "not-an-object",

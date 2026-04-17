@@ -58,6 +58,8 @@ async function executeCli(args: string[], options: CliExecutionOptions): Promise
     stdio: ["ignore", "pipe", "pipe"],
   });
 
+  let spawnErrorMessage: string | null = null;
+
   let timedOut = false;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   if (options.timeoutMs !== undefined) {
@@ -67,21 +69,34 @@ async function executeCli(args: string[], options: CliExecutionOptions): Promise
     }, options.timeoutMs);
   }
 
-  const exitCodePromise = new Promise<number>((resolve, reject) => {
-    proc.on("error", reject);
+  const exitCodePromise = new Promise<number>((resolve) => {
+    proc.on("error", (error: Error) => {
+      spawnErrorMessage = error.message;
+      resolve(1);
+    });
     proc.on("close", (exitCode) => {
       resolve(exitCode ?? 1);
     });
   });
 
   try {
-    const [stdout, stderr, exitCode] = await Promise.all([
-      readStream(proc.stdout),
-      readStream(proc.stderr),
-      exitCodePromise,
-    ]);
+    try {
+      const [stdout, stderr, exitCode] = await Promise.all([
+        readStream(proc.stdout),
+        readStream(proc.stderr),
+        exitCodePromise,
+      ]);
 
-    return { stdout, stderr, exitCode: timedOut ? -1 : exitCode };
+      const mergedStderr = spawnErrorMessage === null ? stderr : `${stderr}${stderr ? "\n" : ""}${spawnErrorMessage}`;
+      return { stdout, stderr: mergedStderr, exitCode: timedOut ? -1 : exitCode };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        stdout: "",
+        stderr: spawnErrorMessage === null ? message : `${spawnErrorMessage}\n${message}`,
+        exitCode: timedOut ? -1 : 1,
+      };
+    }
   } finally {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
