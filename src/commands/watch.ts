@@ -2,6 +2,7 @@ import path from "node:path";
 import { realpath } from "node:fs/promises";
 
 import { buildGraph, type DependencyGraph } from "../analysis/graphBuilder.js";
+import { isSupportedSourceExtension } from "../analysis/supportedLanguages.js";
 import { findRepoRoot, writeCache } from "../cache/cacheManager.js";
 import { resolveGraphCachePath } from "../cache/localCache.js";
 import { getGitTrackedFiles } from "../files/gitFiles.js";
@@ -11,7 +12,6 @@ import { ErrorCode, type Result } from "../types/result.js";
 import { toUnknownResult } from "../errors.js";
 
 const WATCH_DEBOUNCE_MS = 200;
-const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);
 
 type TrackedFilesProvider = (repoRoot: string) => Promise<string[]>;
 type WatchEvent = "rename" | "change";
@@ -52,11 +52,11 @@ export function resolveBunWatch(): Result<BunWatchFunction> {
  * Checks whether a file path is a supported source file for graph analysis.
  *
  * @param filePath - Absolute or relative file path.
- * @returns `true` when extension is one of `.ts`, `.tsx`, `.js`, `.jsx`.
+ * @returns `true` when extension is supported by parser-backed graph analysis.
  */
 export function isSourceFile(filePath: string): boolean {
   const extension = path.extname(filePath).toLowerCase();
-  return SOURCE_EXTENSIONS.has(extension);
+  return isSupportedSourceExtension(extension);
 }
 
 /**

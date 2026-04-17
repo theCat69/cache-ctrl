@@ -45,16 +45,30 @@ describe("watch helpers", () => {
     });
   });
 
-  it("isSourceFile accepts TS/JS variants and rejects non-source files", () => {
+  it("isSourceFile accepts all supported parser-backed source extensions", () => {
     expect(isSourceFile("src/a.ts")).toBe(true);
     expect(isSourceFile("src/a.tsx")).toBe(true);
     expect(isSourceFile("src/a.js")).toBe(true);
     expect(isSourceFile("src/a.jsx")).toBe(true);
+    expect(isSourceFile("src/a.mjs")).toBe(true);
+    expect(isSourceFile("src/a.cjs")).toBe(true);
+    expect(isSourceFile("src/a.py")).toBe(true);
+    expect(isSourceFile("src/a.rs")).toBe(true);
+    expect(isSourceFile("src/a.go")).toBe(true);
+    expect(isSourceFile("src/A.java")).toBe(true);
+    expect(isSourceFile("src/a.c")).toBe(true);
+    expect(isSourceFile("src/a.h")).toBe(true);
+    expect(isSourceFile("src/a.cpp")).toBe(true);
+    expect(isSourceFile("src/a.cc")).toBe(true);
+    expect(isSourceFile("src/a.cxx")).toBe(true);
+    expect(isSourceFile("src/a.hpp")).toBe(true);
+    expect(isSourceFile("src/a.hh")).toBe(true);
+    expect(isSourceFile("src/a.hxx")).toBe(true);
     expect(isSourceFile("src/a.json")).toBe(false);
     expect(isSourceFile("README.md")).toBe(false);
   });
 
-  it("resolveSourceFilePaths filters non-TS/JS files", async () => {
+  it("resolveSourceFilePaths includes all supported source files", async () => {
     const repoRoot = await mkdtemp(join(tmpdir(), "cache-ctrl-watch-"));
     const srcDir = join(repoRoot, "src");
     await mkdir(srcDir, { recursive: true });
@@ -62,13 +76,37 @@ describe("watch helpers", () => {
     await writeFile(join(srcDir, "b.tsx"), "export const b = <div />;\n", "utf-8");
     await writeFile(join(srcDir, "c.js"), "export const c = 1;\n", "utf-8");
     await writeFile(join(srcDir, "d.jsx"), "export const d = <div />;\n", "utf-8");
+    await writeFile(join(srcDir, "e.py"), "from .dep import f\n", "utf-8");
+    await writeFile(join(srcDir, "f.rs"), "mod dep;\n", "utf-8");
+    await writeFile(join(srcDir, "g.go"), "package src\n", "utf-8");
+    await writeFile(join(srcDir, "H.java"), "class H {}\n", "utf-8");
+    await writeFile(join(srcDir, "i.c"), "#include \"dep.h\"\n", "utf-8");
+    await writeFile(join(srcDir, "i.h"), "#pragma once\n", "utf-8");
+    await writeFile(join(srcDir, "j.cpp"), "#include \"dep.hpp\"\n", "utf-8");
+    await writeFile(join(srcDir, "k.cc"), "#include \"dep.hpp\"\n", "utf-8");
+    await writeFile(join(srcDir, "l.cxx"), "#include \"dep.hpp\"\n", "utf-8");
+    await writeFile(join(srcDir, "m.hpp"), "#pragma once\n", "utf-8");
+    await writeFile(join(srcDir, "n.hh"), "#pragma once\n", "utf-8");
+    await writeFile(join(srcDir, "o.hxx"), "#pragma once\n", "utf-8");
 
     const mockGetTrackedFiles = async (): Promise<string[]> => [
       "src/a.ts",
       "src/b.tsx",
       "src/c.js",
       "src/d.jsx",
-      "src/e.json",
+      "src/e.py",
+      "src/f.rs",
+      "src/g.go",
+      "src/H.java",
+      "src/i.c",
+      "src/i.h",
+      "src/j.cpp",
+      "src/k.cc",
+      "src/l.cxx",
+      "src/m.hpp",
+      "src/n.hh",
+      "src/o.hxx",
+      "src/m.json",
       "README.md",
     ];
 
@@ -80,6 +118,18 @@ describe("watch helpers", () => {
         join(repoRoot, "src", "b.tsx"),
         join(repoRoot, "src", "c.js"),
         join(repoRoot, "src", "d.jsx"),
+        join(repoRoot, "src", "e.py"),
+        join(repoRoot, "src", "f.rs"),
+        join(repoRoot, "src", "g.go"),
+        join(repoRoot, "src", "H.java"),
+        join(repoRoot, "src", "i.c"),
+        join(repoRoot, "src", "i.h"),
+        join(repoRoot, "src", "j.cpp"),
+        join(repoRoot, "src", "k.cc"),
+        join(repoRoot, "src", "l.cxx"),
+        join(repoRoot, "src", "m.hpp"),
+        join(repoRoot, "src", "n.hh"),
+        join(repoRoot, "src", "o.hxx"),
       ]),
     );
 

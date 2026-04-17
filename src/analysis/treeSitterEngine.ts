@@ -183,6 +183,257 @@ function collectExportedDefinitionNames(exportText: string, definitions: Set<str
   }
 }
 
+function collectQuotedImportDependencies(
+  filePath: string,
+  sourceCode: string,
+  repoRoot: string,
+  dependencies: Set<string>,
+): void {
+  const quotedImportPattern = /(?:^|\s)(?:import|include|require)\s*(?:\(|)(["'])([^"'\n]+)\1/gm;
+  for (const match of sourceCode.matchAll(quotedImportPattern)) {
+    const importSource = match[2];
+    if (importSource === undefined) {
+      continue;
+    }
+
+    addResolvedDependency(filePath, importSource, repoRoot, dependencies);
+  }
+}
+
+function collectPythonRelativeDependencies(
+  filePath: string,
+  sourceCode: string,
+  repoRoot: string,
+  dependencies: Set<string>,
+): void {
+  const relativeFromImportPattern = /^\s*from\s+(\.+[A-Za-z_][\w\.]*)\s+import\b/gm;
+  const relativePackageImportPattern = /^\s*from\s+(\.+)\s+import\s+(.+)$/gm;
+
+  for (const match of sourceCode.matchAll(relativeFromImportPattern)) {
+    const dottedModulePath = match[1];
+    if (dottedModulePath === undefined) {
+      continue;
+    }
+
+    const parentTraversalPrefix = dottedModulePath.match(/^\.+/)?.[0] ?? "";
+    const modulePathWithoutPrefix = dottedModulePath.slice(parentTraversalPrefix.length);
+    const parentLevelCount = Math.max(0, parentTraversalPrefix.length - 1);
+    const parentTraversal = parentLevelCount > 0 ? "../".repeat(parentLevelCount) : "./";
+    const moduleRelativePath = modulePathWithoutPrefix.replaceAll(".", "/");
+    const joinedPath = `${parentTraversal}${moduleRelativePath}`;
+
+    addResolvedDependency(filePath, joinedPath, repoRoot, dependencies);
+  }
+
+  for (const match of sourceCode.matchAll(relativePackageImportPattern)) {
+    const parentTraversalPrefix = match[1];
+    const importClause = match[2];
+    if (parentTraversalPrefix === undefined || importClause === undefined) {
+      continue;
+    }
+
+    const parentLevelCount = Math.max(0, parentTraversalPrefix.length - 1);
+    const parentTraversal = parentLevelCount > 0 ? "../".repeat(parentLevelCount) : "./";
+    const importClauseWithoutComment = importClause.split("#", 1)[0]?.trim();
+
+    if (importClauseWithoutComment === undefined || importClauseWithoutComment.length === 0) {
+      continue;
+    }
+
+    const normalizedImportClause =
+      importClauseWithoutComment.startsWith("(") && importClauseWithoutComment.endsWith(")")
+        ? importClauseWithoutComment.slice(1, -1)
+        : importClauseWithoutComment;
+
+    const importedModules = normalizedImportClause
+      .split(",")
+      .map((entry) => entry.trim())
+      .map((entry) => entry.split(/\s+as\s+/i, 1)[0]?.trim())
+      .filter((entry): entry is string => entry !== undefined && entry.length > 0 && entry !== "*");
+
+    for (const importedModule of importedModules) {
+      const moduleRelativePath = importedModule.replaceAll(".", "/");
+      const joinedPath = `${parentTraversal}${moduleRelativePath}`;
+      addResolvedDependency(filePath, joinedPath, repoRoot, dependencies);
+    }
+  }
+}
+
+function collectRustModuleDependencies(
+  filePath: string,
+  sourceCode: string,
+  repoRoot: string,
+  dependencies: Set<string>,
+): void {
+  const modDeclarationPattern = /^\s*(?:pub\s+)?mod\s+([A-Za-z_][\w]*)\s*;/gm;
+  for (const match of sourceCode.matchAll(modDeclarationPattern)) {
+    const moduleName = match[1];
+    if (moduleName === undefined) {
+      continue;
+    }
+
+    addResolvedDependency(filePath, `./${moduleName}`, repoRoot, dependencies);
+    addResolvedDependency(filePath, `./${moduleName}/mod`, repoRoot, dependencies);
+  }
+}
+
+function collectGoImportDependencies(
+  filePath: string,
+  sourceCode: string,
+  repoRoot: string,
+  dependencies: Set<string>,
+): void {
+  const singleImportPattern = /^\s*import\s+(?:[A-Za-z_][\w]*\s+)?(?:"([^"\n]+)"|`([^`\n]+)`)/gm;
+  for (const match of sourceCode.matchAll(singleImportPattern)) {
+    const importPath = match[1] ?? match[2];
+    if (importPath === undefined) {
+      continue;
+    }
+    addResolvedDependency(filePath, importPath, repoRoot, dependencies);
+  }
+
+  const importBlockPattern = /\bimport\s*\(([^)]*)\)/gm;
+  for (const blockMatch of sourceCode.matchAll(importBlockPattern)) {
+    const importBlock = blockMatch[1];
+    if (importBlock === undefined) {
+      continue;
+    }
+
+    const importLinePattern = /(?:^|\n)\s*(?:[A-Za-z_][\w]*\s+)?(?:"([^"\n]+)"|`([^`\n]+)`)/g;
+    for (const importMatch of importBlock.matchAll(importLinePattern)) {
+      const importPath = importMatch[1] ?? importMatch[2];
+      if (importPath === undefined) {
+        continue;
+      }
+      addResolvedDependency(filePath, importPath, repoRoot, dependencies);
+    }
+  }
+}
+
+function resolveJavaSourceRoot(filePath: string, javaPackagePath: string): string {
+  const packagePath = javaPackagePath.replaceAll(".", sep);
+  const sourceDirectory = dirname(filePath);
+
+  if (
+    packagePath.length > 0 &&
+    (sourceDirectory === packagePath || sourceDirectory.endsWith(`${sep}${packagePath}`))
+  ) {
+    const rootLength = sourceDirectory.length - packagePath.length;
+    const sourceRoot = sourceDirectory.slice(0, rootLength);
+    const normalizedSourceRoot = sourceRoot.endsWith(sep) ? sourceRoot.slice(0, -1) : sourceRoot;
+    if (normalizedSourceRoot.length > 0) {
+      return normalizedSourceRoot;
+    }
+  }
+
+  return sourceDirectory;
+}
+
+function collectJavaImportDependencies(
+  filePath: string,
+  sourceCode: string,
+  repoRoot: string,
+  dependencies: Set<string>,
+): void {
+  const packageDeclarationPattern = /^\s*package\s+([A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)*)\s*;/m;
+  const declaredPackage = sourceCode.match(packageDeclarationPattern)?.[1];
+  const sourceRoot = declaredPackage === undefined ? dirname(filePath) : resolveJavaSourceRoot(filePath, declaredPackage);
+  const declaredPackageSegments = declaredPackage?.split(".") ?? [];
+  const packagePrefixSegments = declaredPackageSegments.slice(0, Math.min(2, declaredPackageSegments.length));
+  const packagePrefix = packagePrefixSegments.join(".");
+
+  const importPattern = /^\s*import\s+(static\s+)?([A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)+)(?:\.\*)?\s*;/gm;
+  for (const match of sourceCode.matchAll(importPattern)) {
+    const staticPrefix = match[1];
+    const importedSymbol = match[2];
+    if (importedSymbol === undefined) {
+      continue;
+    }
+
+    const importSegments = importedSymbol.split(".");
+    const importPathForStatic = staticPrefix === undefined ? importSegments : importSegments.slice(0, -1);
+    if (importPathForStatic.length === 0) {
+      continue;
+    }
+
+    if (
+      packagePrefix.length > 0 &&
+      !(importedSymbol === packagePrefix || importedSymbol.startsWith(`${packagePrefix}.`))
+    ) {
+      continue;
+    }
+
+    const importPath = importPathForStatic.join("/");
+    const resolvedPath = resolve(sourceRoot, importPath);
+    if (!isPathInsideRepo(resolvedPath, repoRoot)) {
+      continue;
+    }
+
+    dependencies.add(resolvedPath);
+  }
+}
+
+function collectCStyleIncludeDependencies(
+  filePath: string,
+  sourceCode: string,
+  repoRoot: string,
+  dependencies: Set<string>,
+): void {
+  const includePattern = /^\s*#\s*include\s+"([^"]+)"/gm;
+  for (const match of sourceCode.matchAll(includePattern)) {
+    const includePath = match[1];
+    if (includePath === undefined) {
+      continue;
+    }
+
+    const includeSegments = includePath.split(/[\\/]+/);
+    if (includeSegments.includes("..")) {
+      continue;
+    }
+
+    addResolvedDependency(filePath, `./${includePath}`, repoRoot, dependencies);
+  }
+}
+
+function collectGenericLanguageDependencies(
+  filePath: string,
+  extension: string,
+  sourceCode: string,
+  normalizedRepoRoot: string,
+  dependencies: Set<string>,
+): void {
+  collectQuotedImportDependencies(filePath, sourceCode, normalizedRepoRoot, dependencies);
+
+  if (extension === ".py") {
+    collectPythonRelativeDependencies(filePath, sourceCode, normalizedRepoRoot, dependencies);
+  }
+
+  if (extension === ".rs") {
+    collectRustModuleDependencies(filePath, sourceCode, normalizedRepoRoot, dependencies);
+  }
+
+  if (extension === ".go") {
+    collectGoImportDependencies(filePath, sourceCode, normalizedRepoRoot, dependencies);
+  }
+
+  if (extension === ".java") {
+    collectJavaImportDependencies(filePath, sourceCode, normalizedRepoRoot, dependencies);
+  }
+
+  if (
+    extension === ".c" ||
+    extension === ".h" ||
+    extension === ".cpp" ||
+    extension === ".cc" ||
+    extension === ".cxx" ||
+    extension === ".hpp" ||
+    extension === ".hh" ||
+    extension === ".hxx"
+  ) {
+    collectCStyleIncludeDependencies(filePath, sourceCode, normalizedRepoRoot, dependencies);
+  }
+}
+
 async function ensureInitialized(): Promise<void> {
   if (initPromise === null) {
     initPromise = Parser.init();
@@ -301,6 +552,10 @@ export async function parseFileSymbols(filePath: string, wasmPath: string, repoR
           }
         });
       }
+    }
+
+    if (!isTypeScriptOrJavaScript) {
+      collectGenericLanguageDependencies(filePath, extension, sourceCode, normalizedRepoRoot, dependencies);
     }
 
     return { deps: [...dependencies], defs: [...definitions] };

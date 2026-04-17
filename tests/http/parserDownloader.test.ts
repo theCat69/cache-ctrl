@@ -59,6 +59,7 @@ describe("downloadParser", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
+        url: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
         arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 1]).buffer),
       }),
     );
@@ -79,7 +80,14 @@ describe("downloadParser", () => {
   });
 
   it("returns PARSER_DOWNLOAD_ERROR on http failure", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        url: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
+      }),
+    );
 
     const result = await downloadParser("typescript", "/tmp/parsers");
 
@@ -97,6 +105,23 @@ describe("downloadParser", () => {
     expect(result.error).toContain("No WASM URL configured");
   });
 
+  it("resolves supported non-TS parser URLs from shared manifest", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      url: "https://github.com/tree-sitter/tree-sitter-python/releases/download/v0.25.0/tree-sitter-python.wasm",
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 1]).buffer),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await downloadParser("python", "/tmp/parsers");
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://github.com/tree-sitter/tree-sitter-python/releases/download/v0.25.0/tree-sitter-python.wasm",
+      expect.objectContaining({ redirect: "follow", signal: expect.any(AbortSignal) }),
+    );
+  });
+
   it("returns PARSER_DOWNLOAD_ERROR for invalid language identifier", async () => {
     const result = await downloadParser("../typescript", "/tmp/parsers");
 
@@ -109,6 +134,7 @@ describe("downloadParser", () => {
   it("uses fetch timeout and redirect error mode", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
+      url: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
       arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d]).buffer),
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -128,6 +154,7 @@ describe("downloadParser", () => {
   it("deduplicates concurrent downloads for the same parser", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
+      url: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
       arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 1]).buffer),
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -149,6 +176,7 @@ describe("downloadParser", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
+        url: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
         arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4]).buffer),
       }),
     );
@@ -173,6 +201,7 @@ describe("downloadParser", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
+        url: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
         arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d]).buffer),
       }),
     );
@@ -188,6 +217,7 @@ describe("downloadParser", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
+        url: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
         arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01]).buffer),
       }),
     );
@@ -201,5 +231,40 @@ describe("downloadParser", () => {
     const attemptedTempPath = unlinkMock.mock.calls[0]?.[0];
     expect(typeof attemptedTempPath).toBe("string");
     expect(attemptedTempPath).toContain(`/tmp/parsers/typescript.wasm.tmp.${process.pid}.`);
+  });
+
+  it("returns PARSER_DOWNLOAD_ERROR when final redirect host is not allowlisted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        url: "https://evil.example.com/parser.wasm",
+        arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01]).buffer),
+      }),
+    );
+
+    const result = await downloadParser("typescript", "/tmp/parsers");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.PARSER_DOWNLOAD_ERROR);
+    expect(result.error).toContain("redirected to untrusted host");
+    expect(writeFileMock).not.toHaveBeenCalled();
+    expect(renameMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts GitHub release asset redirect hosts", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        url: "https://release-assets.githubusercontent.com/tree-sitter-typescript.wasm",
+        arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01]).buffer),
+      }),
+    );
+
+    const result = await downloadParser("typescript", "/tmp/parsers");
+
+    expect(result.ok).toBe(true);
   });
 });

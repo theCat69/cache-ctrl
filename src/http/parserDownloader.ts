@@ -1,24 +1,29 @@
 import { lstat, mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { getSupportedLanguageConfig } from "../analysis/supportedLanguages.js";
 import { ErrorCode, type Result } from "../types/result.js";
 
-const LANGUAGE_WASM_URLS: Record<string, string> = {
-  typescript: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
-  javascript: "https://unpkg.com/@tree-sitter/javascript/tree-sitter-javascript.wasm",
-  rust: "https://github.com/tree-sitter/tree-sitter-rust/releases/download/v0.24.2/tree-sitter-rust.wasm",
-  python: "https://github.com/tree-sitter/tree-sitter-python/releases/download/v0.25.0/tree-sitter-python.wasm",
-  go: "https://github.com/tree-sitter/tree-sitter-go/releases/download/v0.25.0/tree-sitter-go.wasm",
-  java: "https://github.com/tree-sitter/tree-sitter-java/releases/download/v0.23.5/tree-sitter-java.wasm",
-  c: "https://github.com/tree-sitter/tree-sitter-c/releases/download/v0.24.1/tree-sitter-c.wasm",
-  cpp: "https://github.com/tree-sitter/tree-sitter-cpp/releases/download/v0.23.4/tree-sitter-cpp.wasm",
-};
-
 const parserDownloadPromises = new Map<string, Promise<Result<string>>>();
+const ALLOWED_PARSER_DOWNLOAD_HOSTNAMES = new Set([
+  "github.com",
+  "github-releases.githubusercontent.com",
+  "release-assets.githubusercontent.com",
+  "objects.githubusercontent.com",
+]);
+
+function isAllowedParserDownloadHostname(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return ALLOWED_PARSER_DOWNLOAD_HOSTNAMES.has(hostname);
+  } catch {
+    return false;
+  }
+}
 
 function resolveParserWasmUrl(language: string): Result<string> {
-  const url = LANGUAGE_WASM_URLS[language as keyof typeof LANGUAGE_WASM_URLS];
-  if (url === undefined) {
+  const config = getSupportedLanguageConfig(language);
+  if (config === null) {
     return {
       ok: false,
       error: `No WASM URL configured for language "${language}"`,
@@ -26,7 +31,7 @@ function resolveParserWasmUrl(language: string): Result<string> {
     };
   }
 
-  return { ok: true, value: url };
+  return { ok: true, value: config.wasmUrl };
 }
 
 function createParserDownloadKey(language: string, absoluteDestDir: string): string {
@@ -58,6 +63,15 @@ async function downloadAndCacheParser(language: string, absoluteDestDir: string,
       redirect: "follow",
       signal: AbortSignal.timeout(30_000),
     });
+
+    if (!isAllowedParserDownloadHostname(response.url)) {
+      return {
+        ok: false,
+        code: ErrorCode.PARSER_DOWNLOAD_ERROR,
+        error: `Failed to download parser for ${language}: redirected to untrusted host`,
+      };
+    }
+
     if (!response.ok) {
       return {
         ok: false,

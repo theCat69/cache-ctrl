@@ -15,9 +15,13 @@ describe("detectLanguage", () => {
     expect(detectLanguage("/tmp/file.go")).toBe("go");
     expect(detectLanguage("/tmp/file.java")).toBe("java");
     expect(detectLanguage("/tmp/file.c")).toBe("c");
+    expect(detectLanguage("/tmp/file.h")).toBe("c");
     expect(detectLanguage("/tmp/file.cpp")).toBe("cpp");
     expect(detectLanguage("/tmp/file.cc")).toBe("cpp");
     expect(detectLanguage("/tmp/file.cxx")).toBe("cpp");
+    expect(detectLanguage("/tmp/file.hpp")).toBe("cpp");
+    expect(detectLanguage("/tmp/file.hh")).toBe("cpp");
+    expect(detectLanguage("/tmp/file.hxx")).toBe("cpp");
   });
 
   it("returns null for unsupported extensions", () => {
