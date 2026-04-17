@@ -1,6 +1,6 @@
 import path from "node:path";
 import { watch as watchFileSystem, type FSWatcher } from "node:fs";
-import { readdir, realpath } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 
 import { buildGraph, type DependencyGraph } from "../analysis/graphBuilder.js";
 import { isSupportedSourceExtension } from "../analysis/supportedLanguages.js";
@@ -14,6 +14,8 @@ import { type Result } from "../types/result.js";
 import { toUnknownResult } from "../errors.js";
 
 const WATCH_DEBOUNCE_MS = 200;
+const WATCH_SYNC_DEBOUNCE_MS = 100;
+const WATCH_SYNC_MAX_RETRY_MS = 5_000;
 const IGNORED_WATCH_DIRECTORIES = new Set([
   ".ai",
   ".git",
@@ -27,8 +29,14 @@ const IGNORED_WATCH_DIRECTORIES = new Set([
 
 type TrackedFilesProvider = (repoRoot: string) => Promise<string[]>;
 type WatchEvent = "rename" | "change";
-type FileWatchCallback = (event: WatchEvent, changedPath: string, hasExplicitFilename: boolean) => void;
+type FileWatchCallback = (
+  event: WatchEvent,
+  changedPath: string,
+  hasExplicitFilename: boolean,
+  isWithinTrackedScope: boolean,
+) => void;
 type WatchErrorHandler = (error: { ok: false } & CacheError) => void;
+type WatchDirectoriesProvider = (repoRoot: string) => Promise<string[]>;
 
 interface WatcherHandle {
   close?: () => void;
@@ -41,43 +49,66 @@ type FileWatcherFactory = (
   onError: WatchErrorHandler,
 ) => Promise<Result<WatcherHandle>>;
 
-async function collectDirectoryPaths(rootPath: string): Promise<string[]> {
-  const directoryPaths = [rootPath];
+export async function resolveWatchDirectoryPaths(
+  repoRoot: string,
+  trackedFilesProvider: TrackedFilesProvider = getGitTrackedFiles,
+): Promise<string[]> {
+  const normalizedRepoRoot = path.resolve(repoRoot);
+  const repoPrefix = `${normalizedRepoRoot}${path.sep}`;
+  const trackedFiles = await trackedFilesProvider(repoRoot);
+  const candidateDirectories = new Set<string>([normalizedRepoRoot]);
 
-  for (let index = 0; index < directoryPaths.length; index += 1) {
-    const currentDirectory = directoryPaths[index]!;
-    let entries;
-    try {
-      entries = await readdir(currentDirectory, { withFileTypes: true });
-    } catch {
+  for (const relativePath of trackedFiles) {
+    if (!isSourceFile(relativePath)) {
       continue;
     }
 
-    for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-      if (IGNORED_WATCH_DIRECTORIES.has(entry.name)) {
-        continue;
-      }
+    const pathSegments = relativePath.split(/[\\/]+/);
+    if (pathSegments.some((segment) => IGNORED_WATCH_DIRECTORIES.has(segment))) {
+      continue;
+    }
 
-      directoryPaths.push(path.join(currentDirectory, entry.name));
+    let currentDirectory = path.dirname(path.join(normalizedRepoRoot, relativePath));
+    while (currentDirectory === normalizedRepoRoot || currentDirectory.startsWith(repoPrefix)) {
+      candidateDirectories.add(currentDirectory);
+      if (currentDirectory === normalizedRepoRoot) {
+        break;
+      }
+      currentDirectory = path.dirname(currentDirectory);
     }
   }
 
-  return directoryPaths;
+  const existingDirectories = await Promise.all(
+    [...candidateDirectories].map(async (directoryPath) => {
+      try {
+        const resolvedDirectory = await realpath(directoryPath);
+        if (resolvedDirectory === normalizedRepoRoot || resolvedDirectory.startsWith(repoPrefix)) {
+          return resolvedDirectory;
+        }
+      } catch {
+        return undefined;
+      }
+
+      return undefined;
+    }),
+  );
+
+  return [...new Set(existingDirectories.filter((directoryPath) => directoryPath !== undefined))];
 }
 
 export async function createRecursiveFileWatcher(
   watchPath: string,
   callback: FileWatchCallback,
   onError: WatchErrorHandler,
+  watchDirectoriesProvider: WatchDirectoriesProvider = resolveWatchDirectoryPaths,
 ): Promise<Result<WatcherHandle>> {
   try {
     const directoryWatchers = new Map<string, FSWatcher>();
     let isClosed = false;
     let syncPromise: Promise<void> | undefined;
     let syncQueued = false;
+    let syncTimer: ReturnType<typeof setTimeout> | undefined;
+    let syncRetryDelayMs = WATCH_SYNC_DEBOUNCE_MS;
 
     const closeAllWatchers = (): void => {
       if (isClosed) {
@@ -89,6 +120,10 @@ export async function createRecursiveFileWatcher(
         watcher.close();
       }
       directoryWatchers.clear();
+      if (syncTimer !== undefined) {
+        clearTimeout(syncTimer);
+        syncTimer = undefined;
+      }
     };
 
     const syncDirectoryWatchers = (): Promise<void> => {
@@ -101,7 +136,7 @@ export async function createRecursiveFileWatcher(
         try {
           do {
             syncQueued = false;
-            const nextDirectories = new Set(await collectDirectoryPaths(watchPath));
+            const nextDirectories = new Set(await watchDirectoriesProvider(watchPath));
             if (isClosed) {
               return;
             }
@@ -121,12 +156,17 @@ export async function createRecursiveFileWatcher(
               }
 
               const watcher = watchFileSystem(directoryPath, (event: WatchEvent, filename) => {
-              const changedPath = filename === null
-                ? directoryPath
-                : path.join(directoryPath, filename.toString());
-                callback(event, changedPath, filename !== null);
+                const changedPath = filename === null
+                  ? directoryPath
+                  : path.join(directoryPath, filename.toString());
+                const isWithinTrackedScope = [...directoryWatchers.keys()].some(
+                  (trackedDirectory) =>
+                    trackedDirectory !== watchPath &&
+                    (changedPath === trackedDirectory || changedPath.startsWith(`${trackedDirectory}${path.sep}`)),
+                );
+                callback(event, changedPath, filename !== null, isWithinTrackedScope);
                 if (event === "rename") {
-                  void runWatcherSync();
+                  scheduleWatcherSync();
                 }
               });
 
@@ -134,12 +174,13 @@ export async function createRecursiveFileWatcher(
                 directoryWatchers.delete(directoryPath);
                 watcher.close();
                 onError(toUnknownResult(error));
-                void runWatcherSync();
-              });
+                scheduleWatcherSync(syncRetryDelayMs);
+                });
 
               directoryWatchers.set(directoryPath, watcher);
             }
           } while (syncQueued && !isClosed);
+          syncRetryDelayMs = WATCH_SYNC_DEBOUNCE_MS;
         } finally {
           syncPromise = undefined;
         }
@@ -151,7 +192,20 @@ export async function createRecursiveFileWatcher(
     const runWatcherSync = (): Promise<void> =>
       syncDirectoryWatchers().catch((error: unknown) => {
         onError(toUnknownResult(error));
+        scheduleWatcherSync(syncRetryDelayMs);
+        syncRetryDelayMs = Math.min(syncRetryDelayMs * 2, WATCH_SYNC_MAX_RETRY_MS);
       });
+
+    const scheduleWatcherSync = (delayMs = WATCH_SYNC_DEBOUNCE_MS): void => {
+      if (isClosed || syncTimer !== undefined) {
+        return;
+      }
+
+      syncTimer = setTimeout(() => {
+        syncTimer = undefined;
+        void runWatcherSync();
+      }, delayMs);
+    };
 
     await syncDirectoryWatchers();
 
@@ -364,7 +418,14 @@ export async function watchCommand(
 
     const watchResult = await dependencies.createWatcher(
       repoRoot,
-      (event, changedPath, hasExplicitFilename) => {
+      (event, changedPath, hasExplicitFilename, isWithinTrackedScope) => {
+        const hasFileExtension = path.extname(changedPath).length > 0;
+        if (event === "rename" && hasExplicitFilename && !hasFileExtension && !isWithinTrackedScope) {
+          return;
+        }
+        if (event === "rename" && hasExplicitFilename && hasFileExtension && !isSourceFile(changedPath)) {
+          return;
+        }
         if (event !== "rename" && hasExplicitFilename && !isSourceFile(changedPath)) {
           return;
         }
