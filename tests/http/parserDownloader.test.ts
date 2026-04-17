@@ -119,10 +119,29 @@ describe("downloadParser", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
       expect.objectContaining({
-        redirect: "error",
+        redirect: "follow",
         signal: expect.any(AbortSignal),
       }),
     );
+  });
+
+  it("deduplicates concurrent downloads for the same parser", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 1]).buffer),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const results = await Promise.all([
+      downloadParser("typescript", "/tmp/parsers"),
+      downloadParser("typescript", "/tmp/parsers"),
+      downloadParser("typescript", "/tmp/parsers"),
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(writeFileMock).toHaveBeenCalledTimes(1);
+    expect(results).toHaveLength(3);
+    expect(results.every((result) => result.ok)).toBe(true);
   });
 
   it("returns PARSER_DOWNLOAD_ERROR when downloaded bytes are not wasm", async () => {

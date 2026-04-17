@@ -14,6 +14,8 @@ const LANGUAGE_WASM_URLS: Record<string, string> = {
   cpp: "https://github.com/tree-sitter/tree-sitter-cpp/releases/download/v0.23.4/tree-sitter-cpp.wasm",
 };
 
+const parserDownloadPromises = new Map<string, Promise<Result<string>>>();
+
 function resolveParserWasmUrl(language: string): Result<string> {
   const url = LANGUAGE_WASM_URLS[language as keyof typeof LANGUAGE_WASM_URLS];
   if (url === undefined) {
@@ -27,29 +29,11 @@ function resolveParserWasmUrl(language: string): Result<string> {
   return { ok: true, value: url };
 }
 
-/**
- * Download and cache a Tree-sitter WASM parser for a language.
- *
- * @param language - Normalized parser language key.
- * @param destDir - Directory where parser files are cached.
- * @returns Absolute parser file path on success.
- */
-export async function downloadParser(language: string, destDir: string): Promise<Result<string>> {
-  const SAFE_LANGUAGE_PATTERN = /^[a-z][a-z0-9_-]*$/;
-  if (!SAFE_LANGUAGE_PATTERN.test(language)) {
-    return {
-      ok: false,
-      error: `Invalid language identifier: "${language}"`,
-      code: ErrorCode.PARSER_DOWNLOAD_ERROR,
-    };
-  }
+function createParserDownloadKey(language: string, absoluteDestDir: string): string {
+  return `${absoluteDestDir}:${language}`;
+}
 
-  const urlResult = resolveParserWasmUrl(language);
-  if (!urlResult.ok) {
-    return urlResult;
-  }
-
-  const absoluteDestDir = resolve(destDir);
+async function downloadAndCacheParser(language: string, absoluteDestDir: string, url: string): Promise<Result<string>> {
   const wasmPath = resolve(absoluteDestDir, `${language}.wasm`);
   const tempPath = resolve(
     absoluteDestDir,
@@ -70,8 +54,8 @@ export async function downloadParser(language: string, destDir: string): Promise
 
     process.stderr.write(`Downloading tree-sitter parser for ${language}...\n`);
 
-    const response = await fetch(urlResult.value, {
-      redirect: "error",
+    const response = await fetch(url, {
+      redirect: "follow",
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
@@ -110,4 +94,41 @@ export async function downloadParser(language: string, destDir: string): Promise
       error: `Failed to cache parser for ${language}: ${error}`,
     };
   }
+}
+
+/**
+ * Download and cache a Tree-sitter WASM parser for a language.
+ *
+ * @param language - Normalized parser language key.
+ * @param destDir - Directory where parser files are cached.
+ * @returns Absolute parser file path on success.
+ */
+export async function downloadParser(language: string, destDir: string): Promise<Result<string>> {
+  const SAFE_LANGUAGE_PATTERN = /^[a-z][a-z0-9_-]*$/;
+  if (!SAFE_LANGUAGE_PATTERN.test(language)) {
+    return {
+      ok: false,
+      error: `Invalid language identifier: "${language}"`,
+      code: ErrorCode.PARSER_DOWNLOAD_ERROR,
+    };
+  }
+
+  const urlResult = resolveParserWasmUrl(language);
+  if (!urlResult.ok) {
+    return urlResult;
+  }
+
+  const absoluteDestDir = resolve(destDir);
+  const downloadKey = createParserDownloadKey(language, absoluteDestDir);
+  const ongoingDownload = parserDownloadPromises.get(downloadKey);
+  if (ongoingDownload !== undefined) {
+    return await ongoingDownload;
+  }
+
+  const downloadPromise = downloadAndCacheParser(language, absoluteDestDir, urlResult.value).finally(() => {
+    parserDownloadPromises.delete(downloadKey);
+  });
+
+  parserDownloadPromises.set(downloadKey, downloadPromise);
+  return await downloadPromise;
 }
