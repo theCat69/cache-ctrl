@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -111,5 +111,144 @@ describe("buildGraph", () => {
 
     expect(entryNode).toBeDefined();
     expect(entryNode?.deps).toEqual([componentFile]);
+  });
+
+  it("resolves non-TS language dependencies using supported extension list", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-graph-"));
+    tempDirs.push(tempDir);
+
+    const pythonEntry = join(tempDir, "entry.py");
+    const pythonDep = join(tempDir, "dep.py");
+
+    await writeFile(pythonEntry, "from .dep import value\n");
+    await writeFile(pythonDep, "value = 1\n");
+
+    extractSymbolsMock.mockImplementation(async (filePath: string) => {
+      if (filePath === pythonEntry) {
+        return { deps: [join(tempDir, "dep")], defs: [] };
+      }
+
+      return { deps: [], defs: ["value"] };
+    });
+
+    const graph = await buildGraph([pythonEntry, pythonDep], tempDir);
+    const entryNode = graph.get(pythonEntry);
+
+    expect(entryNode).toBeDefined();
+    expect(entryNode?.deps).toEqual([pythonDep]);
+  });
+
+  it("prefers originating language when resolving extensionless dependencies", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-graph-"));
+    tempDirs.push(tempDir);
+
+    const pythonEntry = join(tempDir, "entry.py");
+    const tsEntry = join(tempDir, "entry.ts");
+    const pythonDep = join(tempDir, "dep.py");
+    const tsDep = join(tempDir, "dep.ts");
+
+    await writeFile(pythonEntry, "from .dep import value\n");
+    await writeFile(tsEntry, "import { value } from './dep.js';\n");
+    await writeFile(pythonDep, "value = 1\n");
+    await writeFile(tsDep, "export const value = 1;\n");
+
+    extractSymbolsMock.mockImplementation(async (filePath: string) => {
+      if (filePath === pythonEntry) {
+        return { deps: [join(tempDir, "dep")], defs: [] };
+      }
+
+      if (filePath === tsEntry) {
+        return { deps: [join(tempDir, "dep")], defs: [] };
+      }
+
+      return { deps: [], defs: ["value"] };
+    });
+
+    const graph = await buildGraph([pythonEntry, tsEntry, pythonDep, tsDep], tempDir);
+    const pythonNode = graph.get(pythonEntry);
+    const tsNode = graph.get(tsEntry);
+
+    expect(pythonNode).toBeDefined();
+    expect(tsNode).toBeDefined();
+    expect(pythonNode?.deps).toEqual([pythonDep]);
+    expect(tsNode?.deps).toEqual([tsDep]);
+  });
+
+  it("resolves python package dependencies to __init__.py", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-graph-"));
+    tempDirs.push(tempDir);
+
+    const pythonEntry = join(tempDir, "pkg", "entry.py");
+    const packageInit = join(tempDir, "pkg", "dep", "__init__.py");
+
+    await mkdir(join(tempDir, "pkg", "dep"), { recursive: true });
+    await writeFile(pythonEntry, "from . import dep\n");
+    await writeFile(packageInit, "value = 1\n");
+
+    extractSymbolsMock.mockImplementation(async (filePath: string) => {
+      if (filePath === pythonEntry) {
+        return { deps: [join(tempDir, "pkg", "dep")], defs: [] };
+      }
+
+      return { deps: [], defs: ["value"] };
+    });
+
+    const graph = await buildGraph([pythonEntry, packageInit], tempDir);
+    const pythonNode = graph.get(pythonEntry);
+
+    expect(pythonNode).toBeDefined();
+    expect(pythonNode?.deps).toEqual([packageInit]);
+  });
+
+  it("prefers JavaScript-family files before TypeScript for .js-family origin files", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-graph-"));
+    tempDirs.push(tempDir);
+
+    const entryFile = join(tempDir, "entry.js");
+    const jsDep = join(tempDir, "dep.js");
+    const tsDep = join(tempDir, "dep.ts");
+
+    await writeFile(entryFile, "import value from './dep';\n");
+    await writeFile(jsDep, "export default 1;\n");
+    await writeFile(tsDep, "export const value = 2;\n");
+
+    extractSymbolsMock.mockImplementation(async (filePath: string) => {
+      if (filePath === entryFile) {
+        return { deps: [join(tempDir, "dep")], defs: [] };
+      }
+
+      return { deps: [], defs: ["value"] };
+    });
+
+    const graph = await buildGraph([entryFile, jsDep, tsDep], tempDir);
+    const entryNode = graph.get(entryFile);
+
+    expect(entryNode).toBeDefined();
+    expect(entryNode?.deps).toEqual([jsDep]);
+  });
+
+  it("keeps explicit .js to .ts compatibility fallback when JavaScript target is absent", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "cache-ctrl-analysis-graph-"));
+    tempDirs.push(tempDir);
+
+    const entryFile = join(tempDir, "entry.js");
+    const tsDep = join(tempDir, "dep.ts");
+
+    await writeFile(entryFile, "import value from './dep.js';\n");
+    await writeFile(tsDep, "export const value = 2;\n");
+
+    extractSymbolsMock.mockImplementation(async (filePath: string) => {
+      if (filePath === entryFile) {
+        return { deps: [join(tempDir, "dep.js")], defs: [] };
+      }
+
+      return { deps: [], defs: ["value"] };
+    });
+
+    const graph = await buildGraph([entryFile, tsDep], tempDir);
+    const entryNode = graph.get(entryFile);
+
+    expect(entryNode).toBeDefined();
+    expect(entryNode?.deps).toEqual([tsDep]);
   });
 });

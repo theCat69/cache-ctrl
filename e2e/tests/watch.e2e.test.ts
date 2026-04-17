@@ -17,20 +17,16 @@ afterEach(async () => {
 });
 
 describe("watch", () => {
-  function assertWatchStartedOrUnavailable(result: { exitCode: number; stdout: string; stderr: string }): void {
-    if (result.exitCode === -1) {
-      expect(result.stdout).toContain("[watch] Initial graph computed");
-      return;
-    }
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Bun.watch is not available in this runtime");
+  function assertWatchStarted(result: { exitCode: number; stdout: string; stderr: string }): void {
+    expect(result.exitCode).toBe(-1);
+    expect(result.stdout).toContain("[watch] Initial graph computed");
+    expect(result.stderr).not.toContain("Bun.watch is not available in this runtime");
   }
 
   it("builds the initial graph and writes graph.json", async () => {
     const result = await runCliWithTimeout(["watch", "--verbose"], 10_000, { cwd: repo.dir });
 
-    assertWatchStartedOrUnavailable(result);
+    assertWatchStarted(result);
 
     const graphPath = join(repo.dir, ".ai", "local-context-gatherer_cache", "graph.json");
     expect(existsSync(graphPath)).toBe(true);
@@ -41,7 +37,7 @@ describe("watch", () => {
 
     const result = await runCliWithTimeout(["watch", "--verbose"], 10_000, { cwd: repo.dir });
 
-    assertWatchStartedOrUnavailable(result);
+    assertWatchStarted(result);
 
     const graphPath = join(repo.dir, ".ai", "local-context-gatherer_cache", "graph.json");
     expect(existsSync(graphPath)).toBe(true);

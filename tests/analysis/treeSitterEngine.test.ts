@@ -297,4 +297,110 @@ describe("parseFileSymbols", () => {
 
     expect(symbols.deps).toEqual(["/repo/src/nested/dep.ts"]);
   });
+
+  it("extracts python relative imports as file-level dependencies", async () => {
+    const source = [
+      "from .dep import value",
+      "from ..pkg.inner import thing",
+      "from . import sibling",
+      "from .. import parent_sibling",
+      "from external.module import outside",
+    ].join("\n");
+
+    readFileMock.mockResolvedValue(source);
+    parseImplMock.mockReturnValue({ rootNode: createNode("module", 0, source.length) });
+
+    const symbols = await parseFileSymbols("/repo/src/pkg/entry.py", "/cache/parsers/python.wasm", "/repo");
+
+    expect(new Set(symbols.deps)).toEqual(
+      new Set(["/repo/src/pkg/dep", "/repo/src/pkg/inner", "/repo/src/pkg/sibling", "/repo/src/parent_sibling"]),
+    );
+  });
+
+  it("extracts rust module declarations as file-level dependencies", async () => {
+    const source = ["mod local_mod;", "pub mod nested_mod;", "use crate::external::Thing;"].join("\n");
+
+    readFileMock.mockResolvedValue(source);
+    parseImplMock.mockReturnValue({ rootNode: createNode("source_file", 0, source.length) });
+
+    const symbols = await parseFileSymbols("/repo/src/lib.rs", "/cache/parsers/rust.wasm", "/repo");
+
+    expect(new Set(symbols.deps)).toEqual(
+      new Set(["/repo/src/local_mod", "/repo/src/local_mod/mod", "/repo/src/nested_mod", "/repo/src/nested_mod/mod"]),
+    );
+  });
+
+  it("extracts C/C++ quoted includes as dependencies", async () => {
+    const source = ['#include "dep.h"', "#include <stdio.h>", '# include "nested/inner.hpp"'].join("\n");
+
+    readFileMock.mockResolvedValue(source);
+    parseImplMock.mockReturnValue({ rootNode: createNode("translation_unit", 0, source.length) });
+
+    const symbols = await parseFileSymbols("/repo/src/main.c", "/cache/parsers/c.wasm", "/repo");
+
+    expect(new Set(symbols.deps)).toEqual(new Set(["/repo/src/dep.h", "/repo/src/nested/inner.hpp"]));
+  });
+
+  it("extracts quoted includes from header files", async () => {
+    const source = ['#include "dep.h"', '#include "nested/inner.hpp"'].join("\n");
+
+    readFileMock.mockResolvedValue(source);
+    parseImplMock.mockReturnValue({ rootNode: createNode("translation_unit", 0, source.length) });
+
+    const symbols = await parseFileSymbols("/repo/src/include/main.hpp", "/cache/parsers/cpp.wasm", "/repo");
+
+    expect(new Set(symbols.deps)).toEqual(new Set(["/repo/src/include/dep.h", "/repo/src/include/nested/inner.hpp"]));
+  });
+
+  it("extracts Go relative imports from single and grouped imports", async () => {
+    const source = [
+      'import "./dep"',
+      "import (",
+      '  alias "./pkg/inner"',
+      '  _ "./side_effect"',
+      '  "fmt"',
+      ")",
+    ].join("\n");
+
+    readFileMock.mockResolvedValue(source);
+    parseImplMock.mockReturnValue({ rootNode: createNode("source_file", 0, source.length) });
+
+    const symbols = await parseFileSymbols("/repo/src/main.go", "/cache/parsers/go.wasm", "/repo");
+
+    expect(new Set(symbols.deps)).toEqual(new Set(["/repo/src/dep", "/repo/src/pkg/inner", "/repo/src/side_effect"]));
+  });
+
+  it("extracts Java imports as file-level dependencies", async () => {
+    const source = [
+      "package com.example.app;",
+      "import com.example.lib.Helper;",
+      "import static com.example.shared.Constants.VALUE;",
+      "import java.util.List;",
+      "class Main {}",
+    ].join("\n");
+
+    readFileMock.mockResolvedValue(source);
+    parseImplMock.mockReturnValue({ rootNode: createNode("program", 0, source.length) });
+
+    const symbols = await parseFileSymbols(
+      "/repo/src/main/java/com/example/app/Main.java",
+      "/cache/parsers/java.wasm",
+      "/repo",
+    );
+
+    expect(new Set(symbols.deps)).toEqual(
+      new Set(["/repo/src/main/java/com/example/lib/Helper", "/repo/src/main/java/com/example/shared/Constants"]),
+    );
+  });
+
+  it("ignores traversal-like quoted includes resolving outside repo root", async () => {
+    const source = ['#include "../../etc/passwd"', '#include "safe/dep.h"'].join("\n");
+
+    readFileMock.mockResolvedValue(source);
+    parseImplMock.mockReturnValue({ rootNode: createNode("translation_unit", 0, source.length) });
+
+    const symbols = await parseFileSymbols("/repo/src/c/main.c", "/cache/parsers/c.wasm", "/repo");
+
+    expect(symbols.deps).toEqual(["/repo/src/c/safe/dep.h"]);
+  });
 });

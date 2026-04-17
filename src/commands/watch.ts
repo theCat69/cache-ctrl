@@ -1,62 +1,235 @@
 import path from "node:path";
+import { watch as watchFileSystem, type FSWatcher } from "node:fs";
 import { realpath } from "node:fs/promises";
 
 import { buildGraph, type DependencyGraph } from "../analysis/graphBuilder.js";
+import { isSupportedSourceExtension } from "../analysis/supportedLanguages.js";
 import { findRepoRoot, writeCache } from "../cache/cacheManager.js";
 import { resolveGraphCachePath } from "../cache/localCache.js";
 import { getGitTrackedFiles } from "../files/gitFiles.js";
 import type { GraphCacheFile } from "../types/cache.js";
 import type { WatchArgs } from "../types/commands.js";
-import { ErrorCode, type Result } from "../types/result.js";
+import type { CacheError } from "../types/result.js";
+import { type Result } from "../types/result.js";
 import { toUnknownResult } from "../errors.js";
 
 const WATCH_DEBOUNCE_MS = 200;
-const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);
+const WATCH_SYNC_DEBOUNCE_MS = 100;
+const WATCH_SYNC_MAX_RETRY_MS = 5_000;
+const IGNORED_WATCH_DIRECTORIES = new Set([
+  ".ai",
+  ".git",
+  ".next",
+  ".turbo",
+  "build",
+  "coverage",
+  "dist",
+  "node_modules",
+]);
 
 type TrackedFilesProvider = (repoRoot: string) => Promise<string[]>;
 type WatchEvent = "rename" | "change";
-type BunWatchCallback = (event: WatchEvent, filename: string | null) => void;
+type FileWatchCallback = (
+  event: WatchEvent,
+  changedPath: string,
+  hasExplicitFilename: boolean,
+  isWithinTrackedScope: boolean,
+) => void;
+type WatchErrorHandler = (error: { ok: false } & CacheError) => void;
+type WatchDirectoriesProvider = (repoRoot: string) => Promise<string[]>;
 
 interface WatcherHandle {
   close?: () => void;
   stop?: () => void;
 }
 
-type BunWatchFunction = (
+type FileWatcherFactory = (
   watchPath: string,
-  options: { recursive: boolean },
-  callback: BunWatchCallback,
-) => WatcherHandle;
+  callback: FileWatchCallback,
+  onError: WatchErrorHandler,
+) => Promise<Result<WatcherHandle>>;
 
-export function resolveBunWatch(): Result<BunWatchFunction> {
-  const bunRuntime = Reflect.get(globalThis, "Bun");
-  if (typeof bunRuntime !== "object" || bunRuntime === null) {
-    return {
-      ok: false,
-      error: "Bun.watch is not available in this runtime",
-      code: ErrorCode.UNKNOWN,
-    };
+export async function resolveWatchDirectoryPaths(
+  repoRoot: string,
+  trackedFilesProvider: TrackedFilesProvider = getGitTrackedFiles,
+): Promise<string[]> {
+  const normalizedRepoRoot = path.resolve(repoRoot);
+  const repoPrefix = `${normalizedRepoRoot}${path.sep}`;
+  const trackedFiles = await trackedFilesProvider(repoRoot);
+  const candidateDirectories = new Set<string>([normalizedRepoRoot]);
+
+  for (const relativePath of trackedFiles) {
+    if (!isSourceFile(relativePath)) {
+      continue;
+    }
+
+    const pathSegments = relativePath.split(/[\\/]+/);
+    if (pathSegments.some((segment) => IGNORED_WATCH_DIRECTORIES.has(segment))) {
+      continue;
+    }
+
+    let currentDirectory = path.dirname(path.join(normalizedRepoRoot, relativePath));
+    while (currentDirectory === normalizedRepoRoot || currentDirectory.startsWith(repoPrefix)) {
+      candidateDirectories.add(currentDirectory);
+      if (currentDirectory === normalizedRepoRoot) {
+        break;
+      }
+      currentDirectory = path.dirname(currentDirectory);
+    }
   }
-  const watchFn = Reflect.get(bunRuntime, "watch");
-  if (typeof watchFn !== "function") {
-    return {
-      ok: false,
-      error: "Bun.watch is not available in this runtime",
-      code: ErrorCode.UNKNOWN,
+
+  const existingDirectories = await Promise.all(
+    [...candidateDirectories].map(async (directoryPath) => {
+      try {
+        const resolvedDirectory = await realpath(directoryPath);
+        if (resolvedDirectory === normalizedRepoRoot || resolvedDirectory.startsWith(repoPrefix)) {
+          return resolvedDirectory;
+        }
+      } catch {
+        return undefined;
+      }
+
+      return undefined;
+    }),
+  );
+
+  return [...new Set(existingDirectories.filter((directoryPath) => directoryPath !== undefined))];
+}
+
+export async function createRecursiveFileWatcher(
+  watchPath: string,
+  callback: FileWatchCallback,
+  onError: WatchErrorHandler,
+  watchDirectoriesProvider: WatchDirectoriesProvider = resolveWatchDirectoryPaths,
+): Promise<Result<WatcherHandle>> {
+  try {
+    const directoryWatchers = new Map<string, FSWatcher>();
+    let isClosed = false;
+    let syncPromise: Promise<void> | undefined;
+    let syncQueued = false;
+    let syncTimer: ReturnType<typeof setTimeout> | undefined;
+    let syncRetryDelayMs = WATCH_SYNC_DEBOUNCE_MS;
+
+    const closeAllWatchers = (): void => {
+      if (isClosed) {
+        return;
+      }
+
+      isClosed = true;
+      for (const watcher of directoryWatchers.values()) {
+        watcher.close();
+      }
+      directoryWatchers.clear();
+      if (syncTimer !== undefined) {
+        clearTimeout(syncTimer);
+        syncTimer = undefined;
+      }
     };
+
+    const syncDirectoryWatchers = (): Promise<void> => {
+      if (syncPromise !== undefined) {
+        syncQueued = true;
+        return syncPromise;
+      }
+
+      syncPromise = (async () => {
+        try {
+          do {
+            syncQueued = false;
+            const nextDirectories = new Set(await watchDirectoriesProvider(watchPath));
+            if (isClosed) {
+              return;
+            }
+
+            for (const [directoryPath, watcher] of directoryWatchers.entries()) {
+              if (nextDirectories.has(directoryPath)) {
+                continue;
+              }
+
+              watcher.close();
+              directoryWatchers.delete(directoryPath);
+            }
+
+            for (const directoryPath of nextDirectories) {
+              if (directoryWatchers.has(directoryPath)) {
+                continue;
+              }
+
+              const watcher = watchFileSystem(directoryPath, (event: WatchEvent, filename) => {
+                const changedPath = filename === null
+                  ? directoryPath
+                  : path.join(directoryPath, filename.toString());
+                const isWithinTrackedScope = [...directoryWatchers.keys()].some(
+                  (trackedDirectory) =>
+                    trackedDirectory !== watchPath &&
+                    (changedPath === trackedDirectory || changedPath.startsWith(`${trackedDirectory}${path.sep}`)),
+                );
+                callback(event, changedPath, filename !== null, isWithinTrackedScope);
+                if (event === "rename") {
+                  scheduleWatcherSync();
+                }
+              });
+
+              watcher.on("error", (error: unknown) => {
+                directoryWatchers.delete(directoryPath);
+                watcher.close();
+                onError(toUnknownResult(error));
+                scheduleWatcherSync(syncRetryDelayMs);
+                });
+
+              directoryWatchers.set(directoryPath, watcher);
+            }
+          } while (syncQueued && !isClosed);
+          syncRetryDelayMs = WATCH_SYNC_DEBOUNCE_MS;
+        } finally {
+          syncPromise = undefined;
+        }
+      })();
+
+      return syncPromise;
+    };
+
+    const runWatcherSync = (): Promise<void> =>
+      syncDirectoryWatchers().catch((error: unknown) => {
+        onError(toUnknownResult(error));
+        scheduleWatcherSync(syncRetryDelayMs);
+        syncRetryDelayMs = Math.min(syncRetryDelayMs * 2, WATCH_SYNC_MAX_RETRY_MS);
+      });
+
+    const scheduleWatcherSync = (delayMs = WATCH_SYNC_DEBOUNCE_MS): void => {
+      if (isClosed || syncTimer !== undefined) {
+        return;
+      }
+
+      syncTimer = setTimeout(() => {
+        syncTimer = undefined;
+        void runWatcherSync();
+      }, delayMs);
+    };
+
+    await syncDirectoryWatchers();
+
+    return {
+      ok: true,
+      value: {
+        close: closeAllWatchers,
+        stop: closeAllWatchers,
+      },
+    };
+  } catch (err) {
+    return toUnknownResult(err);
   }
-  return { ok: true, value: watchFn };
 }
 
 /**
  * Checks whether a file path is a supported source file for graph analysis.
  *
  * @param filePath - Absolute or relative file path.
- * @returns `true` when extension is one of `.ts`, `.tsx`, `.js`, `.jsx`.
+ * @returns `true` when extension is supported by parser-backed graph analysis.
  */
 export function isSourceFile(filePath: string): boolean {
   const extension = path.extname(filePath).toLowerCase();
-  return SOURCE_EXTENSIONS.has(extension);
+  return isSupportedSourceExtension(extension);
 }
 
 /**
@@ -123,7 +296,7 @@ type RebuildGraphCacheDependencies = typeof defaultRebuildGraphCacheDependencies
 interface WatchCommandDependencies {
   findRepoRoot: typeof findRepoRoot;
   rebuildGraphCache: typeof rebuildGraphCache;
-  resolveBunWatch: typeof resolveBunWatch;
+  createWatcher: FileWatcherFactory;
   setDebounceTimer: typeof setTimeout;
   clearDebounceTimer: typeof clearTimeout;
   createKeepAlivePromise: () => Promise<Result<never>>;
@@ -132,7 +305,7 @@ interface WatchCommandDependencies {
 const defaultWatchCommandDependencies: WatchCommandDependencies = {
   findRepoRoot,
   rebuildGraphCache,
-  resolveBunWatch,
+  createWatcher: createRecursiveFileWatcher,
   setDebounceTimer: setTimeout,
   clearDebounceTimer: clearTimeout,
   createKeepAlivePromise: () =>
@@ -243,28 +416,36 @@ export async function watchCommand(
       }, WATCH_DEBOUNCE_MS);
     };
 
-    const watchResult = dependencies.resolveBunWatch();
+    const watchResult = await dependencies.createWatcher(
+      repoRoot,
+      (event, changedPath, hasExplicitFilename, isWithinTrackedScope) => {
+        const hasFileExtension = path.extname(changedPath).length > 0;
+        if (event === "rename" && hasExplicitFilename && !hasFileExtension && !isWithinTrackedScope) {
+          return;
+        }
+        if (event === "rename" && hasExplicitFilename && hasFileExtension && !isSourceFile(changedPath)) {
+          return;
+        }
+        if (event !== "rename" && hasExplicitFilename && !isSourceFile(changedPath)) {
+          return;
+        }
+
+        if (args.verbose === true) {
+          process.stdout.write(`[watch] File changed: ${changedPath}, recomputing...\n`);
+        }
+
+        scheduleRebuild(changedPath);
+      },
+      (watchError) => {
+        process.stderr.write(`[watch] Watcher error: ${watchError.error}\n`);
+      },
+    );
     if (!watchResult.ok) {
       process.stderr.write(`[watch] ${watchResult.error}\n`);
       return watchResult;
     }
 
-    const watcher = watchResult.value(repoRoot, { recursive: true }, (_event, filename) => {
-      if (filename === null) {
-        return;
-      }
-
-      const absolutePath = path.join(repoRoot, filename);
-      if (!isSourceFile(absolutePath)) {
-        return;
-      }
-
-      if (args.verbose === true) {
-        process.stdout.write(`[watch] File changed: ${absolutePath}, recomputing...\n`);
-      }
-
-      scheduleRebuild(absolutePath);
-    });
+    const watcher = watchResult.value;
 
     const shutdown = (): void => {
       if (debounceTimer !== undefined) {

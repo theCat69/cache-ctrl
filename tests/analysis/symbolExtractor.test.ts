@@ -80,6 +80,24 @@ describe("extractSymbols", () => {
     expect(parseFileSymbolsMock).not.toHaveBeenCalled();
   });
 
+  it("writes a parser download warning only once for repeated failures", async () => {
+    const stderrWriteSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    downloadParserMock.mockResolvedValue({
+      ok: false,
+      code: ErrorCode.PARSER_DOWNLOAD_ERROR,
+      error: "shared parser failure",
+    });
+
+    await Promise.all([
+      extractSymbols("/repo/src/first.ts", "/repo"),
+      extractSymbols("/repo/src/second.ts", "/repo"),
+      extractSymbols("/repo/src/third.ts", "/repo"),
+    ]);
+
+    expect(stderrWriteSpy).toHaveBeenCalledTimes(1);
+    expect(stderrWriteSpy).toHaveBeenCalledWith("[cache-ctrl] Warning: shared parser failure\n");
+  });
+
   it("returns empty symbols when engine throws", async () => {
     parseFileSymbolsMock.mockRejectedValue(new Error("parse crash"));
 

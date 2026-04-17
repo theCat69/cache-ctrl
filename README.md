@@ -28,8 +28,8 @@ Run from inside the `cache-ctrl/` directory:
 zsh install.sh
 ```
 
-This creates two symlinks:
-- `~/.local/bin/cache-ctrl` → `src/index.ts` — global CLI command (executed directly by Bun)
+This creates a CLI symlink and skill symlinks:
+- `~/.local/bin/cache-ctrl` → `bin/cache-ctrl.js` — global CLI command (executed directly by Bun)
 
 `install.sh` is for local development only. For end-user installation, use `npm install -g @thecat69/cache-ctrl`.
 
@@ -39,7 +39,10 @@ This creates two symlinks:
 
 ```
 CLI (cache-ctrl)
-src/index.ts
+bin/cache-ctrl.js
+     │
+     │
+  src/index.ts
      │
      │
 Command Layer
@@ -446,7 +449,7 @@ cache-ctrl graph [--max-tokens <number>] [--seed <path>[,<path>...]] [--pretty]
 
 Returns a PageRank-ranked dependency graph within a token budget. Reads from `graph.json` computed by the `watch` daemon. Files are ranked by their centrality in the import graph; use `--seed` to personalize the ranking toward specific files (e.g. recently changed files).
 
-Graph analysis is multi-language via Tree-sitter parsers: TypeScript, JavaScript, Python, Rust, Go, Java, C, and C++.
+Graph analysis is multi-language via Tree-sitter parsers: TypeScript, JavaScript, Python, Rust, Go, Java, C, and C++. Dependency extraction is intentionally file-local/relative-path focused (e.g., relative imports/includes); package/module registry resolution is out of scope.
 
 On first use, parser WASM files are downloaded and cached at `~/.cache/cache-ctrl/parsers/` (respects `$XDG_CACHE_HOME`).
 
@@ -542,7 +545,7 @@ Returns `PAYLOAD_TOO_LARGE` if the serialized output exceeds **20 000 UTF-8 byte
 cache-ctrl watch [--verbose]
 ```
 
-Long-running daemon that watches the repo for source file changes and incrementally rebuilds `graph.json`. The analysis engine supports multiple languages via Tree-sitter parsers (TypeScript, JavaScript, Python, Rust, Go, Java, C, C++). On startup it performs an initial full graph build. Subsequent file changes trigger a debounced rebuild (200 ms). Rebuilds are serialized — concurrent changes are queued.
+Long-running daemon that watches the repo for source file changes and incrementally rebuilds `graph.json`. The analysis engine supports multiple languages via Tree-sitter parsers (TypeScript, JavaScript, Python, Rust, Go, Java, C, C++). On startup it performs an initial full graph build. Subsequent file changes trigger a debounced rebuild (200 ms). Rebuilds are serialized — concurrent changes are queued. Watch filtering now covers all supported parser-backed source extensions: `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.py`, `.rs`, `.go`, `.java`, `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`.
 
 Writes to `.ai/local-context-gatherer_cache/graph.json`. The graph is then available to `cache-ctrl graph` and `cache_ctrl_graph`.
 

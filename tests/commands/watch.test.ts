@@ -1,17 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { appendFile, mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  createRecursiveFileWatcher,
   rebuildGraphCache,
   serializeGraphToCache,
   isSourceFile,
-  resolveBunWatch,
+  resolveWatchDirectoryPaths,
   resolveSourceFilePaths,
   watchCommand,
 } from "../../src/commands/watch.js";
 import type { DependencyGraph } from "../../src/analysis/graphBuilder.js";
+import type { Result } from "../../src/types/result.js";
 import { ErrorCode } from "../../src/types/result.js";
 
 describe("watch helpers", () => {
@@ -45,16 +47,30 @@ describe("watch helpers", () => {
     });
   });
 
-  it("isSourceFile accepts TS/JS variants and rejects non-source files", () => {
+  it("isSourceFile accepts all supported parser-backed source extensions", () => {
     expect(isSourceFile("src/a.ts")).toBe(true);
     expect(isSourceFile("src/a.tsx")).toBe(true);
     expect(isSourceFile("src/a.js")).toBe(true);
     expect(isSourceFile("src/a.jsx")).toBe(true);
+    expect(isSourceFile("src/a.mjs")).toBe(true);
+    expect(isSourceFile("src/a.cjs")).toBe(true);
+    expect(isSourceFile("src/a.py")).toBe(true);
+    expect(isSourceFile("src/a.rs")).toBe(true);
+    expect(isSourceFile("src/a.go")).toBe(true);
+    expect(isSourceFile("src/A.java")).toBe(true);
+    expect(isSourceFile("src/a.c")).toBe(true);
+    expect(isSourceFile("src/a.h")).toBe(true);
+    expect(isSourceFile("src/a.cpp")).toBe(true);
+    expect(isSourceFile("src/a.cc")).toBe(true);
+    expect(isSourceFile("src/a.cxx")).toBe(true);
+    expect(isSourceFile("src/a.hpp")).toBe(true);
+    expect(isSourceFile("src/a.hh")).toBe(true);
+    expect(isSourceFile("src/a.hxx")).toBe(true);
     expect(isSourceFile("src/a.json")).toBe(false);
     expect(isSourceFile("README.md")).toBe(false);
   });
 
-  it("resolveSourceFilePaths filters non-TS/JS files", async () => {
+  it("resolveSourceFilePaths includes all supported source files", async () => {
     const repoRoot = await mkdtemp(join(tmpdir(), "cache-ctrl-watch-"));
     const srcDir = join(repoRoot, "src");
     await mkdir(srcDir, { recursive: true });
@@ -62,13 +78,37 @@ describe("watch helpers", () => {
     await writeFile(join(srcDir, "b.tsx"), "export const b = <div />;\n", "utf-8");
     await writeFile(join(srcDir, "c.js"), "export const c = 1;\n", "utf-8");
     await writeFile(join(srcDir, "d.jsx"), "export const d = <div />;\n", "utf-8");
+    await writeFile(join(srcDir, "e.py"), "from .dep import f\n", "utf-8");
+    await writeFile(join(srcDir, "f.rs"), "mod dep;\n", "utf-8");
+    await writeFile(join(srcDir, "g.go"), "package src\n", "utf-8");
+    await writeFile(join(srcDir, "H.java"), "class H {}\n", "utf-8");
+    await writeFile(join(srcDir, "i.c"), "#include \"dep.h\"\n", "utf-8");
+    await writeFile(join(srcDir, "i.h"), "#pragma once\n", "utf-8");
+    await writeFile(join(srcDir, "j.cpp"), "#include \"dep.hpp\"\n", "utf-8");
+    await writeFile(join(srcDir, "k.cc"), "#include \"dep.hpp\"\n", "utf-8");
+    await writeFile(join(srcDir, "l.cxx"), "#include \"dep.hpp\"\n", "utf-8");
+    await writeFile(join(srcDir, "m.hpp"), "#pragma once\n", "utf-8");
+    await writeFile(join(srcDir, "n.hh"), "#pragma once\n", "utf-8");
+    await writeFile(join(srcDir, "o.hxx"), "#pragma once\n", "utf-8");
 
     const mockGetTrackedFiles = async (): Promise<string[]> => [
       "src/a.ts",
       "src/b.tsx",
       "src/c.js",
       "src/d.jsx",
-      "src/e.json",
+      "src/e.py",
+      "src/f.rs",
+      "src/g.go",
+      "src/H.java",
+      "src/i.c",
+      "src/i.h",
+      "src/j.cpp",
+      "src/k.cc",
+      "src/l.cxx",
+      "src/m.hpp",
+      "src/n.hh",
+      "src/o.hxx",
+      "src/m.json",
       "README.md",
     ];
 
@@ -80,6 +120,18 @@ describe("watch helpers", () => {
         join(repoRoot, "src", "b.tsx"),
         join(repoRoot, "src", "c.js"),
         join(repoRoot, "src", "d.jsx"),
+        join(repoRoot, "src", "e.py"),
+        join(repoRoot, "src", "f.rs"),
+        join(repoRoot, "src", "g.go"),
+        join(repoRoot, "src", "H.java"),
+        join(repoRoot, "src", "i.c"),
+        join(repoRoot, "src", "i.h"),
+        join(repoRoot, "src", "j.cpp"),
+        join(repoRoot, "src", "k.cc"),
+        join(repoRoot, "src", "l.cxx"),
+        join(repoRoot, "src", "m.hpp"),
+        join(repoRoot, "src", "n.hh"),
+        join(repoRoot, "src", "o.hxx"),
       ]),
     );
 
@@ -107,6 +159,29 @@ describe("watch helpers", () => {
 
     await rm(repoRoot, { recursive: true, force: true });
     await rm(outsideRoot, { recursive: true, force: true });
+  });
+
+  it("resolveWatchDirectoryPaths limits scope to tracked source directories", async () => {
+    const repoRoot = await mkdtemp(join(tmpdir(), "cache-ctrl-watch-dirs-"));
+    const trackedSourceDirectory = join(repoRoot, "src", "nested");
+    const ignoredDirectory = join(repoRoot, "node_modules", "pkg");
+    const docsDirectory = join(repoRoot, "docs");
+
+    await mkdir(trackedSourceDirectory, { recursive: true });
+    await mkdir(ignoredDirectory, { recursive: true });
+    await mkdir(docsDirectory, { recursive: true });
+
+    const watchDirectories = await resolveWatchDirectoryPaths(repoRoot, async () => [
+      "src/nested/a.ts",
+      "node_modules/pkg/index.ts",
+      "docs/readme.md",
+    ]);
+
+    expect(new Set(watchDirectories)).toEqual(
+      new Set([repoRoot, join(repoRoot, "src"), trackedSourceDirectory]),
+    );
+
+    await rm(repoRoot, { recursive: true, force: true });
   });
 
   it("rebuildGraphCache logs and returns when graph cache write fails", async () => {
@@ -185,20 +260,92 @@ describe("watch helpers", () => {
     );
   });
 
-  it("resolveBunWatch returns UNKNOWN when Bun.watch is unavailable", () => {
-    const globalObject = globalThis as Record<string, unknown>;
-    const originalBun = globalObject.Bun;
-    globalObject.Bun = undefined;
+  it("createRecursiveFileWatcher returns UNKNOWN when fs.watch throws", async () => {
+    const invalidPath = "/repo";
+    const watchDirectoriesProvider = async (): Promise<string[]> => {
+      throw new Error("watch directories unavailable");
+    };
+
+    const result = await createRecursiveFileWatcher(invalidPath, () => {}, () => {}, watchDirectoriesProvider);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.code).toBe(ErrorCode.UNKNOWN);
+  });
+
+  it("createRecursiveFileWatcher observes nested files and new subdirectories", async () => {
+    const repoRoot = await mkdtemp(join(tmpdir(), "cache-ctrl-watch-live-"));
+    const nestedDirectory = join(repoRoot, "src", "nested");
+    const nestedFile = join(nestedDirectory, "a.ts");
+    const createdDirectory = join(repoRoot, "src", "created");
+    const createdFile = join(createdDirectory, "b.ts");
+
+    await mkdir(nestedDirectory, { recursive: true });
+    await writeFile(nestedFile, "export const before = true;\n", "utf-8");
+
+    const changedPaths: string[] = [];
+    const watchDirectoriesProvider = async (): Promise<string[]> => {
+      const directories = [repoRoot, join(repoRoot, "src")];
+      try {
+        await realpath(nestedDirectory);
+        directories.push(nestedDirectory);
+      } catch {
+        // Ignore transient absence while testing directory creation.
+      }
+      try {
+        await realpath(createdDirectory);
+        directories.push(createdDirectory);
+      } catch {
+        // Ignore transient absence while testing directory creation.
+      }
+      return directories;
+    };
+
+    const waitForChangedPath = async (expectedPath: string): Promise<void> => {
+      const startedAt = Date.now();
+
+      while (!changedPaths.includes(expectedPath)) {
+        if (Date.now() - startedAt > 5_000) {
+          throw new Error(`Timed out waiting for watcher event: ${expectedPath}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+    };
+
+    const watcherResult = await createRecursiveFileWatcher(
+      repoRoot,
+      (_event, changedPath) => {
+        changedPaths.push(changedPath);
+      },
+      () => {
+        throw new Error("watcher error should not fire");
+      },
+      watchDirectoriesProvider,
+    );
+
+    expect(watcherResult.ok).toBe(true);
+    if (!watcherResult.ok) {
+      await rm(repoRoot, { recursive: true, force: true });
+      return;
+    }
 
     try {
-      const result = resolveBunWatch();
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.code).toBe(ErrorCode.UNKNOWN);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await appendFile(nestedFile, "export const after = true;\n", "utf-8");
+      await waitForChangedPath(nestedFile);
+
+      await mkdir(createdDirectory, { recursive: true });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await writeFile(createdFile, "export const created = true;\n", "utf-8");
+      await waitForChangedPath(createdFile);
     } finally {
-      globalObject.Bun = originalBun;
+      watcherResult.value.close?.();
+      await rm(repoRoot, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
+
 
   it("watchCommand returns initial rebuild error and does not start watcher", async () => {
     const rebuildError = {
@@ -210,9 +357,9 @@ describe("watch helpers", () => {
     const dependencies = {
       findRepoRoot: vi.fn(async () => "/repo"),
       rebuildGraphCache: vi.fn(async () => rebuildError),
-      resolveBunWatch: vi.fn(() => ({
+      createWatcher: vi.fn(async () => ({
         ok: true as const,
-        value: vi.fn(() => ({})),
+        value: {},
       })),
       setDebounceTimer: setTimeout,
       clearDebounceTimer: clearTimeout,
@@ -227,21 +374,21 @@ describe("watch helpers", () => {
 
     expect(result).toEqual(rebuildError);
     expect(dependencies.rebuildGraphCache).toHaveBeenCalledTimes(1);
-    expect(dependencies.resolveBunWatch).not.toHaveBeenCalled();
+    expect(dependencies.createWatcher).not.toHaveBeenCalled();
     expect(dependencies.createKeepAlivePromise).not.toHaveBeenCalled();
   });
 
-  it("watchCommand returns Bun.watch resolution error after successful initial rebuild", async () => {
-    const watchUnavailable = {
+  it("watchCommand returns watcher creation error after successful initial rebuild", async () => {
+    const watcherCreationError = {
       ok: false as const,
-      error: "Bun.watch is not available in this runtime",
+      error: "watcher unavailable",
       code: ErrorCode.UNKNOWN,
     };
 
     const dependencies = {
       findRepoRoot: vi.fn(async () => "/repo"),
       rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
-      resolveBunWatch: vi.fn(() => watchUnavailable),
+      createWatcher: vi.fn(async () => watcherCreationError),
       setDebounceTimer: setTimeout,
       clearDebounceTimer: clearTimeout,
       createKeepAlivePromise: vi.fn(async () => ({
@@ -253,7 +400,7 @@ describe("watch helpers", () => {
 
     const result = await watchCommand({ verbose: false }, dependencies);
 
-    expect(result).toEqual(watchUnavailable);
+    expect(result).toEqual(watcherCreationError);
     expect(dependencies.rebuildGraphCache).toHaveBeenCalledTimes(1);
     expect(dependencies.createKeepAlivePromise).not.toHaveBeenCalled();
   });
@@ -261,16 +408,16 @@ describe("watch helpers", () => {
   it("watchCommand debounces source changes and rebuilds with changed path", async () => {
     vi.useFakeTimers();
     try {
-      let watchCallback: ((event: "rename" | "change", filename: string | null) => void) | undefined;
-      const watchFn = vi.fn((_watchPath: string, _options: { recursive: boolean }, callback) => {
+      let watchCallback: ((event: "rename" | "change", changedPath: string, hasExplicitFilename: boolean, isWithinTrackedScope: boolean) => void) | undefined;
+      const createWatcher = vi.fn(async (_watchPath: string, callback) => {
         watchCallback = callback;
-        return {};
+        return { ok: true as const, value: {} };
       });
 
       const dependencies = {
         findRepoRoot: vi.fn(async () => "/repo"),
         rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
-        resolveBunWatch: vi.fn(() => ({ ok: true as const, value: watchFn })),
+        createWatcher,
         setDebounceTimer: setTimeout,
         clearDebounceTimer: clearTimeout,
         createKeepAlivePromise: vi.fn(async () => ({
@@ -286,8 +433,8 @@ describe("watch helpers", () => {
       await Promise.resolve();
 
       expect(watchCallback).toBeTypeOf("function");
-      watchCallback?.("change", "src/a.ts");
-      watchCallback?.("change", "README.md");
+      watchCallback?.("change", "/repo/src/a.ts", true, true);
+      watchCallback?.("change", "/repo/README.md", true, false);
 
       await vi.advanceTimersByTimeAsync(200);
       const result = await commandPromise;
@@ -300,4 +447,199 @@ describe("watch helpers", () => {
       vi.useRealTimers();
     }
   });
+
+  it("watchCommand rebuilds on directory rename events", async () => {
+    vi.useFakeTimers();
+    try {
+      let watchCallback: ((event: "rename" | "change", changedPath: string, hasExplicitFilename: boolean, isWithinTrackedScope: boolean) => void) | undefined;
+      const createWatcher = vi.fn(async (_watchPath: string, callback) => {
+        watchCallback = callback;
+        return { ok: true as const, value: {} };
+      });
+
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        createWatcher,
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(async () => ({
+          ok: false as const,
+          error: "stop test keep-alive",
+          code: ErrorCode.UNKNOWN,
+        })),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      watchCallback?.("rename", "/repo/src/generated", false, true);
+
+      await vi.advanceTimersByTimeAsync(200);
+      const result = await commandPromise;
+
+      expect(result.ok).toBe(false);
+      expect(dependencies.rebuildGraphCache).toHaveBeenCalledTimes(2);
+      expect(dependencies.rebuildGraphCache).toHaveBeenNthCalledWith(2, "/repo", "/repo/src/generated", false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("watchCommand ignores rename events for non-source files", async () => {
+    vi.useFakeTimers();
+    try {
+      let watchCallback: ((event: "rename" | "change", changedPath: string, hasExplicitFilename: boolean, isWithinTrackedScope: boolean) => void) | undefined;
+      const createWatcher = vi.fn(async (_watchPath: string, callback) => {
+        watchCallback = callback;
+        return { ok: true as const, value: {} };
+      });
+
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        createWatcher,
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(async () => ({
+          ok: false as const,
+          error: "stop test keep-alive",
+          code: ErrorCode.UNKNOWN,
+        })),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      watchCallback?.("rename", "/repo/README.md", true, false);
+
+      const result = await commandPromise;
+
+      expect(result.ok).toBe(false);
+      expect(dependencies.rebuildGraphCache).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("watchCommand rebuilds when a change event has no explicit filename", async () => {
+    vi.useFakeTimers();
+    try {
+      let watchCallback: ((event: "rename" | "change", changedPath: string, hasExplicitFilename: boolean, isWithinTrackedScope: boolean) => void) | undefined;
+      const createWatcher = vi.fn(async (_watchPath: string, callback) => {
+        watchCallback = callback;
+        return { ok: true as const, value: {} };
+      });
+
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        createWatcher,
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(async () => ({
+          ok: false as const,
+          error: "stop test keep-alive",
+          code: ErrorCode.UNKNOWN,
+        })),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      watchCallback?.("change", "/repo/src", false, true);
+
+      await vi.advanceTimersByTimeAsync(200);
+      const result = await commandPromise;
+
+      expect(result.ok).toBe(false);
+      expect(dependencies.rebuildGraphCache).toHaveBeenCalledTimes(2);
+      expect(dependencies.rebuildGraphCache).toHaveBeenNthCalledWith(2, "/repo", "/repo/src", false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("watchCommand logs asynchronous watcher errors and keeps running", async () => {
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+    try {
+      let watcherErrorHandler: ((error: { ok: false; error: string; code: string }) => void) | undefined;
+      let resolveKeepAlive: ((result: Result<never>) => void) | undefined;
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        createWatcher: vi.fn(async (_watchPath: string, _callback, onError) => {
+          watcherErrorHandler = onError;
+          return { ok: true as const, value: {} };
+        }),
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(
+          () =>
+            new Promise<Result<never>>((resolve) => {
+              resolveKeepAlive = resolve;
+            }),
+        ),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+      const startedAt = Date.now();
+      while (resolveKeepAlive === undefined || watcherErrorHandler === undefined) {
+        if (Date.now() - startedAt > 1_000) {
+          throw new Error("watchCommand did not finish startup in time");
+        }
+        await Promise.resolve();
+      }
+
+      watcherErrorHandler?.({ ok: false, error: "watch backend failed", code: ErrorCode.UNKNOWN });
+      resolveKeepAlive?.({ ok: false, error: "stop test keep-alive", code: ErrorCode.UNKNOWN });
+
+      const result = await commandPromise;
+
+      expect(result.ok).toBe(false);
+      expect(stderrSpy).toHaveBeenCalledWith("[watch] Watcher error: watch backend failed\n");
+    } finally {
+      stderrSpy.mockRestore();
+    }
+  }, 10_000);
 });
+  it("watchCommand ignores rename events for unrelated top-level directories", async () => {
+    vi.useFakeTimers();
+    try {
+      let watchCallback: ((event: "rename" | "change", changedPath: string, hasExplicitFilename: boolean, isWithinTrackedScope: boolean) => void) | undefined;
+      const createWatcher = vi.fn(async (_watchPath: string, callback) => {
+        watchCallback = callback;
+        return { ok: true as const, value: {} };
+      });
+
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        createWatcher,
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(async () => ({
+          ok: false as const,
+          error: "stop test keep-alive",
+          code: ErrorCode.UNKNOWN,
+        })),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      watchCallback?.("rename", "/repo/docs", true, false);
+
+      const result = await commandPromise;
+
+      expect(result.ok).toBe(false);
+      expect(dependencies.rebuildGraphCache).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });

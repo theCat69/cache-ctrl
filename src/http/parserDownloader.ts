@@ -1,22 +1,29 @@
 import { lstat, mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { getSupportedLanguageConfig } from "../analysis/supportedLanguages.js";
 import { ErrorCode, type Result } from "../types/result.js";
 
-const LANGUAGE_WASM_URLS: Record<string, string> = {
-  typescript: "https://unpkg.com/@tree-sitter/typescript/tree-sitter-typescript.wasm",
-  javascript: "https://unpkg.com/@tree-sitter/javascript/tree-sitter-javascript.wasm",
-  rust: "https://unpkg.com/@tree-sitter/rust/tree-sitter-rust.wasm",
-  python: "https://unpkg.com/@tree-sitter/python/tree-sitter-python.wasm",
-  go: "https://unpkg.com/@tree-sitter/go/tree-sitter-go.wasm",
-  java: "https://unpkg.com/@tree-sitter/java/tree-sitter-java.wasm",
-  c: "https://unpkg.com/@tree-sitter/c/tree-sitter-c.wasm",
-  cpp: "https://unpkg.com/@tree-sitter/cpp/tree-sitter-cpp.wasm",
-};
+const parserDownloadPromises = new Map<string, Promise<Result<string>>>();
+const ALLOWED_PARSER_DOWNLOAD_HOSTNAMES = new Set([
+  "github.com",
+  "github-releases.githubusercontent.com",
+  "release-assets.githubusercontent.com",
+  "objects.githubusercontent.com",
+]);
+
+function isAllowedParserDownloadHostname(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return ALLOWED_PARSER_DOWNLOAD_HOSTNAMES.has(hostname);
+  } catch {
+    return false;
+  }
+}
 
 function resolveParserWasmUrl(language: string): Result<string> {
-  const url = LANGUAGE_WASM_URLS[language as keyof typeof LANGUAGE_WASM_URLS];
-  if (url === undefined) {
+  const config = getSupportedLanguageConfig(language);
+  if (config === null) {
     return {
       ok: false,
       error: `No WASM URL configured for language "${language}"`,
@@ -24,32 +31,14 @@ function resolveParserWasmUrl(language: string): Result<string> {
     };
   }
 
-  return { ok: true, value: url };
+  return { ok: true, value: config.wasmUrl };
 }
 
-/**
- * Download and cache a Tree-sitter WASM parser for a language.
- *
- * @param language - Normalized parser language key.
- * @param destDir - Directory where parser files are cached.
- * @returns Absolute parser file path on success.
- */
-export async function downloadParser(language: string, destDir: string): Promise<Result<string>> {
-  const SAFE_LANGUAGE_PATTERN = /^[a-z][a-z0-9_-]*$/;
-  if (!SAFE_LANGUAGE_PATTERN.test(language)) {
-    return {
-      ok: false,
-      error: `Invalid language identifier: "${language}"`,
-      code: ErrorCode.PARSER_DOWNLOAD_ERROR,
-    };
-  }
+function createParserDownloadKey(language: string, absoluteDestDir: string): string {
+  return `${absoluteDestDir}:${language}`;
+}
 
-  const urlResult = resolveParserWasmUrl(language);
-  if (!urlResult.ok) {
-    return urlResult;
-  }
-
-  const absoluteDestDir = resolve(destDir);
+async function downloadAndCacheParser(language: string, absoluteDestDir: string, url: string): Promise<Result<string>> {
   const wasmPath = resolve(absoluteDestDir, `${language}.wasm`);
   const tempPath = resolve(
     absoluteDestDir,
@@ -70,10 +59,19 @@ export async function downloadParser(language: string, destDir: string): Promise
 
     process.stderr.write(`Downloading tree-sitter parser for ${language}...\n`);
 
-    const response = await fetch(urlResult.value, {
-      redirect: "error",
+    const response = await fetch(url, {
+      redirect: "follow",
       signal: AbortSignal.timeout(30_000),
     });
+
+    if (!isAllowedParserDownloadHostname(response.url)) {
+      return {
+        ok: false,
+        code: ErrorCode.PARSER_DOWNLOAD_ERROR,
+        error: `Failed to download parser for ${language}: redirected to untrusted host`,
+      };
+    }
+
     if (!response.ok) {
       return {
         ok: false,
@@ -110,4 +108,41 @@ export async function downloadParser(language: string, destDir: string): Promise
       error: `Failed to cache parser for ${language}: ${error}`,
     };
   }
+}
+
+/**
+ * Download and cache a Tree-sitter WASM parser for a language.
+ *
+ * @param language - Normalized parser language key.
+ * @param destDir - Directory where parser files are cached.
+ * @returns Absolute parser file path on success.
+ */
+export async function downloadParser(language: string, destDir: string): Promise<Result<string>> {
+  const SAFE_LANGUAGE_PATTERN = /^[a-z][a-z0-9_-]*$/;
+  if (!SAFE_LANGUAGE_PATTERN.test(language)) {
+    return {
+      ok: false,
+      error: `Invalid language identifier: "${language}"`,
+      code: ErrorCode.PARSER_DOWNLOAD_ERROR,
+    };
+  }
+
+  const urlResult = resolveParserWasmUrl(language);
+  if (!urlResult.ok) {
+    return urlResult;
+  }
+
+  const absoluteDestDir = resolve(destDir);
+  const downloadKey = createParserDownloadKey(language, absoluteDestDir);
+  const ongoingDownload = parserDownloadPromises.get(downloadKey);
+  if (ongoingDownload !== undefined) {
+    return await ongoingDownload;
+  }
+
+  const downloadPromise = downloadAndCacheParser(language, absoluteDestDir, urlResult.value).finally(() => {
+    parserDownloadPromises.delete(downloadKey);
+  });
+
+  parserDownloadPromises.set(downloadKey, downloadPromise);
+  return await downloadPromise;
 }

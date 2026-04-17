@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+
 /**
  * Result of a CLI subprocess invocation.
  * stdout and stderr are the complete raw text output.
@@ -9,10 +11,28 @@ export interface CliResult {
   exitCode: number;
 }
 
-const CLI_ENTRYPOINT = "/app/src/index.ts";
+const CLI_ENTRYPOINT = "/app/bin/cache-ctrl.js";
+
+function readStream(stream: NodeJS.ReadableStream | null): Promise<string> {
+  if (stream === null) {
+    return Promise.resolve("");
+  }
+
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+
+    stream.on("data", (chunk: string | Buffer) => {
+      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    });
+    stream.on("end", () => {
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+    stream.on("error", reject);
+  });
+}
 
 /**
- * Spawns: bun /app/src/index.ts ...args
+ * Spawns the published Bun CLI wrapper with ...args.
  *
  * @param args    - CLI arguments (e.g. ["list", "--agent", "external"])
  * @param options.cwd - Working directory for the subprocess. Defaults to process.cwd().
@@ -24,16 +44,22 @@ export async function runCli(
   args: string[],
   options?: { cwd?: string },
 ): Promise<CliResult> {
-  const proc = Bun.spawn(["bun", CLI_ENTRYPOINT, ...args], {
+  const proc = spawn(CLI_ENTRYPOINT, args, {
     cwd: options?.cwd ?? process.cwd(),
-    stdout: "pipe",
-    stderr: "pipe",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  const exitCodePromise = new Promise<number>((resolve, reject) => {
+    proc.on("error", reject);
+    proc.on("close", (exitCode) => {
+      resolve(exitCode ?? 1);
+    });
   });
 
   const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
+    readStream(proc.stdout),
+    readStream(proc.stderr),
+    exitCodePromise,
   ]);
 
   return { stdout, stderr, exitCode };
@@ -65,7 +91,7 @@ export function parseJsonOutput<T = unknown>(raw: string): T {
 }
 
 /**
- * Spawns: bun /app/src/index.ts ...args
+ * Spawns the published Bun CLI wrapper with ...args.
  *
  * Kills the process after `timeoutMs` if it has not already exited.
  * exitCode is -1 when the process was killed by the timeout.
@@ -81,26 +107,32 @@ export async function runCliWithTimeout(
   timeoutMs: number,
   options?: { cwd?: string },
 ): Promise<CliResult> {
-  const proc = Bun.spawn(["bun", CLI_ENTRYPOINT, ...args], {
+  const proc = spawn(CLI_ENTRYPOINT, args, {
     cwd: options?.cwd ?? process.cwd(),
-    stdout: "pipe",
-    stderr: "pipe",
+    stdio: ["ignore", "pipe", "pipe"],
   });
 
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    proc.kill();
+    proc.kill("SIGTERM");
   }, timeoutMs);
 
   let stdout = "";
   let stderr = "";
   let rawExitCode = 1;
   try {
+    const exitCodePromise = new Promise<number>((resolve, reject) => {
+      proc.on("error", reject);
+      proc.on("close", (exitCode) => {
+        resolve(exitCode ?? 1);
+      });
+    });
+
     [stdout, stderr, rawExitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
+      readStream(proc.stdout),
+      readStream(proc.stderr),
+      exitCodePromise,
     ]);
   } finally {
     clearTimeout(timer);

@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { getResolutionExtensionsForFile } from "./supportedLanguages.js";
 import { extractSymbols } from "./symbolExtractor.js";
 
 /** Dependency metadata tracked for one source file node in the graph. */
@@ -11,19 +12,31 @@ export interface GraphNode {
 /** Directed dependency graph keyed by absolute source file path. */
 export type DependencyGraph = Map<string, GraphNode>;
 
-const RESOLUTION_EXTENSIONS = ["", ".ts", ".tsx", ".js", ".jsx"];
+function resolveDependencyToKnownFile(
+  dependencyPath: string,
+  originatingFilePath: string,
+  knownFiles: Set<string>,
+): string | null {
+  if (knownFiles.has(dependencyPath)) {
+    return dependencyPath;
+  }
 
-function resolveDependencyToKnownFile(depPath: string, knownFiles: Set<string>): string | null {
-  for (const extension of RESOLUTION_EXTENSIONS) {
-    const candidatePath = `${depPath}${extension}`;
+  const prioritizedExtensions = getResolutionExtensionsForFile(originatingFilePath);
+  for (const extension of prioritizedExtensions) {
+    const candidatePath = `${dependencyPath}${extension}`;
     if (knownFiles.has(candidatePath)) {
       return candidatePath;
     }
   }
 
-  const basename = path.basename(depPath);
+  const packageInitPath = path.join(dependencyPath, "__init__.py");
+  if (knownFiles.has(packageInitPath)) {
+    return packageInitPath;
+  }
+
+  const basename = path.basename(dependencyPath);
   if (basename.endsWith(".js")) {
-    const withoutJs = depPath.slice(0, -3);
+    const withoutJs = dependencyPath.slice(0, -3);
     for (const extension of [".ts", ".tsx"]) {
       const candidatePath = `${withoutJs}${extension}`;
       if (knownFiles.has(candidatePath)) {
@@ -33,7 +46,7 @@ function resolveDependencyToKnownFile(depPath: string, knownFiles: Set<string>):
   }
 
   if (basename.endsWith(".jsx")) {
-    const withoutJsx = depPath.slice(0, -4);
+    const withoutJsx = dependencyPath.slice(0, -4);
     const candidatePath = `${withoutJsx}.tsx`;
     if (knownFiles.has(candidatePath)) {
       return candidatePath;
@@ -69,7 +82,7 @@ export async function buildGraph(filePaths: string[], repoRoot: string): Promise
     const resolvedDependencies = new Set<string>();
 
     for (const dependency of symbols.deps) {
-      const resolvedDependency = resolveDependencyToKnownFile(dependency, knownFileSet);
+      const resolvedDependency = resolveDependencyToKnownFile(dependency, filePath, knownFileSet);
       if (resolvedDependency !== null) {
         resolvedDependencies.add(resolvedDependency);
       }

@@ -459,7 +459,7 @@ export function parseArgs(argv: string[]): { args: string[]; flags: Record<strin
   return { args: positional, flags };
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2);
   const { args, flags } = parseArgs(rawArgs);
   const pretty = flags.pretty === true;
@@ -769,7 +769,7 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  main().catch((err: unknown) => {
+  void main().catch((err: unknown) => {
     process.stderr.write(JSON.stringify(toUnknownResult(err)) + "\n");
     process.exit(1);
   });

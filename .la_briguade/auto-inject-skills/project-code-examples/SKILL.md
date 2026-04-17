@@ -21,7 +21,8 @@ All example files live in `.code-examples-for-ai/` at the repo root. Each file d
 | `subject-validation.md` | Subject string validation — regex + max-length guard that becomes a file path component | `src/validation.ts` |
 | `personalized-pagerank.md` | Personalized PageRank ranking over dependency graphs with dangling-node redistribution | `src/analysis/pageRank.ts` |
 | `watch-daemon-command.md` | Long-running Bun watcher command with debounce, serialized rebuilds, and signal shutdown | `src/commands/watch.ts` |
-| `wasm-parser-download.md` | On-demand WASM parser cache download with temp-file + rename atomic write | `src/http/parserDownloader.ts` |
+| `wasm-parser-download.md` | On-demand WASM parser download: manifest-driven URL resolution, promise coalescing, redirect allowlist, symlink-safe cache check, WASM magic-byte validation, atomic rename | `src/http/parserDownloader.ts` |
+| `supported-languages-manifest.md` | Shared language manifest driving extension detection, watch filtering, and parser URL resolution | `src/analysis/supportedLanguages.ts`, `src/commands/watch.ts`, `src/http/parserDownloader.ts` |
 | `e2e-test-pattern.md` | E2E test structure for daemon commands — `runCliWithTimeout` vs `runCli`, `exitCode: -1` convention | `e2e/tests/watch.e2e.test.ts`, `e2e/helpers/cli.ts` |
 
 ---
