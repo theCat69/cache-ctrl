@@ -808,7 +808,7 @@ describe("watch helpers", () => {
       processExitSpy.mockRestore();
     }
   });
-});
+
   it("watchCommand ignores rename events for unrelated top-level directories", async () => {
     vi.useFakeTimers();
     try {
@@ -845,3 +845,4 @@ describe("watch helpers", () => {
       vi.useRealTimers();
     }
   });
+});
