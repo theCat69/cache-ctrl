@@ -117,7 +117,7 @@ describe("downloadParser", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://unpkg.com/@tree-sitter/typescript/tree-sitter-typescript.wasm",
+      "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
       expect.objectContaining({
         redirect: "error",
         signal: expect.any(AbortSignal),

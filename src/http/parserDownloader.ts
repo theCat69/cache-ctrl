@@ -4,14 +4,14 @@ import { resolve } from "node:path";
 import { ErrorCode, type Result } from "../types/result.js";
 
 const LANGUAGE_WASM_URLS: Record<string, string> = {
-  typescript: "https://unpkg.com/@tree-sitter/typescript/tree-sitter-typescript.wasm",
+  typescript: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
   javascript: "https://unpkg.com/@tree-sitter/javascript/tree-sitter-javascript.wasm",
-  rust: "https://unpkg.com/@tree-sitter/rust/tree-sitter-rust.wasm",
-  python: "https://unpkg.com/@tree-sitter/python/tree-sitter-python.wasm",
-  go: "https://unpkg.com/@tree-sitter/go/tree-sitter-go.wasm",
-  java: "https://unpkg.com/@tree-sitter/java/tree-sitter-java.wasm",
-  c: "https://unpkg.com/@tree-sitter/c/tree-sitter-c.wasm",
-  cpp: "https://unpkg.com/@tree-sitter/cpp/tree-sitter-cpp.wasm",
+  rust: "https://github.com/tree-sitter/tree-sitter-rust/releases/download/v0.24.2/tree-sitter-rust.wasm",
+  python: "https://github.com/tree-sitter/tree-sitter-python/releases/download/v0.25.0/tree-sitter-python.wasm",
+  go: "https://github.com/tree-sitter/tree-sitter-go/releases/download/v0.25.0/tree-sitter-go.wasm",
+  java: "https://github.com/tree-sitter/tree-sitter-java/releases/download/v0.23.5/tree-sitter-java.wasm",
+  c: "https://github.com/tree-sitter/tree-sitter-c/releases/download/v0.24.1/tree-sitter-c.wasm",
+  cpp: "https://github.com/tree-sitter/tree-sitter-cpp/releases/download/v0.23.4/tree-sitter-cpp.wasm",
 };
 
 function resolveParserWasmUrl(language: string): Result<string> {
