@@ -21,34 +21,6 @@ import { ErrorCode } from "./types/result.js";
 import { toUnknownResult } from "./errors.js";
 import { buildZodFailure } from "./validation.js";
 
-type CommandName =
-  | "list"
-  | "inspect-external"
-  | "inspect-local"
-  | "flush"
-  | "invalidate"
-  | "touch"
-  | "prune"
-  | "check-files"
-  | "search"
-  | "write-local"
-  | "write-external"
-  | "install"
-  | "graph"
-  | "map"
-  | "watch"
-  | "version";
-
-type ListAgent = AgentType | "all";
-
-function isKnownCommand(cmd: string): cmd is CommandName {
-  return Object.hasOwn(COMMAND_HELP as Record<string, unknown>, cmd);
-}
-
-function isListAgent(value: string | undefined): value is ListAgent {
-  return value === "external" || value === "local" || value === "all";
-}
-
 const WRITE_LOCAL_HINT =
   "Required: topic (string), description (string), " +
   "tracked_files (array of {path: string}). " +
@@ -67,7 +39,7 @@ interface CommandHelp {
   details: string;
 }
 
-const COMMAND_HELP: Record<CommandName, CommandHelp> = {
+const COMMAND_REGISTRY = {
   list: {
     usage: "list [--agent external|local|all]",
     description: "List all cache entries with age and staleness",
@@ -276,7 +248,21 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       "  Output: JSON object containing the current package version.",
     ].join("\n"),
   },
-};
+} as const satisfies Record<string, CommandHelp>;
+
+type CommandName = keyof typeof COMMAND_REGISTRY;
+type ListAgent = AgentType | "all";
+
+const COMMAND_NAMES = Object.keys(COMMAND_REGISTRY) as CommandName[];
+const COMMAND_LIST_TEXT = COMMAND_NAMES.join(", ");
+
+function isKnownCommand(cmd: string): cmd is CommandName {
+  return Object.hasOwn(COMMAND_REGISTRY, cmd);
+}
+
+function isListAgent(value: string | undefined): value is ListAgent {
+  return value === "external" || value === "local" || value === "all";
+}
 
 const GLOBAL_OPTIONS_SECTION = [
   "Global options:",
@@ -300,10 +286,10 @@ export function printHelp(command?: string): boolean {
     ];
 
     const maxUsageLen = Math.max(
-      ...Object.values(COMMAND_HELP).map((h) => h.usage.length),
+      ...Object.values(COMMAND_REGISTRY).map((h) => h.usage.length),
     );
 
-    for (const help of Object.values(COMMAND_HELP)) {
+    for (const help of Object.values(COMMAND_REGISTRY)) {
       const paddedUsage = help.usage.padEnd(maxUsageLen);
       lines.push(`  ${paddedUsage}   ${help.description}`);
     }
@@ -324,7 +310,7 @@ export function printHelp(command?: string): boolean {
     return false;
   }
 
-  const help = COMMAND_HELP[command];
+  const help = COMMAND_REGISTRY[command];
   const lines: string[] = [
     `Usage: cache-ctrl ${help.usage}`,
     "",
@@ -471,7 +457,7 @@ export async function main(): Promise<void> {
 
   const command = args[0];
   if (!command) {
-    usageError("Usage: cache-ctrl <command> [args]. Commands: list, inspect-external, inspect-local, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, graph, map, watch, version");
+    usageError(`Usage: cache-ctrl <command> [args]. Commands: ${COMMAND_LIST_TEXT}`);
   }
 
   switch (command) {
@@ -770,7 +756,7 @@ export async function main(): Promise<void> {
     }
 
     default:
-      usageError(`Unknown command: "${command}". Commands: list, inspect-external, inspect-local, flush, invalidate, touch, prune, check-files, search, write-local, write-external, install, graph, map, watch, version`);
+      usageError(`Unknown command: "${command}". Commands: ${COMMAND_LIST_TEXT}`);
   }
 }
 

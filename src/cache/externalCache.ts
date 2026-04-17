@@ -1,4 +1,5 @@
 import { ErrorCode, type Result } from "../types/result.js";
+import type { CacheEntry } from "../types/cache.js";
 import { listCacheFiles, loadExternalCacheEntries, writeCache } from "./cacheManager.js";
 import { scoreEntry } from "../search/keywordSearch.js";
 import { validateSubject } from "../validation.js";
@@ -52,24 +53,47 @@ export function getAgeHuman(fetchedAt: string): string {
 }
 
 /**
+ * Selects the best-scoring external entry for a subject keyword.
+ * Returns NO_MATCH when no entry scores above zero and AMBIGUOUS_MATCH
+ * when two top entries tie on score.
+ */
+export function selectTopExternalEntry(entries: readonly CacheEntry[], subject: string): Result<CacheEntry> {
+  const keywords = [subject];
+  const scored = entries.map((entry) => ({ entry, score: scoreEntry(entry, keywords) }));
+  const matched = scored.filter((candidate) => candidate.score > 0);
+
+  if (matched.length === 0) {
+    return { ok: false, error: `No cache entry matched keyword "${subject}"`, code: ErrorCode.NO_MATCH };
+  }
+
+  matched.sort((a, b) => b.score - a.score);
+
+  const top = matched[0]!;
+  const second = matched[1];
+
+  if (second && top.score === second.score) {
+    return {
+      ok: false,
+      error: `Ambiguous match: multiple entries scored equally for "${subject}"`,
+      code: ErrorCode.AMBIGUOUS_MATCH,
+    };
+  }
+
+  return { ok: true, value: top.entry };
+}
+
+/**
  * Resolves the file path of the best-scoring external cache entry for a given subject keyword.
- * Returns NO_MATCH if no entry scores above zero.
+ * Returns NO_MATCH if no entry scores above zero, or AMBIGUOUS_MATCH on tied top scores.
  */
 export async function resolveTopExternalMatch(repoRoot: string, subject: string): Promise<Result<string>> {
   const entriesResult = await loadExternalCacheEntries(repoRoot);
   if (!entriesResult.ok) return entriesResult;
 
-  const keywords = [subject];
-  const scored = entriesResult.value
-    .map((entry) => ({ entry, score: scoreEntry(entry, keywords) }))
-    .filter((candidate) => candidate.score > 0)
-    .sort((a, b) => b.score - a.score);
+  const topEntryResult = selectTopExternalEntry(entriesResult.value, subject);
+  if (!topEntryResult.ok) return topEntryResult;
 
-  if (scored.length === 0) {
-    return { ok: false, error: `No cache entry matched keyword "${subject}"`, code: ErrorCode.NO_MATCH };
-  }
-
-  return { ok: true, value: scored[0]!.entry.file };
+  return { ok: true, value: topEntryResult.value.file };
 }
 
 /**
