@@ -92,7 +92,40 @@ Submitting a `facts` key for a path absent from `tracked_files` is a `VALIDATION
 
 When a file appears in `changed_files` or `new_files`, read the **whole file** before writing facts — not just the diff. Submitting partial facts for a re-read path **permanently replaces** whatever was cached.
 
-#### Example
+#### Shell JSON escaping (write-local)
+
+Use shell-safe quoting for `--data`:
+
+- **bash / zsh**: wrap JSON in single quotes `'...'`. If JSON includes a literal apostrophe (`'`), prefer file-generated compact JSON; inline fallback is the standard `\''` pattern.
+- **PowerShell (Windows preferred)**: wrap JSON in single quotes `'...'`; if JSON contains a literal `'`, escape as `''`.
+- **cmd.exe (fragile fallback only)**: inline JSON is error-prone. `%VAR%` expands before execution, and `!VAR!` also expands when delayed expansion is enabled. Prefer PowerShell or file-generated JSON on Windows.
+
+Examples:
+
+```bash
+cache-ctrl write-local --data '{"topic":"src scan","description":"Local scan","tracked_files":[{"path":"src/index.ts"}]}'
+```
+
+```zsh
+cache-ctrl write-local --data '{"topic":"src scan","description":"Local scan","tracked_files":[{"path":"src/index.ts"}]}'
+```
+
+```powershell
+cache-ctrl write-local --data '{"topic":"src scan","description":"Local scan","tracked_files":[{"path":"src/index.ts"}]}'
+```
+
+```cmd
+:: Fallback only — fragile with %VAR% / !VAR! expansion
+cache-ctrl write-local --data "{\"topic\":\"src scan\",\"description\":\"Local scan\",\"tracked_files\":[{\"path\":\"src/index.ts\"}]}"
+```
+
+For large, multiline, quote-heavy payloads, or apostrophes in JSON text, avoid inline JSON when possible. Prefer generating compact JSON from a file:
+
+- **bash / zsh**: `--data "$(jq -c . payload.json)"`
+- **PowerShell**: `--data ((Get-Content -Raw payload.json) | ConvertFrom-Json | ConvertTo-Json -Compress)`
+- **Windows**: prefer PowerShell conversion above; use cmd.exe only as fallback.
+
+#### Full example
 
 ```bash
 cache-ctrl write-local --data '{

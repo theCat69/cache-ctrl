@@ -422,20 +422,51 @@ cache-ctrl write-external <subject> --data '<json>' [--pretty]
 cache-ctrl write-local --data '<json>' [--pretty]
 ```
 
-Writes a validated cache entry to disk. The `--data` argument must be a valid JSON string matching the ExternalCacheFile or LocalCacheFile schema. Schema validation runs first — all required fields must be present in `--data` or the write is rejected with `VALIDATION_ERROR`.
+Writes a validated cache entry to disk. `write-external` validates the external payload together with the positional `subject` argument, while `write-local` validates the LocalCacheFile payload provided in `--data`. Validation runs first; missing required fields in the relevant validated inputs are rejected with `VALIDATION_ERROR`.
 
 - `external`: `subject` is required as a positional argument. After validation, unknown fields from the existing file on disk are preserved (merge write).
 - `local`: no subject argument; `timestamp` is **auto-set** to the current UTC time server-side — any value supplied in `--data` is silently overridden. `mtime` for each entry in `tracked_files[]` is **auto-populated** by the write command via filesystem `lstat()` — agents do not need to supply it. Local writes use per-path merge: submitted `tracked_files` entries replace existing entries for the same path; entries for other paths are preserved; entries for files deleted from disk are evicted automatically. On cold start (no existing cache), submit all relevant files for a full write; on subsequent writes, submit only new or changed files.
 - `local`: facts paths are validated against submitted `tracked_files` — submitting a facts key outside that set returns `VALIDATION_ERROR`.
 
-> `VALIDATION_ERROR` messages include the offending field path (e.g., `facts.src/foo.ts.2: write concise observations, not file content (max 800 chars per fact)`), making it straightforward to locate the violating value.
+> `VALIDATION_ERROR` messages include the offending field path (e.g., `facts.src/foo.ts.2: write concise observations, not file content (max 300 chars per fact)`), making it straightforward to locate the violating value.
 
 > The `subject` parameter (external agent) must match `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/` and be at most 128 characters. Returns `INVALID_ARGS` if it fails validation.
 
 **Always use these commands (or `cache_ctrl_write_local` / `cache_ctrl_write_external`) instead of writing cache files directly.** Direct writes skip schema validation and risk corrupting the cache.
 
+Shell JSON escaping guidance for `--data`:
+
+- **bash / zsh**: wrap JSON in single quotes `'...'`. If JSON includes a literal apostrophe (`'`), prefer file-generated compact JSON; inline fallback is the standard `\''` pattern.
+- **PowerShell (Windows preferred)**: wrap JSON in single quotes `'...'`; if JSON contains `'`, escape as `''`.
+- **cmd.exe (fragile fallback only)**: inline JSON is error-prone. `%VAR%` expands before execution, and `!VAR!` also expands when delayed expansion is enabled. Prefer PowerShell or file-generated JSON on Windows.
+
+For large, quote-heavy payloads, or apostrophes in JSON text, prefer file-generated compact JSON over inline literals.
+
+Examples (per shell):
+
+```bash
+cache-ctrl write-external opencode-skills --data '{"description":"Skill index","fetched_at":"2026-04-05T10:00:00Z","sources":[{"type":"github_api","url":"https://api.github.com/repos/owner/repo/contents/.opencode/skills"}]}'
+cache-ctrl write-local --data '{"topic":"src scan","description":"Local scan","tracked_files":[{"path":"src/index.ts"}]}'
+```
+
+```zsh
+cache-ctrl write-external opencode-skills --data '{"description":"Skill index","fetched_at":"2026-04-05T10:00:00Z","sources":[{"type":"github_api","url":"https://api.github.com/repos/owner/repo/contents/.opencode/skills"}]}'
+cache-ctrl write-local --data '{"topic":"src scan","description":"Local scan","tracked_files":[{"path":"src/index.ts"}]}'
+```
+
+```powershell
+cache-ctrl write-external opencode-skills --data '{"description":"Skill index","fetched_at":"2026-04-05T10:00:00Z","sources":[{"type":"github_api","url":"https://api.github.com/repos/owner/repo/contents/.opencode/skills"}]}'
+cache-ctrl write-local --data '{"topic":"src scan","description":"Local scan","tracked_files":[{"path":"src/index.ts"}]}'
+```
+
+```cmd
+:: Fallback only — fragile with %VAR% / !VAR! expansion
+cache-ctrl write-external opencode-skills --data "{\"description\":\"Skill index\",\"fetched_at\":\"2026-04-05T10:00:00Z\",\"sources\":[{\"type\":\"github_api\",\"url\":\"https://api.github.com/repos/owner/repo/contents/.opencode/skills\"}]}"
+cache-ctrl write-local --data "{\"topic\":\"src scan\",\"description\":\"Local scan\",\"tracked_files\":[{\"path\":\"src/index.ts\"}]}"
+```
+
 ```json
-// cache-ctrl write-external mysubject --data '{"subject":"mysubject","description":"...","fetched_at":"2026-04-05T10:00:00Z","sources":[]}' --pretty
+// cache-ctrl write-external mysubject --data '{"description":"...","fetched_at":"2026-04-05T10:00:00Z","sources":[]}' --pretty
 { "ok": true, "value": { "file": "/path/to/.ai/external-context-gatherer_cache/mysubject.json" }, "serverTime": "2026-04-15T12:00:00.000Z" }
 ```
 
