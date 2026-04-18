@@ -642,6 +642,8 @@ cache-ctrl invalidate local
 # If status: "unchanged" → use cached context
 ```
 
+If a local-context-gatherer run reads any changed/new files, it must call `cache-ctrl write-local --data '<json>'` before returning (cache update is mandatory and does not require an explicit user ask).
+
 **Requirement**: The agent MUST populate `tracked_files[]` (with `path` and optionally `hash`) when writing its cache file. `mtime` per entry is auto-populated server-side via filesystem `lstat()` — agents do not need to supply it. `check-files` returns `unchanged` silently if `tracked_files` is absent.
 
 ---

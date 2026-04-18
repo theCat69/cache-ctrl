@@ -11,13 +11,15 @@ This skill defines how orchestrators and agents should use cache state to decide
 
 | `check_files` result | Action |
 |---|---|
-| `status: "changed"` | Call `local-context-gatherer` for delta scan. Pass `changed_files` and `new_files` lists in the prompt. |
+| `status: "changed"` | Call `local-context-gatherer` for delta scan. Pass `changed_files` and `new_files` lists in the prompt. Any invocation that reads those files must write updated facts with `cache-ctrl write-local --data '<json>'` before returning — do not wait for an explicit user request to write. |
 | `cache-ctrl check-files` fails | Treat as stale. Call `local-context-gatherer`. |
 | `status: "unchanged"` AND cache has relevant content | Run `cache-ctrl inspect-local --filter <kw>` (or `--folder` / `--search-facts`). Do NOT call gatherer. |
 | `status: "unchanged"` AND cache is empty or irrelevant | **Navigate first** — use `cache-ctrl map` + `cache-ctrl graph` + filenames (see below). Call `local-context-gatherer` only if navigation tools are insufficient. |
 | No cache yet (cold start) | Try `cache-ctrl map` / `cache-ctrl graph`; if empty or insufficient, call one or multiple `local-context-gatherer` for initial scan. |
 
 Note: check-files returns `new_files` (non-gitignored files absent from cache) and `deleted_git_files` (git-tracked files removed from working tree). If either is non-empty, `status` is `"changed"`.
+
+Enforcement note: when `status` is `"changed"`, cache updates are part of the gatherer workflow itself. "Read changed/new files" implies "write-local before return" even if the user asked only for analysis.
 
 Note: To force a full re-scan (after major restructure), run:
 
