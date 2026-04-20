@@ -37,6 +37,12 @@ type FileWatchCallback = (
 ) => void;
 type WatchErrorHandler = (error: { ok: false } & CacheError) => void;
 type WatchDirectoriesProvider = (repoRoot: string) => Promise<string[]>;
+type WatchFileSystem = (
+  watchPath: string,
+  listener: (event: WatchEvent, filename: string | null) => void,
+) => FSWatcher;
+type WatchSetTimeout = (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
+type WatchClearTimeout = (timer: ReturnType<typeof setTimeout>) => void;
 
 interface WatcherHandle {
   close?: () => void;
@@ -48,6 +54,18 @@ type FileWatcherFactory = (
   callback: FileWatchCallback,
   onError: WatchErrorHandler,
 ) => Promise<Result<WatcherHandle>>;
+
+interface RecursiveWatcherDependencies {
+  watchFileSystem: WatchFileSystem;
+  setSyncTimer: WatchSetTimeout;
+  clearSyncTimer: WatchClearTimeout;
+}
+
+const defaultRecursiveWatcherDependencies: RecursiveWatcherDependencies = {
+  watchFileSystem,
+  setSyncTimer: setTimeout,
+  clearSyncTimer: clearTimeout,
+};
 
 export async function resolveWatchDirectoryPaths(
   repoRoot: string,
@@ -101,6 +119,7 @@ export async function createRecursiveFileWatcher(
   callback: FileWatchCallback,
   onError: WatchErrorHandler,
   watchDirectoriesProvider: WatchDirectoriesProvider = resolveWatchDirectoryPaths,
+  dependencies: RecursiveWatcherDependencies = defaultRecursiveWatcherDependencies,
 ): Promise<Result<WatcherHandle>> {
   try {
     const directoryWatchers = new Map<string, FSWatcher>();
@@ -121,7 +140,7 @@ export async function createRecursiveFileWatcher(
       }
       directoryWatchers.clear();
       if (syncTimer !== undefined) {
-        clearTimeout(syncTimer);
+        dependencies.clearSyncTimer(syncTimer);
         syncTimer = undefined;
       }
     };
@@ -155,7 +174,7 @@ export async function createRecursiveFileWatcher(
                 continue;
               }
 
-              const watcher = watchFileSystem(directoryPath, (event: WatchEvent, filename) => {
+              const watcher = dependencies.watchFileSystem(directoryPath, (event: WatchEvent, filename) => {
                 const changedPath = filename === null
                   ? directoryPath
                   : path.join(directoryPath, filename.toString());
@@ -201,7 +220,7 @@ export async function createRecursiveFileWatcher(
         return;
       }
 
-      syncTimer = setTimeout(() => {
+      syncTimer = dependencies.setSyncTimer(() => {
         syncTimer = undefined;
         void runWatcherSync();
       }, delayMs);

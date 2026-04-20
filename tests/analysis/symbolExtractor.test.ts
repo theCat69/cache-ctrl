@@ -105,4 +105,16 @@ describe("extractSymbols", () => {
 
     expect(symbols).toEqual({ deps: [], defs: [] });
   });
+
+  it("writes warning when symbol extraction throws unexpectedly", async () => {
+    const stderrWriteSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    parseFileSymbolsMock.mockRejectedValue(new Error("parser exploded"));
+
+    const symbols = await extractSymbols("/repo/src/entry.ts", "/repo");
+
+    expect(symbols).toEqual({ deps: [], defs: [] });
+    expect(stderrWriteSpy).toHaveBeenCalledWith(
+      "[cache-ctrl] Warning: Unexpected symbol extraction failure: parser exploded\n",
+    );
+  });
 });

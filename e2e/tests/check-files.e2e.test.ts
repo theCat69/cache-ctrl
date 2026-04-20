@@ -69,6 +69,29 @@ describe("check-files", () => {
     expect(output.value.changed_files).toHaveLength(0);
   });
 
+  it("--include-unchanged includes unchanged_files when tracked set is unchanged", async () => {
+    await rm(join(repo.dir, ".ai"), { recursive: true, force: true });
+
+    const writeData = { topic: "t", description: "d", tracked_files: [] };
+    const writeResult = await runCli(
+      ["write-local", "--data", JSON.stringify(writeData)],
+      { cwd: repo.dir },
+    );
+    expect(writeResult.exitCode).toBe(0);
+
+    const checkResult = await runCli(["check-files", "--include-unchanged"], { cwd: repo.dir });
+    expect(checkResult.exitCode).toBe(0);
+
+    const output = parseJsonOutput<{
+      ok: boolean;
+      value: { status: string; changed_files: unknown[]; unchanged_files: string[] };
+    }>(checkResult.stdout);
+    expect(output.ok).toBe(true);
+    expect(output.value.status).toBe("unchanged");
+    expect(output.value.changed_files).toHaveLength(0);
+    expect(output.value.unchanged_files).toEqual([]);
+  });
+
   it("returns new_files when an untracked-non-ignored file exists not in cache", async () => {
     await rm(join(repo.dir, ".ai"), { recursive: true, force: true });
 

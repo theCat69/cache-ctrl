@@ -151,16 +151,15 @@ describe("resolveTopExternalMatch", () => {
     expect(result.value).toBe(angularPath);
   });
 
-  it("returns one result consistently when two entries have equal score (tie-break by sort stability)", async () => {
+  it("returns AMBIGUOUS_MATCH when two entries have equal top score", async () => {
     // Both have the keyword in their description only (score 30 each)
     await writeEntry("alpha", makeEntry("alpha", "shared keyword topic"));
     await writeEntry("beta", makeEntry("beta", "shared keyword topic"));
 
     const result = await resolveTopExternalMatch(tmpDir, "shared");
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    // Both are valid — just assert one is returned deterministically
-    expect(result.value).toMatch(/\/(alpha|beta)\.json$/);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.AMBIGUOUS_MATCH);
   });
 });
 

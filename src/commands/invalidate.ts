@@ -1,6 +1,6 @@
 import { findRepoRoot, writeCache, readCache } from "../cache/cacheManager.js";
 import { updateExternalFetchedAt } from "../cache/externalCache.js";
-import { resolveGraphCachePath, resolveLocalCachePath } from "../cache/localCache.js";
+import { resolveGraphCachePath, updateLocalCacheTimestamp } from "../cache/localCache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { InvalidateArgs, InvalidateResult } from "../types/commands.js";
 import { toUnknownResult } from "../errors.js";
@@ -22,18 +22,11 @@ export async function invalidateCommand(args: InvalidateArgs): Promise<Result<In
       if (!updateResult.ok) return updateResult;
       invalidated.push(...updateResult.value);
     } else {
-      // local — only invalidate if the file already exists
-      const localPath = resolveLocalCachePath(repoRoot);
-      const readResult = await readCache(localPath);
-      if (!readResult.ok) {
-        if (readResult.code === ErrorCode.FILE_NOT_FOUND) {
-          return { ok: false, error: `Local cache file not found: ${localPath}`, code: ErrorCode.FILE_NOT_FOUND };
-        }
-        return readResult;
-      }
-      const writeResult = await writeCache(localPath, { timestamp: "" });
-      if (!writeResult.ok) return writeResult;
-      invalidated.push(localPath);
+      const localUpdateResult = await updateLocalCacheTimestamp(repoRoot, "", {
+        missingBehavior: "file-not-found",
+      });
+      if (!localUpdateResult.ok) return localUpdateResult;
+      invalidated.push(localUpdateResult.value.path);
 
       const graphPath = resolveGraphCachePath(repoRoot);
       const graphReadResult = await readCache(graphPath);

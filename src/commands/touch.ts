@@ -1,7 +1,7 @@
-import { findRepoRoot, readCache, writeCache } from "../cache/cacheManager.js";
+import { findRepoRoot } from "../cache/cacheManager.js";
 import { updateExternalFetchedAt } from "../cache/externalCache.js";
-import { resolveLocalCachePath } from "../cache/localCache.js";
-import { ErrorCode, type Result } from "../types/result.js";
+import { updateLocalCacheTimestamp } from "../cache/localCache.js";
+import { type Result } from "../types/result.js";
 import type { TouchArgs, TouchResult } from "../types/commands.js";
 import { toUnknownResult } from "../errors.js";
 
@@ -23,22 +23,11 @@ export async function touchCommand(args: TouchArgs): Promise<Result<TouchResult[
       if (!updateResult.ok) return updateResult;
       touched.push(...updateResult.value);
     } else {
-      // local
-      const localPath = resolveLocalCachePath(repoRoot);
-      const readResult = await readCache(localPath);
-      if (!readResult.ok) {
-        if (readResult.code === ErrorCode.FILE_NOT_FOUND) {
-          return {
-            ok: false,
-            error: `No local cache entry matched agent "local": ${localPath}`,
-            code: ErrorCode.NO_MATCH,
-          };
-        }
-        return readResult;
-      }
-      const writeResult = await writeCache(localPath, { timestamp: newTimestamp });
-      if (!writeResult.ok) return writeResult;
-      touched.push(localPath);
+      const localUpdateResult = await updateLocalCacheTimestamp(repoRoot, newTimestamp, {
+        missingBehavior: "no-match",
+      });
+      if (!localUpdateResult.ok) return localUpdateResult;
+      touched.push(localUpdateResult.value.path);
     }
 
     return { ok: true, value: { touched, new_timestamp: newTimestamp } };

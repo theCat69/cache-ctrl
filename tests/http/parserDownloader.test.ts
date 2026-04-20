@@ -233,6 +233,56 @@ describe("downloadParser", () => {
     expect(attemptedTempPath).toContain(`/tmp/parsers/typescript.wasm.tmp.${process.pid}.`);
   });
 
+  it("returns PARSER_DOWNLOAD_ERROR on rename failure and cleans temp file", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        url: "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
+        arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01]).buffer),
+      }),
+    );
+    renameMock.mockRejectedValue(new Error("cross-device link not permitted"));
+
+    const result = await downloadParser("typescript", "/tmp/parsers");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.PARSER_DOWNLOAD_ERROR);
+    const attemptedTempPath = unlinkMock.mock.calls[0]?.[0];
+    expect(typeof attemptedTempPath).toBe("string");
+    expect(attemptedTempPath).toContain(`/tmp/parsers/typescript.wasm.tmp.${process.pid}.`);
+  });
+
+  it("returns PARSER_DOWNLOAD_ERROR when fetch rejects and attempts temp cleanup", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network reset")));
+
+    const result = await downloadParser("typescript", "/tmp/parsers");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.PARSER_DOWNLOAD_ERROR);
+    expect(result.error).toContain("Failed to cache parser for typescript");
+    const attemptedTempPath = unlinkMock.mock.calls[0]?.[0];
+    expect(typeof attemptedTempPath).toBe("string");
+    expect(attemptedTempPath).toContain(`/tmp/parsers/typescript.wasm.tmp.${process.pid}.`);
+  });
+
+  it("returns PARSER_DOWNLOAD_ERROR when fetch aborts and attempts temp cleanup", async () => {
+    const abortError = Object.assign(new Error("The operation was aborted"), { name: "AbortError" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abortError));
+
+    const result = await downloadParser("typescript", "/tmp/parsers");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(ErrorCode.PARSER_DOWNLOAD_ERROR);
+    expect(result.error).toContain("aborted");
+    const attemptedTempPath = unlinkMock.mock.calls[0]?.[0];
+    expect(typeof attemptedTempPath).toBe("string");
+    expect(attemptedTempPath).toContain(`/tmp/parsers/typescript.wasm.tmp.${process.pid}.`);
+  });
+
   it("returns PARSER_DOWNLOAD_ERROR when final redirect host is not allowlisted", async () => {
     vi.stubGlobal(
       "fetch",

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { readFile } from "node:fs/promises";
-import { runCli, parseJsonOutput } from "../helpers/cli.ts";
+import { runCli } from "../helpers/cli.ts";
 import { createTestRepo, type TestRepo } from "../helpers/repo.ts";
 
 let repo: TestRepo;
@@ -73,7 +73,7 @@ describe("help", () => {
     const result = await runCli([], { cwd: repo.dir });
     expect(result.exitCode).toBe(2);
 
-    const errorOutput = parseJsonOutput<{ ok: boolean; code: string }>(result.stderr);
+    const errorOutput = JSON.parse(result.stderr) as { ok: boolean; code: string };
     expect(errorOutput.ok).toBe(false);
     expect(errorOutput.code).toBe("INVALID_ARGS");
   });

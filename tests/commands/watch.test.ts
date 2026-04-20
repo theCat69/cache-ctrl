@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import { appendFile, mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { FSWatcher } from "node:fs";
 
 import {
   createRecursiveFileWatcher,
@@ -15,6 +17,11 @@ import {
 import type { DependencyGraph } from "../../src/analysis/graphBuilder.js";
 import type { Result } from "../../src/types/result.js";
 import { ErrorCode } from "../../src/types/result.js";
+
+interface MockWatcherRecord {
+  watcher: EventEmitter & { close: () => void };
+  callback: (event: "rename" | "change", filename: string | null) => void;
+}
 
 describe("watch helpers", () => {
   it("serializeGraphToCache converts DependencyGraph to graph cache files format", () => {
@@ -346,6 +353,81 @@ describe("watch helpers", () => {
     }
   }, 15_000);
 
+  it("createRecursiveFileWatcher retries failed resync with backoff and recovers after errors", async () => {
+    vi.useFakeTimers();
+    try {
+      const callbackEvents: string[] = [];
+      const onError = vi.fn();
+      const scheduledDelays: number[] = [];
+      const watcherRecords: MockWatcherRecord[] = [];
+
+      const watchFileSystemMock = vi.fn((
+        _directoryPath: string,
+        callback: (event: "rename" | "change", filename: string | null) => void,
+      ): FSWatcher => {
+        const watcher = new EventEmitter() as EventEmitter & { close: () => void };
+        watcher.close = vi.fn();
+        watcherRecords.push({ watcher, callback });
+        return watcher as unknown as FSWatcher;
+      });
+
+      const watchDirectoriesProvider = vi.fn<() => Promise<string[]>>()
+        .mockResolvedValueOnce(["/repo"])
+        .mockRejectedValueOnce(new Error("resync failed 1"))
+        .mockRejectedValueOnce(new Error("resync failed 2"))
+        .mockResolvedValue(["/repo"]);
+
+      const watcherResult = await createRecursiveFileWatcher(
+        "/repo",
+        (_event, changedPath) => {
+          callbackEvents.push(changedPath);
+        },
+        onError,
+        watchDirectoriesProvider,
+        {
+          watchFileSystem: watchFileSystemMock,
+          setSyncTimer: (handler: () => void, delayMs: number) => {
+            scheduledDelays.push(delayMs);
+            return setTimeout(handler, delayMs);
+          },
+          clearSyncTimer: (timer) => {
+            clearTimeout(timer);
+          },
+        },
+      );
+
+      expect(watcherResult.ok).toBe(true);
+      if (!watcherResult.ok) {
+        return;
+      }
+
+      watcherRecords[0]?.watcher.emit("error", new Error("watch backend dropped"));
+
+      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(200);
+      await Promise.resolve();
+
+      expect(scheduledDelays).toEqual([100, 100, 200]);
+      expect(onError).toHaveBeenCalledTimes(3);
+      expect(watchDirectoriesProvider).toHaveBeenCalledTimes(4);
+      expect(watchFileSystemMock).toHaveBeenCalledTimes(2);
+
+      const recoveredWatcher = watcherRecords[watcherRecords.length - 1];
+      expect(recoveredWatcher).toBeDefined();
+      if (recoveredWatcher === undefined) {
+        return;
+      }
+      recoveredWatcher.callback("change", "src/recovered.ts");
+
+      expect(callbackEvents).toContain("/repo/src/recovered.ts");
+
+      watcherResult.value.close?.();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
 
   it("watchCommand returns initial rebuild error and does not start watcher", async () => {
     const rebuildError = {
@@ -606,7 +688,127 @@ describe("watch helpers", () => {
       stderrSpy.mockRestore();
     }
   }, 10_000);
-});
+
+  it("watchCommand shuts down watcher and clears debounce timer on SIGINT", async () => {
+    let watchCallback: ((event: "rename" | "change", changedPath: string, hasExplicitFilename: boolean, isWithinTrackedScope: boolean) => void) | undefined;
+    let keepAliveResolve: ((result: Result<never>) => void) | undefined;
+
+    const watcherClose = vi.fn();
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const processExitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+
+    let sigintHandler: (() => void) | undefined;
+    const processOnceSpy = vi.spyOn(process, "once").mockImplementation((event, listener) => {
+      if (event === "SIGINT") {
+        sigintHandler = listener as () => void;
+      }
+      return process;
+    });
+
+    try {
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        createWatcher: vi.fn(async (_watchPath: string, callback) => {
+          watchCallback = callback;
+          return { ok: true as const, value: { close: watcherClose } };
+        }),
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(
+          () =>
+            new Promise<Result<never>>((resolve) => {
+              keepAliveResolve = resolve;
+            }),
+        ),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+
+      const startedAt = Date.now();
+      while (watchCallback === undefined || sigintHandler === undefined || keepAliveResolve === undefined) {
+        if (Date.now() - startedAt > 1_000) {
+          throw new Error("watchCommand did not finish startup in time");
+        }
+        await Promise.resolve();
+      }
+
+      watchCallback("change", "/repo/src/a.ts", true, true);
+      sigintHandler();
+
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(expect.anything());
+      expect(watcherClose).toHaveBeenCalledTimes(1);
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+
+      keepAliveResolve({ ok: false, error: "stop test keep-alive", code: ErrorCode.UNKNOWN });
+      await expect(commandPromise).resolves.toEqual({
+        ok: false,
+        error: "stop test keep-alive",
+        code: ErrorCode.UNKNOWN,
+      });
+    } finally {
+      clearTimeoutSpy.mockRestore();
+      processOnceSpy.mockRestore();
+      processExitSpy.mockRestore();
+    }
+  });
+
+  it("watchCommand stops watcher via stop() on SIGTERM when close() is unavailable", async () => {
+    let keepAliveResolve: ((result: Result<never>) => void) | undefined;
+    const watcherStop = vi.fn();
+    const processExitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+
+    let sigtermHandler: (() => void) | undefined;
+    const processOnceSpy = vi.spyOn(process, "once").mockImplementation((event, listener) => {
+      if (event === "SIGTERM") {
+        sigtermHandler = listener as () => void;
+      }
+      return process;
+    });
+
+    try {
+      const dependencies = {
+        findRepoRoot: vi.fn(async () => "/repo"),
+        rebuildGraphCache: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        createWatcher: vi.fn(async () => ({ ok: true as const, value: { stop: watcherStop } })),
+        setDebounceTimer: setTimeout,
+        clearDebounceTimer: clearTimeout,
+        createKeepAlivePromise: vi.fn(
+          () =>
+            new Promise<Result<never>>((resolve) => {
+              keepAliveResolve = resolve;
+            }),
+        ),
+      };
+
+      const commandPromise = watchCommand({ verbose: false }, dependencies);
+
+      const startedAt = Date.now();
+      while (sigtermHandler === undefined || keepAliveResolve === undefined) {
+        if (Date.now() - startedAt > 1_000) {
+          throw new Error("watchCommand did not finish startup in time");
+        }
+        await Promise.resolve();
+      }
+
+      sigtermHandler();
+
+      expect(watcherStop).toHaveBeenCalledTimes(1);
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+
+      keepAliveResolve({ ok: false, error: "stop test keep-alive", code: ErrorCode.UNKNOWN });
+      await expect(commandPromise).resolves.toEqual({
+        ok: false,
+        error: "stop test keep-alive",
+        code: ErrorCode.UNKNOWN,
+      });
+    } finally {
+      processOnceSpy.mockRestore();
+      processExitSpy.mockRestore();
+    }
+  });
+
   it("watchCommand ignores rename events for unrelated top-level directories", async () => {
     vi.useFakeTimers();
     try {
@@ -643,3 +845,4 @@ describe("watch helpers", () => {
       vi.useRealTimers();
     }
   });
+});

@@ -27,6 +27,14 @@ function writeParserWarning(message: string): void {
   process.stderr.write(`[cache-ctrl] Warning: ${message}\n`);
 }
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error && err.message.trim().length > 0) {
+    return err.message;
+  }
+
+  return String(err);
+}
+
 /**
  * Extract import dependencies and export definitions from a source file.
  * Returns an empty FileSymbols if the file cannot be parsed.
@@ -47,7 +55,8 @@ export async function extractSymbols(filePath: string, repoRoot: string): Promis
     }
 
     return await parseFileSymbols(filePath, downloadResult.value, repoRoot);
-  } catch {
+  } catch (err: unknown) {
+    writeParserWarning(`Unexpected symbol extraction failure: ${errorMessage(err)}`);
     return { deps: [], defs: [] };
   }
 }

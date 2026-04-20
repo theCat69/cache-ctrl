@@ -2,7 +2,7 @@ import { basename } from "node:path";
 import { unlink } from "node:fs/promises";
 import { findRepoRoot, listCacheFiles, writeCache, readCache } from "../cache/cacheManager.js";
 import { isFetchedAtStale } from "../cache/externalCache.js";
-import { resolveLocalCachePath } from "../cache/localCache.js";
+import { resolveLocalCachePath, updateLocalCacheTimestamp } from "../cache/localCache.js";
 import { ExternalCacheFileSchema } from "../types/cache.js";
 import { ErrorCode, type Result } from "../types/result.js";
 import type { PruneArgs, PruneResult } from "../types/commands.js";
@@ -94,15 +94,13 @@ export async function pruneCommand(args: PruneArgs): Promise<Result<PruneResult[
           // File didn't exist — nothing pruned, don't add to matched
         }
       } else {
-        // Only invalidate if the file already exists
-        const readResult = await readCache(localPath);
-        if (!readResult.ok) {
-          if (readResult.code !== ErrorCode.FILE_NOT_FOUND) {
-            return readResult;
-          }
-        } else {
-          const writeResult = await writeCache(localPath, { timestamp: "" });
-          if (!writeResult.ok) return writeResult;
+        const localUpdateResult = await updateLocalCacheTimestamp(repoRoot, "", {
+          missingBehavior: "ignore",
+        });
+        if (!localUpdateResult.ok) {
+          return localUpdateResult;
+        }
+        if (localUpdateResult.value.updated) {
           matched.push({ file: localPath, agent: "local", subject: "local" });
         }
       }

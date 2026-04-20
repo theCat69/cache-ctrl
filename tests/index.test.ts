@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { readFile } from "node:fs/promises";
-import { parseArgs, usageError, printHelp, dispatchResult } from "../src/index.js";
+import { parseArgs, usageError, printHelp, dispatchResult, main } from "../src/index.js";
 import { isRefinementContext, rejectTraversalKeys } from "../src/validation.js";
 
 describe("parseArgs", () => {
@@ -92,6 +94,40 @@ describe("usageError side effects", () => {
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("test message");
     expect(parsed.code).toBe("INVALID_ARGS");
+  });
+});
+
+describe("main --agent validation", () => {
+  let stderrSpy: ReturnType<typeof vi.spyOn>;
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let originalArgv: string[];
+
+  beforeEach(() => {
+    originalArgv = [...process.argv];
+    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    exitSpy = vi.spyOn(process, "exit").mockImplementation((_code?: number | string | null) => {
+      throw new Error("process.exit called");
+    });
+  });
+
+  afterEach(() => {
+    process.argv = originalArgv;
+    stderrSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("returns INVALID_ARGS usage error when list receives bare --agent flag", async () => {
+    process.argv = ["bun", "src/index.ts", "list", "--agent"];
+
+    await expect(main()).rejects.toThrow("process.exit called");
+    expect(exitSpy).toHaveBeenCalledWith(2);
+
+    const written = stderrSpy.mock.calls[0]?.[0];
+    expect(typeof written).toBe("string");
+    const parsed = JSON.parse(String(written)) as { ok: boolean; error: string; code: string };
+    expect(parsed.ok).toBe(false);
+    expect(parsed.code).toBe("INVALID_ARGS");
+    expect(parsed.error).toContain("--agent requires a value");
   });
 });
 
@@ -344,5 +380,64 @@ describe("published CLI wrapper", () => {
 
     expect(packageJson.bin?.["cache-ctrl"]).toBe("bin/cache-ctrl.js");
     expect(packageJson.files).toContain("bin/");
+  });
+});
+
+describe("e2e helper contracts", () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("parseJsonOutput throws when stdout is empty", async () => {
+    const { parseJsonOutput } = await import("../e2e/helpers/cli.ts");
+
+    expect(() => parseJsonOutput("   \n\t ")).toThrowError("parseJsonOutput: stdout was empty");
+  });
+
+  it("parseJsonOutput throws actionable error for malformed JSON", async () => {
+    const { parseJsonOutput } = await import("../e2e/helpers/cli.ts");
+
+    expect(() => parseJsonOutput("{bad-json}")).toThrowError(/parseJsonOutput: invalid JSON from CLI/);
+  });
+
+  it("runCliWithTimeout terminates a hung child and returns timeout exit code", async () => {
+    const spawnMock = vi.fn(() => {
+      const childProcess = new EventEmitter() as EventEmitter & {
+        stdout: PassThrough;
+        stderr: PassThrough;
+        kill: (signal?: NodeJS.Signals) => boolean;
+      };
+      childProcess.stdout = new PassThrough();
+      childProcess.stderr = new PassThrough();
+      childProcess.kill = vi.fn(() => {
+        childProcess.stdout.end();
+        childProcess.stderr.end();
+        childProcess.emit("close", 143);
+        return true;
+      });
+      return childProcess;
+    });
+
+    vi.doMock("node:child_process", () => ({
+      spawn: spawnMock,
+    }));
+
+    vi.useFakeTimers();
+    try {
+      const { runCliWithTimeout } = await import("../e2e/helpers/cli.ts");
+
+      const resultPromise = runCliWithTimeout(["watch", "--verbose"], 50);
+      await vi.advanceTimersByTimeAsync(50);
+      const result = await resultPromise;
+
+      const spawnedChild = spawnMock.mock.results[0]?.value as {
+        kill: ReturnType<typeof vi.fn>;
+      };
+      expect(spawnedChild.kill).toHaveBeenCalledWith("SIGTERM");
+      expect(result.exitCode).toBe(-1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

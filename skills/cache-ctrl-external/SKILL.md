@@ -28,6 +28,39 @@ cache-ctrl write-external <subject> --data '{
 
 Note: `subject` is a positional CLI argument (not a field inside `--data`).
 
+#### Shell JSON escaping (write-external)
+
+Use shell-safe quoting for `--data`:
+
+- **bash / zsh**: wrap JSON in single quotes `'...'`. If JSON includes a literal apostrophe (`'`), prefer file-generated compact JSON; inline fallback is the standard `\''` pattern.
+- **PowerShell (Windows preferred)**: wrap JSON in single quotes `'...'`; if JSON contains a literal `'`, escape as `''`.
+- **cmd.exe (fragile fallback only)**: inline JSON is error-prone. `%VAR%` expands before execution, and `!VAR!` also expands when delayed expansion is enabled. Prefer PowerShell or file-generated JSON on Windows.
+
+Examples:
+
+```bash
+cache-ctrl write-external opencode-skills --data '{"description":"Skill index","fetched_at":"2026-04-05T10:00:00Z","sources":[{"type":"github_api","url":"https://api.github.com/repos/owner/repo/contents/.opencode/skills"}]}'
+```
+
+```zsh
+cache-ctrl write-external opencode-skills --data '{"description":"Skill index","fetched_at":"2026-04-05T10:00:00Z","sources":[{"type":"github_api","url":"https://api.github.com/repos/owner/repo/contents/.opencode/skills"}]}'
+```
+
+```powershell
+cache-ctrl write-external opencode-skills --data '{"description":"Skill index","fetched_at":"2026-04-05T10:00:00Z","sources":[{"type":"github_api","url":"https://api.github.com/repos/owner/repo/contents/.opencode/skills"}]}'
+```
+
+```cmd
+:: Fallback only — fragile with %VAR% / !VAR! expansion
+cache-ctrl write-external opencode-skills --data "{\"description\":\"Skill index\",\"fetched_at\":\"2026-04-05T10:00:00Z\",\"sources\":[{\"type\":\"github_api\",\"url\":\"https://api.github.com/repos/owner/repo/contents/.opencode/skills\"}]}"
+```
+
+For large, multiline, quote-heavy payloads, or apostrophes in JSON text, avoid inline JSON when possible. Prefer generating compact JSON from a file:
+
+- **bash / zsh**: `--data "$(jq -c . payload.json)"`
+- **PowerShell**: `--data ((Get-Content -Raw payload.json) | ConvertFrom-Json | ConvertTo-Json -Compress)`
+- **Windows**: prefer PowerShell conversion above; use cmd.exe only as fallback.
+
 #### ExternalCacheFile schema
 
 | Field | Type | Required | Notes |
