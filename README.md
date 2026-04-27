@@ -120,8 +120,10 @@ Configures OpenCode integration after `npm install -g @thecat69/cache-ctrl`. Doe
 The operation is idempotent — re-running `cache-ctrl install` refreshes the installed skill files.
 
 **OpenCode config directory resolution** (in priority order):
-1. `--config-dir <path>` flag (explicit override; relative paths are resolved to absolute paths)
+1. `--config-dir <path>` flag (explicit override; relative paths are resolved to absolute paths, and the canonical target must remain within the user's home directory)
 2. `~/.config/opencode`
+
+For safety, cache-ctrl validates canonical paths (not string prefixes). When feasible, existing symlinked parent directories are resolved before the check. On Windows, path comparison is case-insensitive and cross-drive config paths are rejected.
 
 **Options:**
 
@@ -144,7 +146,7 @@ The operation is idempotent — re-running `cache-ctrl install` refreshes the in
 }
 ```
 
-**Error codes**: `INVALID_ARGS` if `--config-dir` resolves outside the user's home directory; `FILE_WRITE_ERROR` if a skill file cannot be written.
+**Error codes**: `INVALID_ARGS` if `--config-dir` canonically resolves outside the user's home directory (including rejected Windows cross-drive paths); `FILE_WRITE_ERROR` if a skill file cannot be written.
 
 ---
 
