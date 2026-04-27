@@ -1,6 +1,6 @@
 {
   "name": "@thecat69/cache-ctrl",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "type": "module",
   "bin": {
     "cache-ctrl": "bin/cache-ctrl.js"
