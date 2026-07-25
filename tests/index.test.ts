@@ -43,12 +43,6 @@ describe("parseArgs", () => {
     expect(result.flags).toEqual({ agent: "external", "max-age": "48h" });
   });
 
-  it("parses graph flags with values", () => {
-    const result = parseArgs(["graph", "--max-tokens", "512", "--seed", "src/a.ts,src/b.ts"]);
-    expect(result.args).toEqual(["graph"]);
-    expect(result.flags).toEqual({ "max-tokens": "512", seed: "src/a.ts,src/b.ts" });
-  });
-
   it("parses map depth flag with value", () => {
     const result = parseArgs(["map", "--depth", "full", "--folder", "src/commands"]);
     expect(result.args).toEqual(["map"]);
@@ -129,6 +123,20 @@ describe("main --agent validation", () => {
     expect(parsed.code).toBe("INVALID_ARGS");
     expect(parsed.error).toContain("--agent requires a value");
   });
+
+  it("returns INVALID_ARGS usage error for removed graph command", async () => {
+    process.argv = ["bun", "src/index.ts", "graph"];
+
+    await expect(main()).rejects.toThrow("process.exit called");
+    expect(exitSpy).toHaveBeenCalledWith(2);
+
+    const written = stderrSpy.mock.calls[0]?.[0];
+    expect(typeof written).toBe("string");
+    const parsed = JSON.parse(String(written)) as { ok: boolean; error: string; code: string };
+    expect(parsed.ok).toBe(false);
+    expect(parsed.code).toBe("INVALID_ARGS");
+    expect(parsed.error).toContain('Unknown command: "graph"');
+  });
 });
 
 describe("printHelp", () => {
@@ -175,9 +183,7 @@ describe("printHelp", () => {
       "write-local",
       "write-external",
       "install",
-      "graph",
       "map",
-      "watch",
       "version",
     ];
     for (const cmd of commands) {
@@ -227,7 +233,7 @@ describe("printHelp", () => {
     expect(output).toContain("Usage");
   });
 
-  it.each(["list", "inspect-external", "inspect-local", "flush", "invalidate", "touch", "prune", "check-files", "search", "write-local", "write-external", "install", "graph", "map", "watch", "version"])(
+  it.each(["list", "inspect-external", "inspect-local", "flush", "invalidate", "touch", "prune", "check-files", "search", "write-local", "write-external", "install", "map", "version"])(
     "per-command help for '%s' writes to stdout",
     (cmd) => {
       const ok = printHelp(cmd);
@@ -427,7 +433,7 @@ describe("e2e helper contracts", () => {
     try {
       const { runCliWithTimeout } = await import("../e2e/helpers/cli.ts");
 
-      const resultPromise = runCliWithTimeout(["watch", "--verbose"], 50);
+      const resultPromise = runCliWithTimeout(["list"], 50);
       await vi.advanceTimersByTimeAsync(50);
       const result = await resultPromise;
 

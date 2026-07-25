@@ -110,18 +110,3 @@ export type TrackedFile = z.infer<typeof TrackedFileSchema>;
 export type FileFacts = z.infer<typeof FileFactsSchema>;
 export type ExternalCacheFile = z.infer<typeof ExternalCacheFileSchema>;
 export type LocalCacheFile = z.infer<typeof LocalCacheFileSchema>;
-
-const GraphNodeSchema = z.object({
-  deps: z.array(z.string()),
-  defs: z.array(z.string()),
-});
-
-/**
- * Validates graph cache payloads written by `watch` and consumed by `graph`.
- */
-export const GraphCacheFileSchema = z.object({
-  files: z.record(z.string(), GraphNodeSchema),
-  computed_at: z.string(),
-});
-
-export type GraphCacheFile = z.infer<typeof GraphCacheFileSchema>;

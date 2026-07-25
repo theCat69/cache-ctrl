@@ -8,11 +8,6 @@ export function resolveLocalCachePath(repoRoot: string): string {
   return join(resolveCacheDir("local", repoRoot), "context.json");
 }
 
-/** Resolves the local dependency graph cache file path (`graph.json`). */
-export function resolveGraphCachePath(repoRoot: string): string {
-  return join(resolveCacheDir("local", repoRoot), "graph.json");
-}
-
 type LocalCacheMissingBehavior = "ignore" | "file-not-found" | "no-match";
 
 interface UpdateLocalTimestampOptions {

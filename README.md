@@ -51,30 +51,23 @@ Command Layer
        touch, prune,
        checkFiles, search, writeLocal,
        writeExternal, install,
-       graph, map, watch, version}.ts
+       map, version}.ts
                  │
            Core Services
     cacheManager  ← read/write + advisory lock
     externalCache ← external staleness logic
     localCache    ← local scan path logic
-    graphCache    ← graph.json read/write path
     platform/xdg  ← XDG cache dir resolver
-    http/parserDownloader ← on-demand WASM parser download + atomic cache
     changeDetector   ← mtime/hash comparison
    keywordSearch    ← scoring engine
-   analysis/symbolExtractor ← Tree-sitter symbol extraction (multi-language)
-   analysis/treeSitterEngine ← web-tree-sitter WASM parser runtime
-   analysis/graphBuilder    ← dependency graph construction
-   analysis/pageRank        ← Personalized PageRank ranking
-                 │
+                  │
        Cache Directories (on disk)
    .ai/external-context-gatherer_cache/
      ├── <subject>.json
      └── <subject>.json.lock  (advisory)
    .ai/local-context-gatherer_cache/
-     ├── context.json
-     ├── context.json.lock    (advisory)
-     └── graph.json           (dependency graph; written by watch daemon)
+      ├── context.json
+      └── context.json.lock    (advisory)
 ```
 
 **Key design decisions:**
@@ -474,54 +467,6 @@ cache-ctrl write-local --data "{\"topic\":\"src scan\",\"description\":\"Local s
 
 ---
 
-### `graph`
-
-```
-cache-ctrl graph [--max-tokens <number>] [--seed <path>[,<path>...]] [--pretty]
-```
-
-Returns a PageRank-ranked dependency graph within a token budget. Reads from `graph.json` computed by the `watch` daemon. Files are ranked by their centrality in the import graph; use `--seed` to personalize the ranking toward specific files (e.g. recently changed files).
-
-Graph analysis is multi-language via Tree-sitter parsers: TypeScript, JavaScript, Python, Rust, Go, Java, C, and C++. Dependency extraction is intentionally file-local/relative-path focused (e.g., relative imports/includes); package/module registry resolution is out of scope.
-
-On first use, parser WASM files are downloaded and cached at `~/.cache/cache-ctrl/parsers/` (respects `$XDG_CACHE_HOME`).
-
-**Options:**
-
-| Flag | Description |
-|---|---|
-| `--max-tokens <number>` | Token budget for `ranked_files` output (default: 1024, clamped 64–128000) |
-| `--seed <path>[,<path>...]` | Personalize PageRank toward these file paths (repeat `--seed` for multiple values) |
-
-Returns `FILE_NOT_FOUND` if `graph.json` does not exist — run `cache-ctrl watch` to generate it.
-
-```jsonc
-// cache-ctrl graph --max-tokens 512 --pretty
-{
-  "ok": true,
-  "value": {
-    "ranked_files": [
-      {
-        "path": "src/cache/cacheManager.ts",
-        "rank": 0.142,
-        "deps": ["src/validation.ts"],
-        "defs": ["readCache", "writeCache", "findRepoRoot"],
-        "ref_count": 12
-      }
-    ],
-    "total_files": 36,
-    "computed_at": "2026-04-11T10:00:00Z",
-    "token_estimate": 487,
-    "entries_skipped": 5 // present only when token budget truncated output
-  },
-  "serverTime": "2026-04-15T12:00:00.000Z"
-}
-```
-
-`entries_skipped` is present (and non-zero) when the token budget truncated the ranked list; absent when all files fit within the budget.
-
----
-
 ### `map`
 
 ```
@@ -557,8 +502,8 @@ Returns `PAYLOAD_TOO_LARGE` if the serialized output exceeds **20 000 UTF-8 byte
     "global_facts": ["TypeScript CLI, Bun runtime"],
     "files": [
       {
-        "path": "src/commands/graph.ts",
-        "summary": "Reads graph.json and returns PageRank-ranked file list",
+        "path": "src/commands/map.ts",
+        "summary": "Reads context.json and returns a filtered semantic map",
         "role": "implementation",
         "importance": 2
       }
@@ -569,36 +514,6 @@ Returns `PAYLOAD_TOO_LARGE` if the serialized output exceeds **20 000 UTF-8 byte
   "serverTime": "2026-04-15T12:00:00.000Z"
 }
 ```
-
----
-
-### `watch`
-
-```
-cache-ctrl watch [--verbose]
-```
-
-Long-running daemon that watches the repo for source file changes and incrementally rebuilds `graph.json`. The analysis engine supports multiple languages via Tree-sitter parsers (TypeScript, JavaScript, Python, Rust, Go, Java, C, C++). On startup it performs an initial full graph build. Subsequent file changes trigger a debounced rebuild (200 ms). Rebuilds are serialized — concurrent changes are queued. Watch filtering now covers all supported parser-backed source extensions: `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.py`, `.rs`, `.go`, `.java`, `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`.
-
-Writes to `.ai/local-context-gatherer_cache/graph.json`. The graph is then available to `cache-ctrl graph` and `cache_ctrl_graph`.
-
-**Options:**
-
-| Flag | Description |
-|---|---|
-| `--verbose` | Log watcher lifecycle events and rebuild completion to stdout |
-
-The process runs until `SIGINT` or `SIGTERM`, which trigger a clean shutdown. Exit code `1` on startup failure (e.g., `Bun.watch` unavailable or graph write error).
-
-```sh
-# Start the daemon in the background
-cache-ctrl watch &
-
-# Or run it in a dedicated terminal with verbose output
-cache-ctrl watch --verbose
-```
-
----
 
 ### `version`
 
@@ -677,7 +592,7 @@ If a local-context-gatherer run reads any changed/new files, it must call `cache
   "description": "Scan of cache-ctrl TypeScript source",
   "cache_miss_reason": "files changed",  // optional: why the previous cache was discarded
   "tracked_files": [
-    { "path": "src/commands/graph.ts", "mtime": 1743768000000, "hash": "sha256hex..." }
+    { "path": "src/commands/map.ts", "mtime": 1743768000000, "hash": "sha256hex..." }
     // mtime is auto-populated by the write command; agents only need to supply path (and optionally hash)
   ],
   "global_facts": [                       // optional: repo-level facts; last-write-wins; max 20 entries, each ≤ 300 chars
@@ -685,38 +600,21 @@ If a local-context-gatherer run reads any changed/new files, it must call `cache
     "All errors use Result<T,E> — no thrown exceptions across command boundaries"
   ],
   "facts": {                              // optional: per-file structured FileFacts; per-path merge
-    "src/commands/graph.ts": {
-      "summary": "Reads graph.json and returns PageRank-ranked file list within a token budget",
+    "src/commands/map.ts": {
+      "summary": "Reads context.json and returns a semantic map view",
       "role": "implementation",           // one of: entry-point | interface | implementation | test | config
       "importance": 2,                    // 1 = critical, 2 = important, 3 = peripheral
       "facts": [                          // max 10 entries, each ≤ 300 chars
-        "Uses computePageRank with optional seed files for personalized ranking",
-        "Token budget clamped to 64–128000; defaults to 1024"
+        "Supports overview, modules, and full output depths",
+        "Rejects oversized responses over 20 000 UTF-8 bytes"
       ]
     }
     // FileFacts entries for files deleted from disk are evicted automatically on the next write
   },
   "modules": {                            // optional: logical groupings of file paths
-    "commands": ["src/commands/graph.ts", "src/commands/map.ts"]
+    "commands": ["src/commands/map.ts", "src/commands/list.ts"]
   }
   // Any additional agent fields are preserved unchanged
-}
-```
-
-### Graph: `.ai/local-context-gatherer_cache/graph.json`
-
-Written and maintained by the `watch` daemon. Read by `cache-ctrl graph` and `cache_ctrl_graph`. Agents do not write this file directly.
-
-```jsonc
-{
-  "computed_at": "2026-04-11T10:00:00Z",
-  "files": {
-    "src/cache/cacheManager.ts": {
-      "rank": 0.0,          // stored as 0.0; PageRank is recomputed on every graph command call
-      "deps": ["src/validation.ts", "src/types/result.ts"],
-      "defs": ["readCache", "writeCache", "findRepoRoot"]
-    }
-  }
 }
 ```
 
@@ -737,7 +635,7 @@ Written and maintained by the `watch` daemon. Read by `cache-ctrl graph` and `ca
 | `VALIDATION_ERROR` | Schema validation failed (e.g., missing required field or type mismatch in `write`) |
 | `NO_MATCH` | No cache file matched the keyword |
 | `AMBIGUOUS_MATCH` | Multiple files with identical top score |
-| `PAYLOAD_TOO_LARGE` | `inspect-local` unfiltered response exceeds 20 000 bytes or 500 entries; `map` output exceeds 20 000 bytes. Use `--filter`, `--folder`, or `--search-facts`, or navigate with `map`/`graph` first. |
+| `PAYLOAD_TOO_LARGE` | `inspect-local` unfiltered response exceeds 20 000 bytes or 500 entries; `map` output exceeds 20 000 bytes. Use `--filter`, `--folder`, `--search-facts`, or narrower `map` output. |
 | `UNKNOWN` | Unexpected internal/runtime error (including unexpected HTTP client failures) |
 
 ---

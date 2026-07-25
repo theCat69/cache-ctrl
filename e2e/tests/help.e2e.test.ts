@@ -26,9 +26,7 @@ const ALL_COMMANDS = [
   "write-local",
   "write-external",
   "install",
-  "graph",
   "map",
-  "watch",
   "version",
 ] as const;
 
@@ -67,6 +65,16 @@ describe("help", () => {
     const result = await runCli(["help", "unknown-cmd"], { cwd: repo.dir });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("Unknown command");
+  });
+
+  it("removed graph command exits 2 with INVALID_ARGS", async () => {
+    const result = await runCli(["graph"], { cwd: repo.dir });
+    expect(result.exitCode).toBe(2);
+
+    const errorOutput = JSON.parse(result.stderr) as { ok: boolean; code: string; error: string };
+    expect(errorOutput.ok).toBe(false);
+    expect(errorOutput.code).toBe("INVALID_ARGS");
+    expect(errorOutput.error).toContain('Unknown command: "graph"');
   });
 
   it("no args exits 2 with INVALID_ARGS", async () => {
