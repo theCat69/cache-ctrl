@@ -135,7 +135,7 @@ export function parseJsonOutput<T = unknown>(raw: string): T {
  * Kills the process after `timeoutMs` if it has not already exited.
  * exitCode is -1 when the process was killed by the timeout.
  *
- * Useful for testing daemon commands (e.g. `watch`) that never exit on their own.
+ * Useful for testing commands that may hang or need forced termination.
  *
  * @param args - CLI arguments to pass after the entrypoint.
  * @param timeoutMs - Milliseconds to wait before killing the process.

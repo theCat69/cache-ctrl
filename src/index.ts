@@ -11,9 +11,7 @@ import { searchCommand } from "./commands/search.js";
 import { writeLocalCommand } from "./commands/writeLocal.js";
 import { writeExternalCommand } from "./commands/writeExternal.js";
 import { installCommand } from "./commands/install.js";
-import { graphCommand } from "./commands/graph.js";
 import { mapCommand } from "./commands/map.js";
-import { watchCommand } from "./commands/watch.js";
 import { versionCommand } from "./commands/version.js";
 import type { CacheError } from "./types/result.js";
 import { WriteExternalInputSchema, WriteLocalInputSchema, type AgentType } from "./types/cache.js";
@@ -196,21 +194,6 @@ const COMMAND_REGISTRY = {
       "  Output: JSON object describing installed skill paths.",
     ].join("\n"),
   },
-  graph: {
-    usage: "graph [--max-tokens <number>] [--seed <path>[,<path>...]]",
-    description: "Return a PageRank-ranked dependency graph under a token budget",
-    details: [
-      "  Arguments:",
-      "    (none)",
-      "",
-      "  Options:",
-      "    --max-tokens <number>        Token budget for ranked_files output (default: 1024)",
-      "    --seed <path>[,<path>...]    Personalize rank toward specific file path(s)",
-      "                                 (repeat --seed to provide multiple values)",
-      "",
-      "  Output: Ranked files with deps, defs, and ref_count from graph.json.",
-    ].join("\n"),
-  },
   map: {
     usage: "map [--depth overview|modules|full] [--folder <path-prefix>]",
     description: "Return a semantic map of local context.json",
@@ -223,19 +206,6 @@ const COMMAND_REGISTRY = {
       "    --folder <path-prefix>          Restrict map to files whose path starts with prefix",
       "",
       "  Output: JSON object with global_facts, files, optional modules, and total_files.",
-    ].join("\n"),
-  },
-  watch: {
-    usage: "watch [--verbose]",
-    description: "Watch for file changes and recompute the dependency graph",
-    details: [
-      "  Arguments:",
-      "    (none)",
-      "",
-      "  Options:",
-      "    --verbose   Log watcher lifecycle and rebuild events",
-      "",
-      "  Output: Long-running daemon process that updates graph.json on source changes.",
     ].join("\n"),
   },
   version: {
@@ -389,27 +359,8 @@ const VALUE_FLAGS = new Set([
   "folder",
   "search-facts",
   "config-dir",
-  "max-tokens",
-  "seed",
   "depth",
 ]);
-
-function collectFlagValues(argv: string[], flagName: string): string[] {
-  const values: string[] = [];
-
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] !== `--${flagName}`) {
-      continue;
-    }
-    const next = argv[i + 1];
-    if (next !== undefined) {
-      values.push(next);
-      i += 1;
-    }
-  }
-
-  return values;
-}
 
 /**
  * Parses raw CLI argv tokens into positional args and flag key/value pairs.
@@ -681,36 +632,6 @@ export async function main(): Promise<void> {
       break;
     }
 
-    case "graph": {
-      if (flags["max-tokens"] === true) {
-        usageError("--max-tokens requires a numeric value");
-      }
-      const maxTokensRaw = typeof flags["max-tokens"] === "string" ? flags["max-tokens"] : undefined;
-      let maxTokensParsed: number | undefined;
-      if (maxTokensRaw !== undefined) {
-        const parsed = Number(maxTokensRaw);
-        if (!Number.isFinite(parsed) || parsed < 0) {
-          usageError(`Invalid --max-tokens value: "${maxTokensRaw}". Must be a non-negative number`);
-        }
-        maxTokensParsed = parsed;
-      }
-      if (flags.seed === true) {
-        usageError("--seed requires a value: --seed <path>[,<path>...]");
-      }
-      const seedFlagValues = collectFlagValues(rawArgs, "seed");
-      const seed = seedFlagValues
-        .flatMap((value) => value.split(","))
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0);
-
-      const result = await graphCommand({
-        ...(maxTokensParsed !== undefined ? { maxTokens: maxTokensParsed } : {}),
-        ...(seed.length > 0 ? { seed } : {}),
-      });
-      dispatchResult(result, pretty);
-      break;
-    }
-
     case "map": {
       if (flags.depth === true) {
         usageError("--depth requires a value: --depth overview|modules|full");
@@ -729,23 +650,6 @@ export async function main(): Promise<void> {
         ...(folder !== undefined ? { folder } : {}),
       });
       dispatchResult(result, pretty);
-      break;
-    }
-
-    case "watch": {
-      const unsupportedWatchFlag = Object.keys(flags).find(
-        (flag) => flag !== "verbose" && flag !== "pretty" && flag !== "help",
-      );
-      if (unsupportedWatchFlag !== undefined) {
-        const safeFlag = unsupportedWatchFlag.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
-        usageError(`Unknown flag for watch: "--${safeFlag}"`);
-      }
-
-      const result = await watchCommand({ verbose: flags.verbose === true });
-      if (!result.ok) {
-        printError(result, pretty);
-        process.exit(1);
-      }
       break;
     }
 

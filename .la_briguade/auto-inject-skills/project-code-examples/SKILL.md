@@ -19,11 +19,6 @@ All example files live in `.code-examples-for-ai/` at the repo root. Each file d
 | `error-handling.md` | Canonical catch-all conversion in command handlers via `toUnknownResult(err)` | `src/errors.ts`, `src/commands/list.ts`, `src/commands/writeLocal.ts` |
 | `change-detector.md` | Async file comparison — `Promise.all` parallelism, mtime/hash fallback, path traversal guard | `src/files/changeDetector.ts` |
 | `subject-validation.md` | Subject string validation — regex + max-length guard that becomes a file path component | `src/validation.ts` |
-| `personalized-pagerank.md` | Personalized PageRank ranking over dependency graphs with dangling-node redistribution | `src/analysis/pageRank.ts` |
-| `watch-daemon-command.md` | Long-running Bun watcher command with debounce, serialized rebuilds, and signal shutdown | `src/commands/watch.ts` |
-| `wasm-parser-download.md` | On-demand WASM parser download: manifest-driven URL resolution, promise coalescing, redirect allowlist, symlink-safe cache check, WASM magic-byte validation, atomic rename | `src/http/parserDownloader.ts` |
-| `supported-languages-manifest.md` | Shared language manifest driving extension detection, watch filtering, and parser URL resolution | `src/analysis/supportedLanguages.ts`, `src/commands/watch.ts`, `src/http/parserDownloader.ts` |
-| `e2e-test-pattern.md` | E2E test structure for daemon commands — `runCliWithTimeout` vs `runCli`, `exitCode: -1` convention | `e2e/tests/watch.e2e.test.ts`, `e2e/helpers/cli.ts` |
 
 ---
 
@@ -50,5 +45,3 @@ After adding a new example file, add a row to the index table in this SKILL.md.
 - Advisory file locking (`acquireLock` / `releaseLock`) — `src/cache/cacheManager.ts`
 - Atomic write via temp file + rename — `src/cache/cacheManager.ts`
 - Keyword scoring / search ranking — `src/search/keywordSearch.ts`
-- HTTP HEAD freshness check — `src/http/`
-- E2E test structure with Docker — covered by `e2e-test-pattern.md`

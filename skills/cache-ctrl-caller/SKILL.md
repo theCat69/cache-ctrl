@@ -11,11 +11,11 @@ This skill defines how orchestrators and agents should use cache state to decide
 
 | `check_files` result | Action |
 |---|---|
-| `status: "changed"` | Call `local-context-gatherer` for delta scan. Pass `changed_files` and `new_files` lists in the prompt. Any invocation that reads those files must write updated facts with `cache-ctrl write-local --data '<json>'` before returning — do not wait for an explicit user request to write. |
+| cache has relevant content regardless of status | Run `cache-ctrl inspect-local --filter <kw>` (or `--folder` / `--search-facts`). Do NOT call gatherer. |
+| `status: "changed"` AND cache does not has relevant content | Call `local-context-gatherer` for delta scan. Pass `changed_files` and `new_files` lists in the prompt. Any invocation that reads those files must write updated facts with `cache-ctrl write-local --data '<json>'` before returning — do not wait for an explicit user request to write. |
 | `cache-ctrl check-files` fails | Treat as stale. Call `local-context-gatherer`. |
-| `status: "unchanged"` AND cache has relevant content | Run `cache-ctrl inspect-local --filter <kw>` (or `--folder` / `--search-facts`). Do NOT call gatherer. |
-| `status: "unchanged"` AND cache is empty or irrelevant | **Navigate first** — use `cache-ctrl map` + `cache-ctrl graph` + filenames (see below). Call `local-context-gatherer` only if navigation tools are insufficient. |
-| No cache yet (cold start) | Try `cache-ctrl map` / `cache-ctrl graph`; if empty or insufficient, call one or multiple `local-context-gatherer` for initial scan. |
+| `status: "unchanged"` AND cache is empty or irrelevant | **Navigate first** — use `cache-ctrl map` + filenames (see below). Call `local-context-gatherer` only if navigation tools are insufficient. |
+| No cache yet (cold start) | Try `cache-ctrl map`; if empty or insufficient, call one or multiple `local-context-gatherer` for initial scan. |
 
 Note: check-files returns `new_files` (non-gitignored files absent from cache) and `deleted_git_files` (git-tracked files removed from working tree). If either is non-empty, `status` is `"changed"`.
 
@@ -32,11 +32,10 @@ cache-ctrl invalidate local
 When `check_files` returns `status: "unchanged"` but the cache lacks the relevant facts, **prefer self-service navigation over spawning a gatherer**. Follow this sequence:
 
 1. Run `cache-ctrl map --depth overview` (or `modules`) to get a structural picture of the codebase.
-2. Run `cache-ctrl graph` (optionally with `--seed <path>`) to understand file dependencies and centrality.
-3. From the map and graph output, identify files relevant to the task by name and path.
-4. Run `cache-ctrl inspect-local` with targeted `--filter` or `--folder` to fetch per-file facts.
+2. From the map output, identify files relevant to the task by name and path.
+3. Run `cache-ctrl inspect-local` with targeted `--filter` or `--folder` to fetch per-file facts.
 
-**Only call `local-context-gatherer`** if, after the above steps, you still cannot locate the relevant context — for example when the map and graph are both empty, or when the task requires cross-cutting semantic facts not surfaced by filenames alone.
+**Only call `local-context-gatherer`** if, after the above steps, you still cannot locate the relevant context — for example when the map is empty, or when the task requires cross-cutting semantic facts not surfaced by filenames alone.
 
 ## External Context
 
@@ -67,13 +66,6 @@ These are the **primary self-service commands** for codebase orientation. Use th
 - **When to use:** When you need repo orientation, don't know where to look, or need a global picture before going deeper.
 - **Params:** `--depth` (`overview` default = ~300 tokens, `modules` adds groupings, `full` includes per-file facts); `--folder` (optional path prefix to scope output).
 
-### `cache-ctrl graph`
-
-- **Purpose:** Structural dependency graph with PageRank-ranked files by centrality.
-- **When to use:** When you need to understand relationships between files — which files are most connected, what depends on what.
-- **Params:** `--max-tokens` (default 1024); `--seed` (optional `string[]` of file paths to personalize ranking toward).
-- **Requirement:** `cache-ctrl watch` must have run recently to populate `graph.json`.
-
 ## Inspect Targeting (For `cache-ctrl inspect-local`)
 
 > For `cache-ctrl inspect-local`, always use at least one filter to avoid loading the full facts map. Omitting all three filters returns the full facts map and adds a `warning` field to the response — this may exceed token limits for large codebases.
@@ -98,6 +90,5 @@ These are the **primary self-service commands** for codebase orientation. Use th
 | Read facts (filtered) | `cache-ctrl inspect-local --filter <kw>` |
 | Read external entry | `cache-ctrl inspect-external <subject>` |
 | Codebase map | `cache-ctrl map [--depth overview\|modules\|full] [--folder <path>]` |
-| Dependency graph | `cache-ctrl graph [--max-tokens <n>] [--seed <path>]` |
 | Invalidate local | `cache-ctrl invalidate local` |
 | Invalidate external | `cache-ctrl invalidate external <subject-kw>` |

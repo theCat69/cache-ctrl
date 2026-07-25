@@ -191,38 +191,6 @@ export type WriteResult = {
   };
 };
 
-// ── graph ─────────────────────────────────────────────────────────────────────
-
-/** Arguments accepted by the `graph` command. */
-export interface GraphArgs {
-  maxTokens?: number;
-  seed?: string[];
-}
-
-// ── watch ─────────────────────────────────────────────────────────────────────
-
-/** Arguments accepted by the `watch` command. */
-export interface WatchArgs {
-  verbose?: boolean;
-}
-
-/** Success payload shape returned by the `graph` command. */
-export interface GraphResult {
-  value: {
-    ranked_files: Array<{
-      path: string;
-      rank: number;
-      deps: string[];
-      defs: string[];
-      ref_count: number;
-    }>;
-    total_files: number;
-    computed_at: string;
-    token_estimate: number;
-    entries_skipped?: number;
-  };
-}
-
 // ── map ───────────────────────────────────────────────────────────────────────
 
 /** Output depth levels supported by the `map` command. */

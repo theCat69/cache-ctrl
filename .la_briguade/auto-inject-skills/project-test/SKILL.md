@@ -50,10 +50,10 @@ e2e/fixtures/                     # E2E fixture data
 | Helper | Use when |
 |---|---|
 | `runCli(args, options?)` | Command exits quickly (happy path, error path) |
-| `runCliWithTimeout(args, timeoutMs, options?)` | Daemon command that never exits on its own (e.g. `watch`) |
+| `runCliWithTimeout(args, timeoutMs, options?)` | A command may hang or needs forced termination |
 | `parseJsonOutput<T>(raw)` | Parse CLI stdout as JSON inside a test |
 
-`runCliWithTimeout` kills the process after `timeoutMs` ms and returns `exitCode: -1` to signal the timeout fired. In daemon tests, `exitCode: -1` is the *success* signal — it means the process was still running after the initialization window. See `.code-examples-for-ai/e2e-test-pattern.md` for a complete example.
+`runCliWithTimeout` kills the process after `timeoutMs` ms and returns `exitCode: -1` to signal the timeout fired.
 
 ---
 

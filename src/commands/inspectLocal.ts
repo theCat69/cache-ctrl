@@ -91,8 +91,8 @@ export async function inspectLocalCommand(args: InspectLocalArgs): Promise<Resul
           ok: false,
           error:
             `The unfiltered facts map contains more than ${KEY_COUNT_LIMIT} entries. ` +
-            `Use the filter, folder, or search_facts parameter to narrow the query, ` +
-            `or use the map or graph tools to navigate the codebase first.`,
+             `Use the filter, folder, or search_facts parameter to narrow the query, ` +
+             `or use the map tool to navigate the codebase first.`,
           code: ErrorCode.PAYLOAD_TOO_LARGE,
         };
       }
@@ -104,8 +104,8 @@ export async function inspectLocalCommand(args: InspectLocalArgs): Promise<Resul
           ok: false,
           error:
             `The unfiltered facts map is too large (${serializedBytes} bytes, limit ${INSPECT_LOCAL_MAX_FACTS_BYTES} bytes ≈ 5 000 tokens). ` +
-            `Use the filter, folder, or search_facts parameter to narrow the query, ` +
-            `or use the map or graph tools to navigate the codebase first.`,
+             `Use the filter, folder, or search_facts parameter to narrow the query, ` +
+             `or use the map tool to navigate the codebase first.`,
           code: ErrorCode.PAYLOAD_TOO_LARGE,
         };
       }

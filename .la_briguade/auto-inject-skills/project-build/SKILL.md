@@ -42,7 +42,7 @@ There is **no explicit build step**. Bun runs TypeScript files directly via the 
 
 ```bash
 # Run the CLI directly
-bun run cache_ctrl.ts <command> [args]
+bun run src/index.ts <command> [args]
 
 # Or via the installed binary (after install.sh)
 cache-ctrl <command> [args]
@@ -54,7 +54,7 @@ cache-ctrl <command> [args]
 bunx tsc --noEmit
 ```
 
-This validates the entire codebase (`src/`, `cache_ctrl.ts`, `tests/`, `e2e/`) with full strict settings. Treat type-check failures as build failures.
+This validates the entire codebase (`src/`, `tests/`, `e2e/`) with full strict settings. Treat type-check failures as build failures.
 
 ### Installation
 
@@ -71,7 +71,7 @@ cache-ctrl install          # configures OpenCode integration
 bash install.sh
 ```
 
-`install.sh` creates symlinks for local development only. For end-user distribution, use `npm install -g @thecat69/cache-ctrl`. `cache-ctrl install` writes the OpenCode tool wrapper and copies skill files into the OpenCode config directory.
+`install.sh` creates symlinks for local development only. For end-user distribution, use `npm install -g @thecat69/cache-ctrl`. `cache-ctrl install` copies skill files into the OpenCode config directory.
 
 ---
 
@@ -81,14 +81,9 @@ This is a CLI tool — there is no dev server. For interactive development:
 
 ```bash
 # Run any command directly
-bun run cache_ctrl.ts list
-bun run cache_ctrl.ts check-files
-bun run cache_ctrl.ts inspect-external vitest
-
-# Start the watch daemon (long-running; builds and maintains graph.json)
-cache-ctrl watch --verbose
-# Or run directly from source:
-bun run src/index.ts watch --verbose
+bun run src/index.ts list
+bun run src/index.ts check-files
+bun run src/index.ts inspect-external vitest
 
 # Watch-mode type checking (if needed)
 bunx tsc --noEmit --watch
